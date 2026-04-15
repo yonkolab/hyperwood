@@ -25,6 +25,18 @@ The system SHALL support user registration, email verification, and account acti
 - **THEN** the system rejects the request
 - **AND** the system returns an account verification requirement
 
+### Requirement: Identity can link to an existing user
+The system MUST support linking new authentication credentials to an existing Hyperwood user record without creating a duplicate user.
+
+#### Scenario: Password identity is linked to an existing user
+- **WHEN** an authorized flow links a password-based identity to an existing user record
+- **THEN** the system creates a new identity record associated with that user
+- **AND** the system preserves the original user identifier and account history
+
+#### Scenario: Duplicate user creation is prevented during linking
+- **WHEN** an identity-linking flow resolves to an existing Hyperwood user
+- **THEN** the system links the credential to that user instead of creating a second user record
+
 ### Requirement: Strong authenticated access
 The system MUST provide session-based authentication for interactive clients and support MFA for sensitive account access.
 
