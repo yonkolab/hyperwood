@@ -9,6 +9,7 @@ Hyperwood is a new prediction market API project with a large PRD but no existin
 - Split requirements into stable capability boundaries that align with likely service and module seams.
 - Preserve the PRD's core priorities: correctness, auditability, deterministic trading behavior, and compliance-aware funding flows.
 - Make future changes incremental by giving each concern its own spec folder.
+- Make kickoff planning explicit by confirming the first core requirement with the user before implementation starts.
 
 **Non-Goals:**
 - Finalize endpoint-by-endpoint API contracts.
@@ -47,9 +48,24 @@ Order entry behavior and matching engine internals change at different rates. Th
 Alternatives considered:
 - Merge them into one trading spec: rejected because it couples API semantics to engine evolution.
 
+### Decision: Start implementation from a confirmed core requirement
+
+When work starts, Hyperwood should not assume that every baseline capability is equally refined. The implementation kickoff should explicitly confirm the first core requirement with the user, and identity and access should be treated as the default day-1 checkpoint because it gates production trading and privileged API access.
+
+Alternatives considered:
+- Start coding from the roadmap alone: rejected because some baseline capabilities are intentionally broad and need confirmation before implementation.
+
+### Decision: Allow large capabilities to split into deeper sub-specs
+
+Some baseline capabilities, especially identity, funding, compliance, and settlement, may grow too large for a single spec file. Those capabilities should be decomposed into follow-up change specs or deeper sub-specs before implementation if the current boundary becomes too coarse.
+
+Alternatives considered:
+- Keep every concern in one top-level capability spec: rejected because it would create oversized specs that are hard to refine and implement safely.
+
 ## Risks / Trade-offs
 
 - Capability boundaries may need refinement as the codebase emerges -> Future delta changes can split or merge capabilities once implementation ownership is clearer.
+- Some capabilities may become too large for one spec -> Break them into more detailed follow-up specs before implementation begins on that area.
 - Some PRD areas intentionally remain high level -> Follow-up specs should refine API contracts, schemas, and provider workflows once open decisions are resolved.
 - Duplicating the baseline into both a change and main specs introduces short-term duplication -> This is acceptable to establish a usable `openspec/specs/` baseline immediately.
 
@@ -66,3 +82,4 @@ Alternatives considered:
 - Which funding rails are mandatory for v1 versus optional by region?
 - Will API trading be first-class at launch or phased in after the initial retail workflow?
 - What dispute process and reviewer roles will govern market resolution in production?
+- Which core requirement should be refined first at implementation kickoff after identity and access is confirmed?

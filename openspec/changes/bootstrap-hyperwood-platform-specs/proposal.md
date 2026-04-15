@@ -8,6 +8,7 @@ Hyperwood has a detailed root PRD but no OpenSpec artifacts yet, which makes the
 - Define core product capabilities for identity, compliance, funding, markets, trading, settlement, realtime distribution, administration, and platform controls.
 - Capture the recommended architecture, non-goals, and phased implementation path in OpenSpec-friendly form.
 - Establish a maintainable spec split so future changes can modify individual capabilities instead of editing one large PRD.
+- Mark identity and access as a day-1 core requirement and record that large capabilities may need follow-up sub-specs before implementation.
 
 ## Capabilities
 
@@ -33,3 +34,4 @@ Hyperwood has a detailed root PRD but no OpenSpec artifacts yet, which makes the
 - Adds initial OpenSpec artifacts under `openspec/changes/bootstrap-hyperwood-platform-specs/`.
 - Seeds project-level baseline specs under `openspec/specs/` for future delta changes.
 - Turns the root PRD into actionable capability boundaries for the Hyperwood prediction market API.
+- Establishes a kickoff expectation that core requirements are confirmed with the user before implementation starts.

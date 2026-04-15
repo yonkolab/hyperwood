@@ -1,5 +1,13 @@
 ## ADDED Requirements
 
+### Requirement: Day-1 access hardening
+The system MUST enforce strong identity verification and access control before any production trading or privileged API capability is made available on Hyperwood.
+
+#### Scenario: Production trading is gated by verified access controls
+- **WHEN** Hyperwood prepares a day-1 production release for trading users or API clients
+- **THEN** the system exposes those capabilities only to accounts that satisfy the required verification and authentication controls
+- **AND** unauthenticated, unverified, or non-compliant access remains blocked
+
 ### Requirement: User account onboarding
 The system SHALL support user registration, email verification, and account activation workflows for Hyperwood users before they access trading functions.
 
