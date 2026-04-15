@@ -1,6 +1,6 @@
 import Fastify from "fastify";
-import { env } from "./config/env.js";
-import { registerIdentityRoutes } from "./modules/identity/routes.js";
+import { env } from "./config/env";
+import { registerIdentityRoutes } from "./modules/identity/routes";
 
 export async function buildApp() {
   const app = Fastify({
@@ -37,4 +37,3 @@ export async function buildApp() {
 
   return app;
 }
-

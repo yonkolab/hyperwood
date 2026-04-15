@@ -1,9 +1,9 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { db } from "../../db/client.js";
-import { apiKeys, userIdentities, userSessions, users } from "../../db/schema/index.js";
-import { env } from "../../config/env.js";
-import { createOpaqueToken, hashPassword, normalizeEmail, sha256Hex, verifyPassword } from "../../lib/crypto.js";
-import { AppError } from "../../lib/errors.js";
+import { db } from "../../db/client";
+import { apiKeys, userIdentities, userSessions, users } from "../../db/schema";
+import { env } from "../../config/env";
+import { createOpaqueToken, hashPassword, normalizeEmail, sha256Hex, verifyPassword } from "../../lib/crypto";
+import { AppError } from "../../lib/errors";
 
 type RegisterInput = {
   email: string;
@@ -217,4 +217,3 @@ export class IdentityService {
     throw error;
   }
 }
-

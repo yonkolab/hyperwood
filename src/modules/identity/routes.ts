@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyPluginOptions, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import { z } from "zod";
-import { env } from "../../config/env.js";
-import { AppError } from "../../lib/errors.js";
-import { IdentityService } from "./service.js";
+import { env } from "../../config/env";
+import { AppError } from "../../lib/errors";
+import { IdentityService } from "./service";
 
 const registerBodySchema = z.object({
   email: z.string().email(),
