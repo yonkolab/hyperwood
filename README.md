@@ -53,6 +53,8 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/auth/me`
 - `POST /api/v1/auth/api-keys`
 - `GET /api/v1/auth/api-keys`
+- `GET /api/v1/auth/api-key/me`
+- `GET /api/v1/auth/api-key/hmac/me`
 - `DELETE /api/v1/auth/api-keys/:apiKeyId`
 - `POST /api/v1/auth/mfa/totp/setup`
 - `POST /api/v1/auth/mfa/totp/confirm`

@@ -58,6 +58,50 @@ function getSessionTokenFromRequest(request: FastifyRequest) {
   return header.slice("Bearer ".length);
 }
 
+function getApiKeyFromRequest(request: FastifyRequest) {
+  const headerApiKey = request.headers["x-api-key"];
+
+  if (typeof headerApiKey === "string" && headerApiKey.length > 0) {
+    return headerApiKey;
+  }
+
+  const authorization = request.headers.authorization;
+
+  if (authorization?.startsWith("Bearer ")) {
+    const token = authorization.slice("Bearer ".length);
+
+    if (token.startsWith("hw_")) {
+      return token;
+    }
+  }
+
+  throw new AppError(401, "missing_api_key", "missing api key");
+}
+
+function getApiHmacHeaders(request: FastifyRequest) {
+  const keyPrefix = request.headers["x-api-key"];
+  const timestamp = request.headers["x-api-timestamp"];
+  const signature = request.headers["x-api-signature"];
+
+  if (typeof keyPrefix !== "string" || keyPrefix.length === 0) {
+    throw new AppError(401, "missing_api_key", "missing api key identifier");
+  }
+
+  if (typeof timestamp !== "string" || timestamp.length === 0) {
+    throw new AppError(401, "missing_api_signature", "missing api signature timestamp");
+  }
+
+  if (typeof signature !== "string" || signature.length === 0) {
+    throw new AppError(401, "missing_api_signature", "missing api signature");
+  }
+
+  return {
+    keyPrefix,
+    timestamp,
+    signature,
+  };
+}
+
 async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptions) {
   const identityService = new IdentityService();
 
@@ -142,6 +186,28 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
     const user = await identityService.getUserFromSessionToken(sessionToken);
 
     return identityService.listApiKeys(user.id);
+  });
+
+  app.get("/auth/api-key/me", async (request) => {
+    const rawApiKey = getApiKeyFromRequest(request);
+
+    return identityService.authenticateApiKey({
+      rawApiKey,
+      requiredScopes: ["account:read"],
+    });
+  });
+
+  app.get("/auth/api-key/hmac/me", async (request) => {
+    const headers = getApiHmacHeaders(request);
+
+    return identityService.authenticateHmacApiKey({
+      keyPrefix: headers.keyPrefix,
+      timestamp: headers.timestamp,
+      signature: headers.signature,
+      method: request.method,
+      path: request.raw.url ?? request.url,
+      requiredScopes: ["account:read"],
+    });
   });
 
   app.delete("/auth/api-keys/:apiKeyId", async (request, reply) => {

@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual, createHash } from "node:crypto";
+import { randomBytes, scryptSync, timingSafeEqual, createHash, createHmac } from "node:crypto";
 
 const SCRYPT_KEYLEN = 64;
 
@@ -37,3 +37,17 @@ export function sha256Hex(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+export function hmacSha256Hex(secret: string, value: string) {
+  return createHmac("sha256", secret).update(value).digest("hex");
+}
+
+export function safeEqualString(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}

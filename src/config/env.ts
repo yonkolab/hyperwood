@@ -13,6 +13,10 @@ const envSchema = z.object({
   TOTP_ENCRYPTION_KEY: z
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, "TOTP_ENCRYPTION_KEY must be 64 hex chars"),
+  API_KEY_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, "API_KEY_ENCRYPTION_KEY must be 64 hex chars"),
+  API_HMAC_MAX_SKEW_SECONDS: z.coerce.number().int().positive().default(300),
   INTERNAL_BOOTSTRAP_TOKEN: z.string().min(1),
 });
 

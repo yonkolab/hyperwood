@@ -10,7 +10,15 @@ import {
   users,
 } from "../../db/schema";
 import { env } from "../../config/env";
-import { createOpaqueToken, hashPassword, normalizeEmail, sha256Hex, verifyPassword } from "../../lib/crypto";
+import {
+  createOpaqueToken,
+  hashPassword,
+  hmacSha256Hex,
+  normalizeEmail,
+  safeEqualString,
+  sha256Hex,
+  verifyPassword,
+} from "../../lib/crypto";
 import { AppError } from "../../lib/errors";
 import { decryptString, encryptString } from "../../lib/secrets";
 import { buildTotpOtpAuthUri, generateTotpSecret, verifyTotpCode } from "../../lib/totp";
@@ -43,6 +51,20 @@ type CreateApiKeyInput = {
 type RevokeApiKeyInput = {
   userId: string;
   apiKeyId: string;
+};
+
+type AuthenticateApiKeyInput = {
+  rawApiKey: string;
+  requiredScopes?: string[];
+};
+
+type AuthenticateHmacApiKeyInput = {
+  keyPrefix: string;
+  timestamp: string;
+  signature: string;
+  method: string;
+  path: string;
+  requiredScopes?: string[];
 };
 
 type RequestEmailVerificationInput = {
@@ -598,6 +620,7 @@ export class IdentityService {
       userId: input.userId,
       keyPrefix,
       secretHash: sha256Hex(rawApiKey),
+      secretEncrypted: encryptString(secret, env.API_KEY_ENCRYPTION_KEY),
       scopes: input.scopes,
     });
 
@@ -661,6 +684,52 @@ export class IdentityService {
         revokedAt: apiKey.revokedAt ?? new Date(),
       },
     };
+  }
+
+  async authenticateApiKey(input: AuthenticateApiKeyInput) {
+    const apiKeyHash = sha256Hex(input.rawApiKey);
+    const apiKey = await this.getApiKeyByHash(apiKeyHash);
+    return this.finalizeAuthenticatedApiKey(apiKey, input.requiredScopes);
+  }
+
+  async authenticateHmacApiKey(input: AuthenticateHmacApiKeyInput) {
+    const timestampSeconds = Number(input.timestamp);
+
+    if (!Number.isFinite(timestampSeconds)) {
+      throw new AppError(401, "invalid_api_signature", "invalid api signature timestamp");
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    if (Math.abs(nowSeconds - timestampSeconds) > env.API_HMAC_MAX_SKEW_SECONDS) {
+      throw new AppError(401, "expired_api_signature", "api signature timestamp is outside the accepted window");
+    }
+
+    const apiKey = await this.getApiKeyByPrefix(input.keyPrefix);
+
+    if (!apiKey.secretEncrypted) {
+      throw new AppError(
+        401,
+        "legacy_api_key_not_supported",
+        "api key must be rotated before it can be used with hmac signing",
+      );
+    }
+
+    const secret = decryptString(apiKey.secretEncrypted, env.API_KEY_ENCRYPTION_KEY);
+    const expectedSignature = hmacSha256Hex(
+      secret,
+      this.buildApiHmacPayload({
+        method: input.method,
+        path: input.path,
+        timestamp: input.timestamp,
+      }),
+    );
+
+    if (!safeEqualString(expectedSignature, input.signature)) {
+      throw new AppError(401, "invalid_api_signature", "api signature is invalid");
+    }
+
+    return this.finalizeAuthenticatedApiKey(apiKey, input.requiredScopes);
   }
 
   private rethrowConstraint(error: unknown, fallbackMessage: string): never {
@@ -727,5 +796,114 @@ export class IdentityService {
           : {}),
       },
     };
+  }
+
+  private async getApiKeyByHash(secretHash: string) {
+    const rows = await db
+      .select({
+        id: apiKeys.id,
+        userId: apiKeys.userId,
+        keyPrefix: apiKeys.keyPrefix,
+        secretEncrypted: apiKeys.secretEncrypted,
+        scopes: apiKeys.scopes,
+        revokedAt: apiKeys.revokedAt,
+        user: users,
+      })
+      .from(apiKeys)
+      .innerJoin(users, eq(users.id, apiKeys.userId))
+      .where(eq(apiKeys.secretHash, secretHash))
+      .limit(1);
+
+    const apiKey = rows[0];
+
+    if (!apiKey) {
+      throw new AppError(401, "invalid_api_key", "api key is invalid");
+    }
+
+    return apiKey;
+  }
+
+  private async getApiKeyByPrefix(keyPrefix: string) {
+    const rows = await db
+      .select({
+        id: apiKeys.id,
+        userId: apiKeys.userId,
+        keyPrefix: apiKeys.keyPrefix,
+        secretEncrypted: apiKeys.secretEncrypted,
+        scopes: apiKeys.scopes,
+        revokedAt: apiKeys.revokedAt,
+        user: users,
+      })
+      .from(apiKeys)
+      .innerJoin(users, eq(users.id, apiKeys.userId))
+      .where(eq(apiKeys.keyPrefix, keyPrefix))
+      .limit(1);
+
+    const apiKey = rows[0];
+
+    if (!apiKey) {
+      throw new AppError(401, "invalid_api_key", "api key is invalid");
+    }
+
+    return apiKey;
+  }
+
+  private async finalizeAuthenticatedApiKey(
+    apiKey: {
+      id: string;
+      userId: string;
+      keyPrefix: string;
+      scopes: string[];
+      revokedAt: Date | null;
+      user: typeof users.$inferSelect;
+    },
+    requiredScopes?: string[],
+  ) {
+    if (apiKey.revokedAt) {
+      throw new AppError(401, "revoked_api_key", "api key has been revoked");
+    }
+
+    if (apiKey.user.status !== "active") {
+      throw new AppError(
+        403,
+        "account_not_active",
+        "api key owner account is not active",
+      );
+    }
+
+    const scopes = requiredScopes ?? [];
+
+    if (!scopes.every((scope) => apiKey.scopes.includes(scope))) {
+      throw new AppError(
+        403,
+        "insufficient_api_key_scope",
+        "api key does not satisfy required scopes",
+      );
+    }
+
+    await db
+      .update(apiKeys)
+      .set({
+        lastUsedAt: new Date(),
+      })
+      .where(eq(apiKeys.id, apiKey.id));
+
+    return {
+      apiKey: {
+        id: apiKey.id,
+        userId: apiKey.userId,
+        keyPrefix: apiKey.keyPrefix,
+        scopes: apiKey.scopes,
+      },
+      user: apiKey.user,
+    };
+  }
+
+  private buildApiHmacPayload(input: {
+    method: string;
+    path: string;
+    timestamp: string;
+  }) {
+    return `${input.method.toUpperCase()}\n${input.path}\n${input.timestamp}`;
   }
 }

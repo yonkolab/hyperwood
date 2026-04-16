@@ -161,6 +161,7 @@ export const apiKeys = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     keyPrefix: varchar("key_prefix", { length: 32 }).notNull(),
     secretHash: text("secret_hash").notNull(),
+    secretEncrypted: text("secret_encrypted"),
     scopes: jsonb("scopes").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
