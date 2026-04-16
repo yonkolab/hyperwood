@@ -52,6 +52,8 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/auth/mfa/totp/verify`
 - `GET /api/v1/auth/me`
 - `POST /api/v1/auth/api-keys`
+- `GET /api/v1/auth/api-keys`
+- `DELETE /api/v1/auth/api-keys/:apiKeyId`
 - `POST /api/v1/auth/mfa/totp/setup`
 - `POST /api/v1/auth/mfa/totp/confirm`
 - `POST /api/v1/internal/auth/link-existing-user`

@@ -40,6 +40,11 @@ type CreateApiKeyInput = {
   scopes: string[];
 };
 
+type RevokeApiKeyInput = {
+  userId: string;
+  apiKeyId: string;
+};
+
 type RequestEmailVerificationInput = {
   email: string;
 };
@@ -600,6 +605,61 @@ export class IdentityService {
       apiKey: rawApiKey,
       keyPrefix,
       scopes: input.scopes,
+    };
+  }
+
+  async listApiKeys(userId: string) {
+    const keys = await db
+      .select({
+        id: apiKeys.id,
+        keyPrefix: apiKeys.keyPrefix,
+        scopes: apiKeys.scopes,
+        lastUsedAt: apiKeys.lastUsedAt,
+        revokedAt: apiKeys.revokedAt,
+        createdAt: apiKeys.createdAt,
+      })
+      .from(apiKeys)
+      .where(eq(apiKeys.userId, userId));
+
+    return {
+      apiKeys: keys,
+    };
+  }
+
+  async revokeApiKey(input: RevokeApiKeyInput) {
+    const rows = await db
+      .select({
+        id: apiKeys.id,
+        userId: apiKeys.userId,
+        keyPrefix: apiKeys.keyPrefix,
+        scopes: apiKeys.scopes,
+        revokedAt: apiKeys.revokedAt,
+        createdAt: apiKeys.createdAt,
+      })
+      .from(apiKeys)
+      .where(and(eq(apiKeys.id, input.apiKeyId), eq(apiKeys.userId, input.userId)))
+      .limit(1);
+
+    const apiKey = rows[0];
+
+    if (!apiKey) {
+      throw new AppError(404, "api_key_not_found", "api key was not found");
+    }
+
+    if (!apiKey.revokedAt) {
+      await db
+        .update(apiKeys)
+        .set({
+          revokedAt: new Date(),
+        })
+        .where(eq(apiKeys.id, apiKey.id));
+    }
+
+    return {
+      apiKey: {
+        ...apiKey,
+        revokedAt: apiKey.revokedAt ?? new Date(),
+      },
     };
   }
 

@@ -44,6 +44,10 @@ const createApiKeyBodySchema = z.object({
   scopes: z.array(z.string().min(1)).min(1),
 });
 
+const apiKeyParamsSchema = z.object({
+  apiKeyId: z.string().uuid(),
+});
+
 function getSessionTokenFromRequest(request: FastifyRequest) {
   const header = request.headers.authorization;
 
@@ -131,6 +135,25 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
     });
 
     reply.status(201).send(result);
+  });
+
+  app.get("/auth/api-keys", async (request) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+
+    return identityService.listApiKeys(user.id);
+  });
+
+  app.delete("/auth/api-keys/:apiKeyId", async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const params = apiKeyParamsSchema.parse(request.params);
+    const result = await identityService.revokeApiKey({
+      userId: user.id,
+      apiKeyId: params.apiKeyId,
+    });
+
+    reply.send(result);
   });
 
   app.post("/auth/mfa/totp/setup", async (request, reply) => {
