@@ -50,6 +50,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/auth/request-email-verification`
 - `POST /api/v1/auth/verify-email`
 - `POST /api/v1/auth/mfa/totp/verify`
+- `POST /api/v1/auth/mfa/totp/authorize`
 - `GET /api/v1/auth/me`
 - `POST /api/v1/auth/api-keys`
 - `GET /api/v1/auth/api-keys`
@@ -59,6 +60,17 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/auth/mfa/totp/setup`
 - `POST /api/v1/auth/mfa/totp/confirm`
 - `POST /api/v1/internal/auth/link-existing-user`
+
+For users with active MFA, sensitive account actions like API key creation and revocation require a short-lived step-up authorization from `POST /api/v1/auth/mfa/totp/authorize`.
+
+For step-up MFA requests, send:
+
+- `Authorization: Bearer <session-token>`
+- JSON body with `action` and the 6-digit TOTP `code`
+
+For MFA-gated sensitive routes, send:
+
+- `x-mfa-authorization`: short-lived token returned by the authorize route
 
 For HMAC requests, send:
 

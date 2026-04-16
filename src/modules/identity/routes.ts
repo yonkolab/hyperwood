@@ -33,6 +33,11 @@ const verifyTotpLoginBodySchema = z.object({
   code: z.string().regex(/^\d{6}$/),
 });
 
+const authorizeSensitiveActionBodySchema = z.object({
+  action: z.enum(["api_keys_manage"]),
+  code: z.string().regex(/^\d{6}$/),
+});
+
 const linkExistingUserBodySchema = z.object({
   userId: z.string().uuid(),
   email: z.string().email(),
@@ -108,6 +113,16 @@ function getApiHmacHeaders(request: FastifyRequest) {
   };
 }
 
+function getOptionalMfaActionAuthorizationTokenFromRequest(request: FastifyRequest) {
+  const header = request.headers["x-mfa-authorization"];
+
+  if (typeof header === "string" && header.length > 0) {
+    return header;
+  }
+
+  return undefined;
+}
+
 async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptions) {
   const identityService = new IdentityService();
 
@@ -168,6 +183,19 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
     reply.send(result);
   });
 
+  app.post("/auth/mfa/totp/authorize", async (request, reply) => {
+    const body = authorizeSensitiveActionBodySchema.parse(request.body);
+    const sessionToken = getSessionTokenFromRequest(request);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const result = await identityService.authorizeSensitiveActionWithTotp({
+      userId: user.id,
+      action: body.action,
+      code: body.code,
+    });
+
+    reply.status(201).send(result);
+  });
+
   app.get("/auth/me", async (request) => {
     const sessionToken = getSessionTokenFromRequest(request);
     const user = await identityService.getUserFromSessionToken(sessionToken);
@@ -182,6 +210,7 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
     const result = await identityService.createApiKey({
       userId: user.id,
       scopes: body.scopes,
+      mfaAuthorizationToken: getOptionalMfaActionAuthorizationTokenFromRequest(request),
     });
 
     reply.status(201).send(result);
@@ -224,6 +253,7 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
     const result = await identityService.revokeApiKey({
       userId: user.id,
       apiKeyId: params.apiKeyId,
+      mfaAuthorizationToken: getOptionalMfaActionAuthorizationTokenFromRequest(request),
     });
 
     reply.send(result);

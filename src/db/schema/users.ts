@@ -152,6 +152,26 @@ export const mfaLoginChallenges = pgTable(
   ],
 );
 
+export const mfaActionAuthorizations = pgTable(
+  "mfa_action_authorizations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    action: varchar("action", { length: 64 }).notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("mfa_action_authorizations_user_id_idx").on(table.userId),
+    index("mfa_action_authorizations_user_action_idx").on(table.userId, table.action),
+    uniqueIndex("mfa_action_authorizations_token_hash_unique").on(table.tokenHash),
+  ],
+);
+
 export const apiKeyRequestNonces = pgTable(
   "api_key_request_nonces",
   {
@@ -200,6 +220,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   mfaFactors: many(userMfaFactors),
   emailVerificationTokens: many(emailVerificationTokens),
   mfaLoginChallenges: many(mfaLoginChallenges),
+  mfaActionAuthorizations: many(mfaActionAuthorizations),
   apiKeys: many(apiKeys),
 }));
 
@@ -239,6 +260,16 @@ export const mfaLoginChallengesRelations = relations(
   ({ one }) => ({
     user: one(users, {
       fields: [mfaLoginChallenges.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const mfaActionAuthorizationsRelations = relations(
+  mfaActionAuthorizations,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [mfaActionAuthorizations.userId],
       references: [users.id],
     }),
   }),

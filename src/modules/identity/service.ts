@@ -4,6 +4,7 @@ import {
   apiKeys,
   apiKeyRequestNonces,
   emailVerificationTokens,
+  mfaActionAuthorizations,
   mfaLoginChallenges,
   userIdentities,
   userMfaFactors,
@@ -23,6 +24,8 @@ import {
 import { AppError } from "../../lib/errors";
 import { decryptString, encryptString } from "../../lib/secrets";
 import { buildTotpOtpAuthUri, generateTotpSecret, verifyTotpCode } from "../../lib/totp";
+
+export type SensitiveAction = "api_keys_manage";
 
 type RegisterInput = {
   email: string;
@@ -47,11 +50,13 @@ type LinkExistingUserInput = {
 type CreateApiKeyInput = {
   userId: string;
   scopes: string[];
+  mfaAuthorizationToken: string | undefined;
 };
 
 type RevokeApiKeyInput = {
   userId: string;
   apiKeyId: string;
+  mfaAuthorizationToken: string | undefined;
 };
 
 type AuthenticateApiKeyInput = {
@@ -92,6 +97,12 @@ type VerifyTotpLoginInput = {
   code: string;
   ipAddress?: string;
   userAgent?: string;
+};
+
+type AuthorizeSensitiveActionWithTotpInput = {
+  userId: string;
+  action: SensitiveAction;
+  code: string;
 };
 
 export class IdentityService {
@@ -483,24 +494,11 @@ export class IdentityService {
       throw new AppError(410, "mfa_challenge_expired", "mfa challenge has expired");
     }
 
-    const factorRows = await db
-      .select({
-        factorId: userMfaFactors.id,
-        secretEncrypted: userMfaFactors.secretEncrypted,
-      })
-      .from(userMfaFactors)
-      .where(
-        and(
-          eq(userMfaFactors.userId, challenge.userId),
-          eq(userMfaFactors.type, "totp"),
-          isNull(userMfaFactors.disabledAt),
-          isNotNull(userMfaFactors.verifiedAt),
-        ),
-      );
+    const factorSecrets = await this.getActiveTotpFactorSecrets(challenge.userId);
 
-    const matchingFactor = factorRows.find((factor) =>
+    const matchingFactor = factorSecrets.find((secret) =>
       verifyTotpCode({
-        secret: decryptString(factor.secretEncrypted, env.TOTP_ENCRYPTION_KEY),
+        secret,
         code: input.code,
       }),
     );
@@ -526,6 +524,47 @@ export class IdentityService {
       sessionToken: session.sessionToken,
       expiresAt: session.expiresAt,
       user: challenge.user,
+    };
+  }
+
+  async authorizeSensitiveActionWithTotp(input: AuthorizeSensitiveActionWithTotpInput) {
+    const factorSecrets = await this.getActiveTotpFactorSecrets(input.userId);
+
+    if (factorSecrets.length === 0) {
+      throw new AppError(
+        409,
+        "mfa_not_enabled",
+        "user must enable MFA before requesting sensitive action authorization",
+      );
+    }
+
+    const hasMatchingFactor = factorSecrets.some((secret) =>
+      verifyTotpCode({
+        secret,
+        code: input.code,
+      }),
+    );
+
+    if (!hasMatchingFactor) {
+      throw new AppError(401, "invalid_totp_code", "invalid totp code");
+    }
+
+    const authorizationToken = createOpaqueToken(32);
+    const expiresAt = new Date(
+      Date.now() + env.MFA_ACTION_AUTHORIZATION_TTL_MINUTES * 60 * 1000,
+    );
+
+    await db.insert(mfaActionAuthorizations).values({
+      userId: input.userId,
+      action: input.action,
+      tokenHash: sha256Hex(authorizationToken),
+      expiresAt,
+    });
+
+    return {
+      action: input.action,
+      authorizationToken,
+      expiresAt,
     };
   }
 
@@ -613,6 +652,12 @@ export class IdentityService {
       );
     }
 
+    await this.requireSensitiveActionAuthorization({
+      userId: input.userId,
+      action: "api_keys_manage",
+      authorizationToken: input.mfaAuthorizationToken,
+    });
+
     const keyId = createOpaqueToken(12);
     const secret = createOpaqueToken(32);
     const rawApiKey = `hw_${keyId}.${secret}`;
@@ -652,6 +697,12 @@ export class IdentityService {
   }
 
   async revokeApiKey(input: RevokeApiKeyInput) {
+    await this.requireSensitiveActionAuthorization({
+      userId: input.userId,
+      action: "api_keys_manage",
+      authorizationToken: input.mfaAuthorizationToken,
+    });
+
     const rows = await db
       .select({
         id: apiKeys.id,
@@ -938,6 +989,111 @@ export class IdentityService {
       }
 
       throw error;
+    }
+  }
+
+  private async getActiveTotpFactorSecrets(userId: string) {
+    const factorRows = await db
+      .select({
+        secretEncrypted: userMfaFactors.secretEncrypted,
+      })
+      .from(userMfaFactors)
+      .where(
+        and(
+          eq(userMfaFactors.userId, userId),
+          eq(userMfaFactors.type, "totp"),
+          isNull(userMfaFactors.disabledAt),
+          isNotNull(userMfaFactors.verifiedAt),
+        ),
+      );
+
+    return factorRows.map((factor) =>
+      decryptString(factor.secretEncrypted, env.TOTP_ENCRYPTION_KEY),
+    );
+  }
+
+  private async requireSensitiveActionAuthorization(input: {
+    userId: string;
+    action: SensitiveAction;
+    authorizationToken: string | undefined;
+  }) {
+    const factorSecrets = await this.getActiveTotpFactorSecrets(input.userId);
+
+    if (factorSecrets.length === 0) {
+      return;
+    }
+
+    if (!input.authorizationToken) {
+      throw new AppError(
+        403,
+        "mfa_authorization_required",
+        "mfa authorization is required for this action",
+      );
+    }
+
+    const authorizationRows = await db
+      .select({
+        id: mfaActionAuthorizations.id,
+        expiresAt: mfaActionAuthorizations.expiresAt,
+        consumedAt: mfaActionAuthorizations.consumedAt,
+      })
+      .from(mfaActionAuthorizations)
+      .where(
+        and(
+          eq(mfaActionAuthorizations.userId, input.userId),
+          eq(mfaActionAuthorizations.action, input.action),
+          eq(mfaActionAuthorizations.tokenHash, sha256Hex(input.authorizationToken)),
+        ),
+      )
+      .limit(1);
+
+    const authorization = authorizationRows[0];
+
+    if (!authorization) {
+      throw new AppError(
+        401,
+        "invalid_mfa_authorization",
+        "mfa authorization is invalid for this action",
+      );
+    }
+
+    if (authorization.consumedAt) {
+      throw new AppError(
+        409,
+        "mfa_authorization_consumed",
+        "mfa authorization was already used",
+      );
+    }
+
+    if (authorization.expiresAt <= new Date()) {
+      throw new AppError(
+        410,
+        "mfa_authorization_expired",
+        "mfa authorization has expired",
+      );
+    }
+
+    const consumedRows = await db
+      .update(mfaActionAuthorizations)
+      .set({
+        consumedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(mfaActionAuthorizations.id, authorization.id),
+          isNull(mfaActionAuthorizations.consumedAt),
+        ),
+      )
+      .returning({
+        id: mfaActionAuthorizations.id,
+      });
+
+    if (!consumedRows[0]) {
+      throw new AppError(
+        409,
+        "mfa_authorization_consumed",
+        "mfa authorization was already used",
+      );
     }
   }
 }

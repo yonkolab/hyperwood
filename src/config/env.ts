@@ -9,6 +9,7 @@ const envSchema = z.object({
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(24 * 30),
   EMAIL_VERIFICATION_TTL_MINUTES: z.coerce.number().int().positive().default(60),
   MFA_CHALLENGE_TTL_MINUTES: z.coerce.number().int().positive().default(10),
+  MFA_ACTION_AUTHORIZATION_TTL_MINUTES: z.coerce.number().int().positive().default(5),
   TOTP_ISSUER: z.string().min(1).default("Hyperwood"),
   TOTP_ENCRYPTION_KEY: z
     .string()
