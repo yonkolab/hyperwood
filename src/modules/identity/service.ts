@@ -1,9 +1,10 @@
-import { and, eq, gt, isNotNull, isNull } from "drizzle-orm";
+import { and, count, eq, gt, gte, isNotNull, isNull, or } from "drizzle-orm";
 import { db } from "../../db/client";
 import {
   apiKeys,
   apiKeyRequestNonces,
   emailVerificationTokens,
+  loginEvents,
   mfaActionAuthorizations,
   mfaLoginChallenges,
   userIdentities,
@@ -26,6 +27,12 @@ import { decryptString, encryptString } from "../../lib/secrets";
 import { buildTotpOtpAuthUri, generateTotpSecret, verifyTotpCode } from "../../lib/totp";
 
 export type SensitiveAction = "api_keys_manage";
+type LoginEventOutcome =
+  | "success"
+  | "invalid_credentials"
+  | "mfa_challenge"
+  | "mfa_success"
+  | "blocked_suspicious";
 
 type RegisterInput = {
   email: string;
@@ -157,6 +164,28 @@ export class IdentityService {
 
   async login(input: LoginInput) {
     const email = normalizeEmail(input.email);
+    const recentFailureCounts = await this.getRecentFailedLoginCounts({
+      email,
+      ipAddress: input.ipAddress,
+    });
+
+    if (this.exceedsLoginFailureThreshold(recentFailureCounts)) {
+      await this.recordLoginEvent({
+        userId: null,
+        email,
+        ipAddress: input.ipAddress,
+        userAgent: input.userAgent,
+        outcome: "blocked_suspicious",
+        suspicious: true,
+        reason: "repeated_failed_login_threshold",
+      });
+
+      throw new AppError(
+        429,
+        "login_temporarily_restricted",
+        "login temporarily restricted due to suspicious activity",
+      );
+    }
 
     const rows = await db
       .select({
@@ -177,6 +206,31 @@ export class IdentityService {
     const identity = rows[0];
 
     if (!identity?.passwordHash || !verifyPassword(input.password, identity.passwordHash)) {
+      const failedAttemptCounts = {
+        emailFailures: recentFailureCounts.emailFailures + 1,
+        ipFailures:
+          recentFailureCounts.ipFailures + (input.ipAddress ? 1 : 0),
+      };
+      const suspicious = this.exceedsLoginFailureThreshold(failedAttemptCounts);
+
+      await this.recordLoginEvent({
+        userId: identity?.userId ?? null,
+        email,
+        ipAddress: input.ipAddress,
+        userAgent: input.userAgent,
+        outcome: "invalid_credentials",
+        suspicious,
+        reason: suspicious ? "repeated_failed_login_threshold" : undefined,
+      });
+
+      if (suspicious) {
+        throw new AppError(
+          429,
+          "login_temporarily_restricted",
+          "login temporarily restricted due to suspicious activity",
+        );
+      }
+
       throw new AppError(401, "invalid_credentials", "invalid email or password");
     }
 
@@ -206,6 +260,16 @@ export class IdentityService {
         ),
       });
 
+      await this.recordLoginEvent({
+        userId: identity.userId,
+        email,
+        ipAddress: input.ipAddress,
+        userAgent: input.userAgent,
+        outcome: "mfa_challenge",
+        suspicious: false,
+        reason: undefined,
+      });
+
       return {
         mfaRequired: true as const,
         challengeToken,
@@ -217,6 +281,16 @@ export class IdentityService {
       userId: identity.userId,
       ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
       ...(input.userAgent ? { userAgent: input.userAgent } : {}),
+    });
+
+    await this.recordLoginEvent({
+      userId: identity.userId,
+      email,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+      outcome: "success",
+      suspicious: false,
+      reason: undefined,
     });
 
     return {
@@ -518,6 +592,16 @@ export class IdentityService {
       userId: challenge.userId,
       ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
       ...(input.userAgent ? { userAgent: input.userAgent } : {}),
+    });
+
+    await this.recordLoginEvent({
+      userId: challenge.userId,
+      email: normalizeEmail(challenge.user.email),
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+      outcome: "mfa_success",
+      suspicious: false,
+      reason: undefined,
     });
 
     return {
@@ -990,6 +1074,88 @@ export class IdentityService {
 
       throw error;
     }
+  }
+
+  private async getRecentFailedLoginCounts(input: {
+    email: string;
+    ipAddress: string | undefined;
+  }) {
+    const windowStart = new Date(
+      Date.now() - env.LOGIN_RISK_WINDOW_MINUTES * 60 * 1000,
+    );
+
+    const failedOutcomes = or(
+      eq(loginEvents.outcome, "invalid_credentials"),
+      eq(loginEvents.outcome, "blocked_suspicious"),
+    );
+
+    const emailRows = await db
+      .select({
+        value: count(),
+      })
+      .from(loginEvents)
+      .where(
+        and(
+          eq(loginEvents.email, input.email),
+          gte(loginEvents.createdAt, windowStart),
+          failedOutcomes,
+        ),
+      );
+
+    if (!input.ipAddress) {
+      return {
+        emailFailures: Number(emailRows[0]?.value ?? 0),
+        ipFailures: 0,
+      };
+    }
+
+    const ipRows = await db
+      .select({
+        value: count(),
+      })
+      .from(loginEvents)
+      .where(
+        and(
+          eq(loginEvents.ipAddress, input.ipAddress),
+          gte(loginEvents.createdAt, windowStart),
+          failedOutcomes,
+        ),
+      );
+
+    return {
+      emailFailures: Number(emailRows[0]?.value ?? 0),
+      ipFailures: Number(ipRows[0]?.value ?? 0),
+    };
+  }
+
+  private exceedsLoginFailureThreshold(input: {
+    emailFailures: number;
+    ipFailures: number;
+  }) {
+    return (
+      input.emailFailures >= env.LOGIN_MAX_FAILURES_PER_EMAIL ||
+      input.ipFailures >= env.LOGIN_MAX_FAILURES_PER_IP
+    );
+  }
+
+  private async recordLoginEvent(input: {
+    userId: string | null;
+    email: string;
+    ipAddress: string | undefined;
+    userAgent: string | undefined;
+    outcome: LoginEventOutcome;
+    suspicious: boolean;
+    reason: string | undefined;
+  }) {
+    await db.insert(loginEvents).values({
+      userId: input.userId,
+      email: input.email,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+      outcome: input.outcome,
+      suspicious: input.suspicious,
+      reason: input.reason,
+    });
   }
 
   private async getActiveTotpFactorSecrets(userId: string) {

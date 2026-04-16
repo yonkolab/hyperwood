@@ -14,6 +14,7 @@ Prediction market API skeleton focused on the day-1 `identity-and-access` founda
 - user registration with password identity
 - password login with opaque session tokens
 - linking a password identity to an existing user record
+- suspicious login auditing with temporary restriction thresholds
 - scoped API key creation for authenticated users
 
 ## Setup

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm/_relations";
 import {
+  boolean,
   index,
   jsonb,
   pgEnum,
@@ -31,6 +32,14 @@ export const identityProviderEnum = pgEnum("identity_provider", [
 ]);
 
 export const mfaFactorTypeEnum = pgEnum("mfa_factor_type", ["totp"]);
+
+export const loginEventOutcomeEnum = pgEnum("login_event_outcome", [
+  "success",
+  "invalid_credentials",
+  "mfa_challenge",
+  "mfa_success",
+  "blocked_suspicious",
+]);
 
 export const users = pgTable(
   "users",
@@ -172,6 +181,26 @@ export const mfaActionAuthorizations = pgTable(
   ],
 );
 
+export const loginEvents = pgTable(
+  "login_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    email: varchar("email", { length: 255 }).notNull(),
+    ipAddress: varchar("ip_address", { length: 64 }),
+    userAgent: text("user_agent"),
+    outcome: loginEventOutcomeEnum("outcome").notNull(),
+    suspicious: boolean("suspicious").notNull().default(false),
+    reason: varchar("reason", { length: 128 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("login_events_user_id_idx").on(table.userId),
+    index("login_events_email_created_at_idx").on(table.email, table.createdAt),
+    index("login_events_ip_created_at_idx").on(table.ipAddress, table.createdAt),
+  ],
+);
+
 export const apiKeyRequestNonces = pgTable(
   "api_key_request_nonces",
   {
@@ -221,6 +250,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   emailVerificationTokens: many(emailVerificationTokens),
   mfaLoginChallenges: many(mfaLoginChallenges),
   mfaActionAuthorizations: many(mfaActionAuthorizations),
+  loginEvents: many(loginEvents),
   apiKeys: many(apiKeys),
 }));
 
@@ -274,6 +304,13 @@ export const mfaActionAuthorizationsRelations = relations(
     }),
   }),
 );
+
+export const loginEventsRelations = relations(loginEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [loginEvents.userId],
+    references: [users.id],
+  }),
+}));
 
 export const apiKeyRequestNoncesRelations = relations(
   apiKeyRequestNonces,
