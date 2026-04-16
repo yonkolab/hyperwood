@@ -47,6 +47,8 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /health`
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/request-email-verification`
+- `POST /api/v1/auth/verify-email`
 - `GET /api/v1/auth/me`
 - `POST /api/v1/auth/api-keys`
 - `POST /api/v1/internal/auth/link-existing-user`

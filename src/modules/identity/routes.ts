@@ -15,6 +15,14 @@ const loginBodySchema = z.object({
   password: z.string().min(1),
 });
 
+const requestEmailVerificationBodySchema = z.object({
+  email: z.string().email(),
+});
+
+const verifyEmailBodySchema = z.object({
+  token: z.string().min(1),
+});
+
 const linkExistingUserBodySchema = z.object({
   userId: z.string().uuid(),
   email: z.string().email(),
@@ -59,6 +67,24 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
       ...(request.headers["user-agent"]
         ? { userAgent: request.headers["user-agent"] }
         : {}),
+    });
+
+    reply.send(result);
+  });
+
+  app.post("/auth/request-email-verification", async (request, reply) => {
+    const body = requestEmailVerificationBodySchema.parse(request.body);
+    const result = await identityService.requestEmailVerification({
+      email: body.email,
+    });
+
+    reply.status(201).send(result);
+  });
+
+  app.post("/auth/verify-email", async (request, reply) => {
+    const body = verifyEmailBodySchema.parse(request.body);
+    const result = await identityService.verifyEmail({
+      token: body.token,
     });
 
     reply.send(result);

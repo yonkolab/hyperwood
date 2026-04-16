@@ -116,6 +116,24 @@ export const userMfaFactors = pgTable(
   (table) => [index("user_mfa_factors_user_id_idx").on(table.userId)],
 );
 
+export const emailVerificationTokens = pgTable(
+  "email_verification_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("email_verification_tokens_user_id_idx").on(table.userId),
+    uniqueIndex("email_verification_tokens_token_hash_unique").on(table.tokenHash),
+  ],
+);
+
 export const apiKeys = pgTable(
   "api_keys",
   {
@@ -141,6 +159,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   identities: many(userIdentities),
   sessions: many(userSessions),
   mfaFactors: many(userMfaFactors),
+  emailVerificationTokens: many(emailVerificationTokens),
   apiKeys: many(apiKeys),
 }));
 
@@ -164,6 +183,16 @@ export const userMfaFactorsRelations = relations(userMfaFactors, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const emailVerificationTokensRelations = relations(
+  emailVerificationTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [emailVerificationTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
   user: one(users, {
