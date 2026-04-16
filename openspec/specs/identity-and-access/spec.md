@@ -1,9 +1,7 @@
 ## Purpose
 
 Define how Hyperwood authenticates users and API clients, protects account access, and gates trading capabilities behind verified identity and strong access controls.
-
 ## Requirements
-
 ### Requirement: Day-1 access hardening
 The system MUST enforce strong identity verification and access control before any production trading or privileged API capability is made available on Hyperwood.
 
@@ -38,26 +36,31 @@ The system MUST support linking new authentication credentials to an existing Hy
 - **THEN** the system links the credential to that user instead of creating a second user record
 
 ### Requirement: Strong authenticated access
-The system MUST provide session-based authentication for interactive clients and support MFA for sensitive account access.
-
-#### Scenario: MFA is enforced for sensitive actions
-- **WHEN** a user with MFA enabled signs in or performs a sensitive account action
-- **THEN** the system requires successful MFA verification before granting access
+The system MUST provide session-based authentication for interactive clients and support MFA for sensitive account access, and SHALL record and restrict suspicious login activity according to policy.
 
 #### Scenario: Suspicious login is flagged
-- **WHEN** the system detects a login attempt that matches suspicious activity heuristics or device fingerprint risk rules
+- **WHEN** the system detects a login attempt that matches suspicious activity heuristics
 - **THEN** the system records the event for review
 - **AND** the system applies additional verification or access restrictions according to policy
+
+#### Scenario: Repeated failed logins are temporarily restricted
+- **WHEN** recent failed login attempts for the same normalized email or source IP exceed the configured threshold inside the active risk window
+- **THEN** the system records the new attempt as suspicious
+- **AND** the system rejects the login with a temporary access restriction
+
+#### Scenario: Successful login outcomes remain auditable
+- **WHEN** a login succeeds directly or progresses into an MFA challenge
+- **THEN** the system records the authentication outcome with the resolved user context when available
+- **AND** the event remains available for later review and policy evaluation
 
 ### Requirement: API trading credentials
 The system SHALL allow advanced users to create and manage API keys with explicit scopes and account-level limits.
 
-#### Scenario: API key is created with scopes
-- **WHEN** an eligible authenticated user creates an API key
-- **THEN** the system stores the credential with explicit scopes and account ownership metadata
-- **AND** the system exposes the secret only at creation time
+#### Scenario: API key creation is gated by MFA when enabled
+- **WHEN** a user with an active MFA factor attempts to create an API key
+- **THEN** the system requires a valid MFA authorization for API key management before creating the credential
 
-#### Scenario: API key request exceeds account policy
-- **WHEN** an API client uses a key outside its granted scope or rate-limit profile
-- **THEN** the system rejects the request
-- **AND** the system records the policy violation in audit logs
+#### Scenario: API key revocation is gated by MFA when enabled
+- **WHEN** a user with an active MFA factor attempts to revoke an API key
+- **THEN** the system requires a valid MFA authorization for API key management before revoking the credential
+

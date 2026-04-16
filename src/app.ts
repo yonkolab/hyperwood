@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { env } from "./config/env";
+import { registerComplianceRoutes } from "./modules/compliance/routes";
 import { registerIdentityRoutes } from "./modules/identity/routes";
 
 export async function buildApp() {
@@ -13,6 +14,10 @@ export async function buildApp() {
   }));
 
   await app.register(registerIdentityRoutes, {
+    prefix: "/api/v1",
+  });
+
+  await app.register(registerComplianceRoutes, {
     prefix: "/api/v1",
   });
 

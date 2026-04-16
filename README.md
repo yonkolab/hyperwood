@@ -53,6 +53,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/auth/mfa/totp/verify`
 - `POST /api/v1/auth/mfa/totp/authorize`
 - `GET /api/v1/auth/me`
+- `GET /api/v1/compliance/me/capabilities`
 - `POST /api/v1/auth/api-keys`
 - `GET /api/v1/auth/api-keys`
 - `GET /api/v1/auth/api-key/me`
@@ -61,6 +62,8 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/auth/mfa/totp/setup`
 - `POST /api/v1/auth/mfa/totp/confirm`
 - `POST /api/v1/internal/auth/link-existing-user`
+- `POST /api/v1/internal/compliance/users/:userId/profile`
+- `POST /api/v1/internal/compliance/users/:userId/restrictions`
 
 For users with active MFA, sensitive account actions like API key creation and revocation require a short-lived step-up authorization from `POST /api/v1/auth/mfa/totp/authorize`.
 
@@ -81,3 +84,5 @@ For HMAC requests, send:
 - `x-api-signature`: hex HMAC-SHA256 of `METHOD + "\\n" + PATH + "\\n" + TIMESTAMP + "\\n" + NONCE`
 
 The internal link route requires the `x-bootstrap-token` header matching `INTERNAL_BOOTSTRAP_TOKEN`.
+
+The internal compliance routes use the same `x-bootstrap-token` header and let you upsert KYC/jurisdiction state or place an account under a compliance hold.
