@@ -134,6 +134,24 @@ export const emailVerificationTokens = pgTable(
   ],
 );
 
+export const mfaLoginChallenges = pgTable(
+  "mfa_login_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("mfa_login_challenges_user_id_idx").on(table.userId),
+    uniqueIndex("mfa_login_challenges_token_hash_unique").on(table.tokenHash),
+  ],
+);
+
 export const apiKeys = pgTable(
   "api_keys",
   {
@@ -160,6 +178,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(userSessions),
   mfaFactors: many(userMfaFactors),
   emailVerificationTokens: many(emailVerificationTokens),
+  mfaLoginChallenges: many(mfaLoginChallenges),
   apiKeys: many(apiKeys),
 }));
 
@@ -189,6 +208,16 @@ export const emailVerificationTokensRelations = relations(
   ({ one }) => ({
     user: one(users, {
       fields: [emailVerificationTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const mfaLoginChallengesRelations = relations(
+  mfaLoginChallenges,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [mfaLoginChallenges.userId],
       references: [users.id],
     }),
   }),

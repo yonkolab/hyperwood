@@ -49,8 +49,11 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/request-email-verification`
 - `POST /api/v1/auth/verify-email`
+- `POST /api/v1/auth/mfa/totp/verify`
 - `GET /api/v1/auth/me`
 - `POST /api/v1/auth/api-keys`
+- `POST /api/v1/auth/mfa/totp/setup`
+- `POST /api/v1/auth/mfa/totp/confirm`
 - `POST /api/v1/internal/auth/link-existing-user`
 
 The internal link route requires the `x-bootstrap-token` header matching `INTERNAL_BOOTSTRAP_TOKEN`.

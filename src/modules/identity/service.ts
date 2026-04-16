@@ -1,15 +1,19 @@
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import { db } from "../../db/client";
 import {
   apiKeys,
   emailVerificationTokens,
+  mfaLoginChallenges,
   userIdentities,
+  userMfaFactors,
   userSessions,
   users,
 } from "../../db/schema";
 import { env } from "../../config/env";
 import { createOpaqueToken, hashPassword, normalizeEmail, sha256Hex, verifyPassword } from "../../lib/crypto";
 import { AppError } from "../../lib/errors";
+import { decryptString, encryptString } from "../../lib/secrets";
+import { buildTotpOtpAuthUri, generateTotpSecret, verifyTotpCode } from "../../lib/totp";
 
 type RegisterInput = {
   email: string;
@@ -42,6 +46,23 @@ type RequestEmailVerificationInput = {
 
 type VerifyEmailInput = {
   token: string;
+};
+
+type SetupTotpInput = {
+  userId: string;
+};
+
+type ConfirmTotpSetupInput = {
+  userId: string;
+  factorId: string;
+  code: string;
+};
+
+type VerifyTotpLoginInput = {
+  challengeToken: string;
+  code: string;
+  ipAddress?: string;
+  userAgent?: string;
 };
 
 export class IdentityService {
@@ -119,21 +140,49 @@ export class IdentityService {
       throw new AppError(401, "invalid_credentials", "invalid email or password");
     }
 
-    const sessionToken = createOpaqueToken(48);
-    const tokenHash = sha256Hex(sessionToken);
-    const expiresAt = new Date(Date.now() + env.SESSION_TTL_HOURS * 60 * 60 * 1000);
+    const activeTotpFactorRows = await db
+      .select({
+        id: userMfaFactors.id,
+      })
+      .from(userMfaFactors)
+      .where(
+        and(
+          eq(userMfaFactors.userId, identity.userId),
+          eq(userMfaFactors.type, "totp"),
+          isNull(userMfaFactors.disabledAt),
+          isNotNull(userMfaFactors.verifiedAt),
+        ),
+      )
+      .limit(1);
 
-    await db.insert(userSessions).values({
+    if (activeTotpFactorRows[0]) {
+      const challengeToken = createOpaqueToken(32);
+
+      await db.insert(mfaLoginChallenges).values({
+        userId: identity.userId,
+        tokenHash: sha256Hex(challengeToken),
+        expiresAt: new Date(
+          Date.now() + env.MFA_CHALLENGE_TTL_MINUTES * 60 * 1000,
+        ),
+      });
+
+      return {
+        mfaRequired: true as const,
+        challengeToken,
+        user: identity.user,
+      };
+    }
+
+    const session = await this.createSession({
       userId: identity.userId,
-      tokenHash,
-      expiresAt,
-      ipAddress: input.ipAddress,
-      userAgent: input.userAgent,
+      ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
+      ...(input.userAgent ? { userAgent: input.userAgent } : {}),
     });
 
     return {
-      sessionToken,
-      expiresAt,
+      mfaRequired: false as const,
+      sessionToken: session.sessionToken,
+      expiresAt: session.expiresAt,
       user: identity.user,
     };
   }
@@ -271,6 +320,186 @@ export class IdentityService {
     };
   }
 
+  async setupTotp(input: SetupTotpInput) {
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        status: users.status,
+      })
+      .from(users)
+      .where(eq(users.id, input.userId))
+      .limit(1);
+
+    if (!user) {
+      throw new AppError(404, "user_not_found", "user was not found");
+    }
+
+    if (user.status !== "active") {
+      throw new AppError(
+        403,
+        "account_not_verified",
+        "account must be active before setting up MFA",
+      );
+    }
+
+    const secret = generateTotpSecret();
+    const encryptedSecret = encryptString(secret, env.TOTP_ENCRYPTION_KEY);
+    const factorRows = await db
+      .insert(userMfaFactors)
+      .values({
+        userId: user.id,
+        type: "totp",
+        secretEncrypted: encryptedSecret,
+      })
+      .returning({
+        factorId: userMfaFactors.id,
+      });
+
+    const factor = factorRows[0];
+
+    if (!factor) {
+      throw new AppError(500, "mfa_setup_failed", "failed to create mfa factor");
+    }
+
+    return {
+      factorId: factor.factorId,
+      secret,
+      otpauthUri: buildTotpOtpAuthUri({
+        issuer: env.TOTP_ISSUER,
+        accountName: user.email,
+        secret,
+      }),
+    };
+  }
+
+  async confirmTotpSetup(input: ConfirmTotpSetupInput) {
+    const rows = await db
+      .select({
+        factorId: userMfaFactors.id,
+        userId: userMfaFactors.userId,
+        secretEncrypted: userMfaFactors.secretEncrypted,
+        verifiedAt: userMfaFactors.verifiedAt,
+        disabledAt: userMfaFactors.disabledAt,
+      })
+      .from(userMfaFactors)
+      .where(
+        and(
+          eq(userMfaFactors.id, input.factorId),
+          eq(userMfaFactors.userId, input.userId),
+          eq(userMfaFactors.type, "totp"),
+        ),
+      )
+      .limit(1);
+
+    const factor = rows[0];
+
+    if (!factor) {
+      throw new AppError(404, "mfa_factor_not_found", "mfa factor was not found");
+    }
+
+    if (factor.disabledAt) {
+      throw new AppError(409, "mfa_factor_disabled", "mfa factor is disabled");
+    }
+
+    if (factor.verifiedAt) {
+      throw new AppError(409, "mfa_already_enabled", "mfa factor is already verified");
+    }
+
+    const secret = decryptString(factor.secretEncrypted, env.TOTP_ENCRYPTION_KEY);
+
+    if (!verifyTotpCode({ secret, code: input.code })) {
+      throw new AppError(401, "invalid_totp_code", "invalid totp code");
+    }
+
+    await db
+      .update(userMfaFactors)
+      .set({
+        verifiedAt: new Date(),
+      })
+      .where(eq(userMfaFactors.id, factor.factorId));
+
+    return {
+      factorId: factor.factorId,
+      enabled: true,
+    };
+  }
+
+  async verifyTotpLogin(input: VerifyTotpLoginInput) {
+    const challengeTokenHash = sha256Hex(input.challengeToken);
+    const challengeRows = await db
+      .select({
+        challengeId: mfaLoginChallenges.id,
+        userId: mfaLoginChallenges.userId,
+        expiresAt: mfaLoginChallenges.expiresAt,
+        consumedAt: mfaLoginChallenges.consumedAt,
+        user: users,
+      })
+      .from(mfaLoginChallenges)
+      .innerJoin(users, eq(users.id, mfaLoginChallenges.userId))
+      .where(eq(mfaLoginChallenges.tokenHash, challengeTokenHash))
+      .limit(1);
+
+    const challenge = challengeRows[0];
+
+    if (!challenge) {
+      throw new AppError(404, "mfa_challenge_not_found", "mfa challenge was not found");
+    }
+
+    if (challenge.consumedAt) {
+      throw new AppError(409, "mfa_challenge_consumed", "mfa challenge was already used");
+    }
+
+    if (challenge.expiresAt <= new Date()) {
+      throw new AppError(410, "mfa_challenge_expired", "mfa challenge has expired");
+    }
+
+    const factorRows = await db
+      .select({
+        factorId: userMfaFactors.id,
+        secretEncrypted: userMfaFactors.secretEncrypted,
+      })
+      .from(userMfaFactors)
+      .where(
+        and(
+          eq(userMfaFactors.userId, challenge.userId),
+          eq(userMfaFactors.type, "totp"),
+          isNull(userMfaFactors.disabledAt),
+          isNotNull(userMfaFactors.verifiedAt),
+        ),
+      );
+
+    const matchingFactor = factorRows.find((factor) =>
+      verifyTotpCode({
+        secret: decryptString(factor.secretEncrypted, env.TOTP_ENCRYPTION_KEY),
+        code: input.code,
+      }),
+    );
+
+    if (!matchingFactor) {
+      throw new AppError(401, "invalid_totp_code", "invalid totp code");
+    }
+
+    await db
+      .update(mfaLoginChallenges)
+      .set({
+        consumedAt: new Date(),
+      })
+      .where(eq(mfaLoginChallenges.id, challenge.challengeId));
+
+    const session = await this.createSession({
+      userId: challenge.userId,
+      ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
+      ...(input.userAgent ? { userAgent: input.userAgent } : {}),
+    });
+
+    return {
+      sessionToken: session.sessionToken,
+      expiresAt: session.expiresAt,
+      user: challenge.user,
+    };
+  }
+
   async linkExistingUser(input: LinkExistingUserInput) {
     const email = normalizeEmail(input.email);
     const existingUserRows = await db
@@ -385,6 +614,29 @@ export class IdentityService {
     }
 
     throw error;
+  }
+
+  private async createSession(input: {
+    userId: string;
+    ipAddress?: string;
+    userAgent?: string;
+  }) {
+    const sessionToken = createOpaqueToken(48);
+    const tokenHash = sha256Hex(sessionToken);
+    const expiresAt = new Date(Date.now() + env.SESSION_TTL_HOURS * 60 * 60 * 1000);
+
+    await db.insert(userSessions).values({
+      userId: input.userId,
+      tokenHash,
+      expiresAt,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+    });
+
+    return {
+      sessionToken,
+      expiresAt,
+    };
   }
 
   private buildEmailVerificationChallenge() {

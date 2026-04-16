@@ -23,6 +23,16 @@ const verifyEmailBodySchema = z.object({
   token: z.string().min(1),
 });
 
+const confirmTotpSetupBodySchema = z.object({
+  factorId: z.string().uuid(),
+  code: z.string().regex(/^\d{6}$/),
+});
+
+const verifyTotpLoginBodySchema = z.object({
+  challengeToken: z.string().min(1),
+  code: z.string().regex(/^\d{6}$/),
+});
+
 const linkExistingUserBodySchema = z.object({
   userId: z.string().uuid(),
   email: z.string().email(),
@@ -90,6 +100,20 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
     reply.send(result);
   });
 
+  app.post("/auth/mfa/totp/verify", async (request, reply) => {
+    const body = verifyTotpLoginBodySchema.parse(request.body);
+    const result = await identityService.verifyTotpLogin({
+      challengeToken: body.challengeToken,
+      code: body.code,
+      ipAddress: request.ip,
+      ...(request.headers["user-agent"]
+        ? { userAgent: request.headers["user-agent"] }
+        : {}),
+    });
+
+    reply.send(result);
+  });
+
   app.get("/auth/me", async (request) => {
     const sessionToken = getSessionTokenFromRequest(request);
     const user = await identityService.getUserFromSessionToken(sessionToken);
@@ -107,6 +131,29 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
     });
 
     reply.status(201).send(result);
+  });
+
+  app.post("/auth/mfa/totp/setup", async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const result = await identityService.setupTotp({
+      userId: user.id,
+    });
+
+    reply.status(201).send(result);
+  });
+
+  app.post("/auth/mfa/totp/confirm", async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const body = confirmTotpSetupBodySchema.parse(request.body);
+    const result = await identityService.confirmTotpSetup({
+      userId: user.id,
+      factorId: body.factorId,
+      code: body.code,
+    });
+
+    reply.send(result);
   });
 
   app.post("/internal/auth/link-existing-user", async (request, reply) => {
