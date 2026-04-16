@@ -23,6 +23,11 @@ The system SHALL allow advanced users to create and manage API keys with explici
 - **THEN** the system authenticates the owning user context
 - **AND** the protected route is executed only if the required scopes are satisfied
 
+#### Scenario: Replayed HMAC request is rejected
+- **WHEN** an API client reuses the same HMAC nonce for the same API key within the accepted verification window
+- **THEN** the system rejects the request as a replay attempt
+- **AND** the protected route is not executed
+
 #### Scenario: Revoked API key is rejected
 - **WHEN** an API client sends a revoked API key
 - **THEN** the system rejects the request

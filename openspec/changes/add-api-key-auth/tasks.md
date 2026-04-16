@@ -9,6 +9,7 @@
 - [x] 2.2 Add a protected route that authenticates with API keys and returns the caller identity.
 - [x] 2.3 Update API key usage metadata on successful authentication.
 - [x] 2.4 Add HMAC verification with timestamp validation for signed API requests.
+- [x] 2.5 Add nonce validation and persistence to reject replayed HMAC requests.
 
 ## 3. Validation
 

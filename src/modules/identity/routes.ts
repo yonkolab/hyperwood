@@ -81,6 +81,7 @@ function getApiKeyFromRequest(request: FastifyRequest) {
 function getApiHmacHeaders(request: FastifyRequest) {
   const keyPrefix = request.headers["x-api-key"];
   const timestamp = request.headers["x-api-timestamp"];
+  const nonce = request.headers["x-api-nonce"];
   const signature = request.headers["x-api-signature"];
 
   if (typeof keyPrefix !== "string" || keyPrefix.length === 0) {
@@ -91,6 +92,10 @@ function getApiHmacHeaders(request: FastifyRequest) {
     throw new AppError(401, "missing_api_signature", "missing api signature timestamp");
   }
 
+  if (typeof nonce !== "string" || nonce.length === 0) {
+    throw new AppError(401, "missing_api_signature", "missing api signature nonce");
+  }
+
   if (typeof signature !== "string" || signature.length === 0) {
     throw new AppError(401, "missing_api_signature", "missing api signature");
   }
@@ -98,6 +103,7 @@ function getApiHmacHeaders(request: FastifyRequest) {
   return {
     keyPrefix,
     timestamp,
+    nonce,
     signature,
   };
 }
@@ -203,6 +209,7 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
     return identityService.authenticateHmacApiKey({
       keyPrefix: headers.keyPrefix,
       timestamp: headers.timestamp,
+      nonce: headers.nonce,
       signature: headers.signature,
       method: request.method,
       path: request.raw.url ?? request.url,

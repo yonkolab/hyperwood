@@ -152,6 +152,26 @@ export const mfaLoginChallenges = pgTable(
   ],
 );
 
+export const apiKeyRequestNonces = pgTable(
+  "api_key_request_nonces",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    apiKeyId: uuid("api_key_id")
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: "cascade" }),
+    nonceHash: text("nonce_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("api_key_request_nonces_api_key_id_idx").on(table.apiKeyId),
+    uniqueIndex("api_key_request_nonces_api_key_nonce_unique").on(
+      table.apiKeyId,
+      table.nonceHash,
+    ),
+  ],
+);
+
 export const apiKeys = pgTable(
   "api_keys",
   {
@@ -220,6 +240,16 @@ export const mfaLoginChallengesRelations = relations(
     user: one(users, {
       fields: [mfaLoginChallenges.userId],
       references: [users.id],
+    }),
+  }),
+);
+
+export const apiKeyRequestNoncesRelations = relations(
+  apiKeyRequestNonces,
+  ({ one }) => ({
+    apiKey: one(apiKeys, {
+      fields: [apiKeyRequestNonces.apiKeyId],
+      references: [apiKeys.id],
     }),
   }),
 );

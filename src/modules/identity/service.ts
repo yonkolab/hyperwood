@@ -2,6 +2,7 @@ import { and, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import { db } from "../../db/client";
 import {
   apiKeys,
+  apiKeyRequestNonces,
   emailVerificationTokens,
   mfaLoginChallenges,
   userIdentities,
@@ -61,6 +62,7 @@ type AuthenticateApiKeyInput = {
 type AuthenticateHmacApiKeyInput = {
   keyPrefix: string;
   timestamp: string;
+  nonce: string;
   signature: string;
   method: string;
   path: string;
@@ -722,12 +724,18 @@ export class IdentityService {
         method: input.method,
         path: input.path,
         timestamp: input.timestamp,
+        nonce: input.nonce,
       }),
     );
 
     if (!safeEqualString(expectedSignature, input.signature)) {
       throw new AppError(401, "invalid_api_signature", "api signature is invalid");
     }
+
+    await this.persistApiKeyNonce({
+      apiKeyId: apiKey.id,
+      nonce: input.nonce,
+    });
 
     return this.finalizeAuthenticatedApiKey(apiKey, input.requiredScopes);
   }
@@ -903,7 +911,33 @@ export class IdentityService {
     method: string;
     path: string;
     timestamp: string;
+    nonce: string;
   }) {
-    return `${input.method.toUpperCase()}\n${input.path}\n${input.timestamp}`;
+    return `${input.method.toUpperCase()}\n${input.path}\n${input.timestamp}\n${input.nonce}`;
+  }
+
+  private async persistApiKeyNonce(input: { apiKeyId: string; nonce: string }) {
+    const nonceHash = sha256Hex(input.nonce);
+
+    try {
+      await db.insert(apiKeyRequestNonces).values({
+        apiKeyId: input.apiKeyId,
+        nonceHash,
+        expiresAt: new Date(
+          Date.now() + env.API_HMAC_NONCE_TTL_SECONDS * 1000,
+        ),
+      });
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23505"
+      ) {
+        throw new AppError(401, "replayed_api_request", "api request nonce was already used");
+      }
+
+      throw error;
+    }
   }
 }

@@ -17,6 +17,7 @@ const envSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, "API_KEY_ENCRYPTION_KEY must be 64 hex chars"),
   API_HMAC_MAX_SKEW_SECONDS: z.coerce.number().int().positive().default(300),
+  API_HMAC_NONCE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   INTERNAL_BOOTSTRAP_TOKEN: z.string().min(1),
 });
 

@@ -8,6 +8,7 @@ Hyperwood já cria, lista e revoga API keys, mas ainda não permite que clientes
 - Validate raw API keys against stored hashes, revocation state, and owning user state.
 - Support scope checks for API-key-protected routes.
 - Add HMAC signing for non-interactive API clients that do not want to send the full API key on each request.
+- Add nonce-based replay protection for HMAC-signed requests.
 - Record API key usage metadata so later audit and rate-limit layers have a reliable base.
 
 ## Capabilities

@@ -42,9 +42,16 @@ Hashing remains necessary for raw API key lookup, but HMAC verification requires
 Alternatives considered:
 - Store only hashes: rejected because HMAC verification would be impossible.
 
+### Decision: Require a nonce on HMAC-signed requests
+
+The first HMAC implementation now requires a caller-provided nonce and persists a per-key nonce hash inside a short validity window. This blocks straight replay within the accepted timestamp skew window.
+
+Alternatives considered:
+- Timestamp-only HMAC: rejected because replay inside the skew window would remain trivial.
+
 ## Risks / Trade-offs
 
 - Raw API keys are bearer credentials -> Scope checks and revocation must be strict.
 - `lastUsedAt` updates on every request add write load -> acceptable for the current scale and useful for auditability.
-- HMAC verification without nonce persistence is still replay-sensitive inside the timestamp window -> acceptable for the first slice, but nonce tracking should be added before high-risk trading operations.
+- Nonce persistence adds a write on every HMAC-authenticated request -> acceptable for the current scale and worth the replay protection.
 - Legacy API keys created before encrypted-secret storage cannot participate in HMAC signing -> clients may need key rotation to adopt the HMAC flow.

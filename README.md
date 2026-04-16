@@ -60,4 +60,11 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/auth/mfa/totp/confirm`
 - `POST /api/v1/internal/auth/link-existing-user`
 
+For HMAC requests, send:
+
+- `x-api-key`: API key prefix
+- `x-api-timestamp`: unix timestamp in seconds
+- `x-api-nonce`: unique client nonce
+- `x-api-signature`: hex HMAC-SHA256 of `METHOD + "\\n" + PATH + "\\n" + TIMESTAMP + "\\n" + NONCE`
+
 The internal link route requires the `x-bootstrap-token` header matching `INTERNAL_BOOTSTRAP_TOKEN`.
