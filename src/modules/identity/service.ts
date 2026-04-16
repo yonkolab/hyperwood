@@ -37,13 +37,19 @@ export class IdentityService {
 
     try {
       const createdUser = await db.transaction(async (tx) => {
-        const [created] = await tx
+        const createdRows = await tx
           .insert(users)
           .values({
             email,
             username: input.username,
           })
           .returning();
+
+        const created = createdRows[0];
+
+        if (!created) {
+          throw new AppError(500, "user_creation_failed", "failed to create user");
+        }
 
         await tx.insert(userIdentities).values({
           userId: created.id,
@@ -68,15 +74,23 @@ export class IdentityService {
   async login(input: LoginInput) {
     const email = normalizeEmail(input.email);
 
-    const identity = await db.query.userIdentities.findFirst({
-      where: and(
-        eq(userIdentities.provider, "password"),
-        eq(userIdentities.providerSubject, email),
-      ),
-      with: {
-        user: true,
-      },
-    });
+    const rows = await db
+      .select({
+        userId: userIdentities.userId,
+        passwordHash: userIdentities.passwordHash,
+        user: users,
+      })
+      .from(userIdentities)
+      .innerJoin(users, eq(users.id, userIdentities.userId))
+      .where(
+        and(
+          eq(userIdentities.provider, "password"),
+          eq(userIdentities.providerSubject, email),
+        ),
+      )
+      .limit(1);
+
+    const identity = rows[0];
 
     if (!identity?.passwordHash || !verifyPassword(input.password, identity.passwordHash)) {
       throw new AppError(401, "invalid_credentials", "invalid email or password");
@@ -104,16 +118,22 @@ export class IdentityService {
   async getUserFromSessionToken(sessionToken: string) {
     const tokenHash = sha256Hex(sessionToken);
 
-    const session = await db.query.userSessions.findFirst({
-      where: and(
-        eq(userSessions.tokenHash, tokenHash),
-        isNull(userSessions.revokedAt),
-        gt(userSessions.expiresAt, new Date()),
-      ),
-      with: {
-        user: true,
-      },
-    });
+    const rows = await db
+      .select({
+        user: users,
+      })
+      .from(userSessions)
+      .innerJoin(users, eq(users.id, userSessions.userId))
+      .where(
+        and(
+          eq(userSessions.tokenHash, tokenHash),
+          isNull(userSessions.revokedAt),
+          gt(userSessions.expiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+
+    const session = rows[0];
 
     if (!session) {
       throw new AppError(401, "invalid_session", "session is invalid or expired");
@@ -124,9 +144,13 @@ export class IdentityService {
 
   async linkExistingUser(input: LinkExistingUserInput) {
     const email = normalizeEmail(input.email);
-    const existingUser = await db.query.users.findFirst({
-      where: eq(users.id, input.userId),
-    });
+    const existingUserRows = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, input.userId))
+      .limit(1);
+
+    const existingUser = existingUserRows[0];
 
     if (!existingUser) {
       throw new AppError(404, "user_not_found", "existing user was not found");
@@ -140,12 +164,20 @@ export class IdentityService {
       );
     }
 
-    const existingIdentity = await db.query.userIdentities.findFirst({
-      where: and(
-        eq(userIdentities.provider, "password"),
-        eq(userIdentities.providerSubject, email),
-      ),
-    });
+    const existingIdentityRows = await db
+      .select({
+        id: userIdentities.id,
+      })
+      .from(userIdentities)
+      .where(
+        and(
+          eq(userIdentities.provider, "password"),
+          eq(userIdentities.providerSubject, email),
+        ),
+      )
+      .limit(1);
+
+    const existingIdentity = existingIdentityRows[0];
 
     if (existingIdentity) {
       throw new AppError(

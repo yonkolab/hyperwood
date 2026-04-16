@@ -1,5 +1,4 @@
 import type { FastifyInstance, FastifyPluginOptions, FastifyRequest } from "fastify";
-import fp from "fastify-plugin";
 import { z } from "zod";
 import { env } from "../../config/env";
 import { AppError } from "../../lib/errors";
@@ -42,7 +41,11 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
 
   app.post("/auth/register", async (request, reply) => {
     const body = registerBodySchema.parse(request.body);
-    const result = await identityService.register(body);
+    const result = await identityService.register({
+      email: body.email,
+      password: body.password,
+      ...(body.username ? { username: body.username } : {}),
+    });
 
     reply.status(201).send(result);
   });
@@ -50,9 +53,12 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
   app.post("/auth/login", async (request, reply) => {
     const body = loginBodySchema.parse(request.body);
     const result = await identityService.login({
-      ...body,
+      email: body.email,
+      password: body.password,
       ipAddress: request.ip,
-      userAgent: request.headers["user-agent"],
+      ...(request.headers["user-agent"]
+        ? { userAgent: request.headers["user-agent"] }
+        : {}),
     });
 
     reply.send(result);
@@ -85,10 +91,17 @@ async function identityRoutes(app: FastifyInstance, _options: FastifyPluginOptio
     }
 
     const body = linkExistingUserBodySchema.parse(request.body);
-    const result = await identityService.linkExistingUser(body);
+    const result = await identityService.linkExistingUser({
+      userId: body.userId,
+      email: body.email,
+      password: body.password,
+      ...(body.emailVerified !== undefined
+        ? { emailVerified: body.emailVerified }
+        : {}),
+    });
 
     reply.status(201).send(result);
   });
 }
 
-export const registerIdentityRoutes = fp(identityRoutes);
+export const registerIdentityRoutes = identityRoutes;

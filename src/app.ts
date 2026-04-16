@@ -16,17 +16,21 @@ export async function buildApp() {
     prefix: "/api/v1",
   });
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error: Error, _request, reply) => {
     app.log.error(error);
+    const structuredError = error as Error & {
+      statusCode?: unknown;
+      code?: unknown;
+    };
 
     const statusCode =
-      typeof (error as { statusCode?: unknown }).statusCode === "number"
-        ? (error as { statusCode: number }).statusCode
+      typeof structuredError.statusCode === "number"
+        ? structuredError.statusCode
         : 500;
 
     const code =
-      typeof (error as { code?: unknown }).code === "string"
-        ? (error as { code: string }).code
+      typeof structuredError.code === "string"
+        ? structuredError.code
         : "internal_error";
 
     reply.status(statusCode).send({
