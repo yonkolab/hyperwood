@@ -59,6 +59,8 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/auth/me`
 - `GET /api/v1/compliance/me/capabilities`
 - `GET /api/v1/funding/methods`
+- `GET /api/v1/funding/deposits`
+- `POST /api/v1/funding/deposits`
 - `GET /api/v1/wallet/balance`
 - `GET /api/v1/markets`
 - `GET /api/v1/markets/:marketId`
@@ -81,6 +83,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/internal/compliance/users/:userId/restrictions`
 - `POST /api/v1/internal/funding/users/:userId/methods`
 - `POST /api/v1/internal/funding/users/:userId/wallet/seed`
+- `POST /api/v1/internal/funding/deposits/:depositId/settle`
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`

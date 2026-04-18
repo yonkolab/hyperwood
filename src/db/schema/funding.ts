@@ -29,6 +29,20 @@ export const fundingMethodStatusEnum = pgEnum("funding_method_status", [
   "disabled",
 ]);
 
+export const fundingTransferTypeEnum = pgEnum("funding_transfer_type", [
+  "deposit",
+  "withdrawal",
+]);
+
+export const fundingTransferStatusEnum = pgEnum("funding_transfer_status", [
+  "pending",
+  "in_review",
+  "settled",
+  "failed",
+  "cancelled",
+  "reversed",
+]);
+
 export const walletAccountTypeEnum = pgEnum("wallet_account_type", [
   "user_cash",
   "user_order_reserved",
@@ -62,6 +76,39 @@ export const fundingMethods = pgTable(
   (table) => [
     index("funding_methods_user_id_idx").on(table.userId),
     index("funding_methods_user_status_idx").on(table.userId, table.status),
+  ],
+);
+
+export const fundingTransfers = pgTable(
+  "funding_transfers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    fundingMethodId: uuid("funding_method_id")
+      .notNull()
+      .references(() => fundingMethods.id, { onDelete: "restrict" }),
+    type: fundingTransferTypeEnum("type").notNull(),
+    status: fundingTransferStatusEnum("status").notNull().default("pending"),
+    amountMinor: bigint("amount_minor", { mode: "number" }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull(),
+    providerTransferReference: varchar("provider_transfer_reference", { length: 255 }),
+    failureReason: text("failure_reason"),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("funding_transfers_user_id_idx").on(table.userId),
+    index("funding_transfers_method_id_idx").on(table.fundingMethodId),
+    index("funding_transfers_user_status_idx").on(table.userId, table.status),
+    index("funding_transfers_type_status_idx").on(table.type, table.status),
   ],
 );
 
@@ -124,6 +171,17 @@ export const fundingMethodsRelations = relations(fundingMethods, ({ one }) => ({
   user: one(users, {
     fields: [fundingMethods.userId],
     references: [users.id],
+  }),
+}));
+
+export const fundingTransfersRelations = relations(fundingTransfers, ({ one }) => ({
+  user: one(users, {
+    fields: [fundingTransfers.userId],
+    references: [users.id],
+  }),
+  fundingMethod: one(fundingMethods, {
+    fields: [fundingTransfers.fundingMethodId],
+    references: [fundingMethods.id],
   }),
 }));
 

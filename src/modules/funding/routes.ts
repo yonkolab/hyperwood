@@ -20,6 +20,17 @@ const fundingMethodsQuerySchema = z.object({
   currency: z.enum(["USD", "BRL"]).default("USD"),
 });
 
+const createDepositBodySchema = z.object({
+  fundingMethodId: z.string().uuid(),
+  amountMinor: z.number().int().positive(),
+  currency: z.enum(["USD", "BRL"]),
+});
+
+const listDepositsQuerySchema = z.object({
+  currency: z.enum(["USD", "BRL"]).optional(),
+  limit: z.coerce.number().int().positive().max(100).default(25),
+});
+
 const seedWalletBodySchema = z.object({
   amountMinor: z.number().int().positive(),
   currency: z.enum(["USD", "BRL"]),
@@ -28,6 +39,10 @@ const seedWalletBodySchema = z.object({
 
 const fundingUserParamsSchema = z.object({
   userId: z.string().uuid(),
+});
+
+const fundingDepositParamsSchema = z.object({
+  depositId: z.string().uuid(),
 });
 
 const walletBalanceQuerySchema = z.object({
@@ -72,6 +87,31 @@ async function fundingRoutes(app: FastifyInstance, _options: FastifyPluginOption
     return fundingService.getWalletBalance(user.id, query.currency);
   });
 
+  app.get("/funding/deposits", async (request) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const query = listDepositsQuerySchema.parse(request.query);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+
+    return fundingService.listDeposits(user.id, {
+      limit: query.limit,
+      ...(query.currency ? { currency: query.currency } : {}),
+    });
+  });
+
+  app.post("/funding/deposits", async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const body = createDepositBodySchema.parse(request.body);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const result = await fundingService.createDeposit({
+      userId: user.id,
+      fundingMethodId: body.fundingMethodId,
+      amountMinor: body.amountMinor,
+      currency: body.currency,
+    });
+
+    reply.status(201).send(result);
+  });
+
   app.post("/internal/funding/users/:userId/methods", async (request, reply) => {
     assertBootstrapToken(request);
     const params = fundingUserParamsSchema.parse(request.params);
@@ -103,6 +143,14 @@ async function fundingRoutes(app: FastifyInstance, _options: FastifyPluginOption
     });
 
     reply.status(201).send(result);
+  });
+
+  app.post("/internal/funding/deposits/:depositId/settle", async (request, reply) => {
+    assertBootstrapToken(request);
+    const params = fundingDepositParamsSchema.parse(request.params);
+    const result = await fundingService.settleDeposit(params.depositId);
+
+    reply.status(200).send(result);
   });
 }
 
