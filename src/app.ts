@@ -1,7 +1,9 @@
 import Fastify from "fastify";
 import { env } from "./config/env";
 import { registerComplianceRoutes } from "./modules/compliance/routes";
+import { registerFundingRoutes } from "./modules/funding/routes";
 import { registerIdentityRoutes } from "./modules/identity/routes";
+import { registerMarketRoutes } from "./modules/markets/routes";
 
 export async function buildApp() {
   const app = Fastify({
@@ -18,6 +20,14 @@ export async function buildApp() {
   });
 
   await app.register(registerComplianceRoutes, {
+    prefix: "/api/v1",
+  });
+
+  await app.register(registerFundingRoutes, {
+    prefix: "/api/v1",
+  });
+
+  await app.register(registerMarketRoutes, {
     prefix: "/api/v1",
   });
 

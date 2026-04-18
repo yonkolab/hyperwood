@@ -1,9 +1,7 @@
 ## Purpose
 
 Define compliance, KYC, AML, and regional policy behavior that determines whether a Hyperwood user may trade, fund, withdraw, or access restricted capabilities.
-
 ## Requirements
-
 ### Requirement: Identity and sanctions screening
 The system MUST integrate with an identity verification workflow that supports KYC status, sanctions checks, age validation, and provider review references.
 
@@ -36,3 +34,4 @@ The system MUST support compliance and fraud review signals such as source-of-fu
 - **WHEN** the system or an administrator places an account under compliance review
 - **THEN** the system records the restriction set
 - **AND** the system prevents actions covered by those restrictions until the review is resolved
+

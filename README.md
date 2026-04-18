@@ -16,6 +16,9 @@ Prediction market API skeleton focused on the day-1 `identity-and-access` founda
 - linking a password identity to an existing user record
 - suspicious login auditing with temporary restriction thresholds
 - scoped API key creation for authenticated users
+- compliance capability evaluation and review holds
+- funding method registry with ledger-backed wallet balances
+- public market catalog and market detail bootstrap
 
 ## Setup
 
@@ -54,6 +57,10 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/auth/mfa/totp/authorize`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/compliance/me/capabilities`
+- `GET /api/v1/funding/methods`
+- `GET /api/v1/wallet/balance`
+- `GET /api/v1/markets`
+- `GET /api/v1/markets/:marketId`
 - `POST /api/v1/auth/api-keys`
 - `GET /api/v1/auth/api-keys`
 - `GET /api/v1/auth/api-key/me`
@@ -64,6 +71,10 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/internal/auth/link-existing-user`
 - `POST /api/v1/internal/compliance/users/:userId/profile`
 - `POST /api/v1/internal/compliance/users/:userId/restrictions`
+- `POST /api/v1/internal/funding/users/:userId/methods`
+- `POST /api/v1/internal/funding/users/:userId/wallet/seed`
+- `POST /api/v1/internal/markets/events`
+- `POST /api/v1/internal/markets`
 
 For users with active MFA, sensitive account actions like API key creation and revocation require a short-lived step-up authorization from `POST /api/v1/auth/mfa/totp/authorize`.
 
