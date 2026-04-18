@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyPluginOptions, FastifyRequest } from "fast
 import { z } from "zod";
 import { env } from "../../config/env";
 import { AppError } from "../../lib/errors";
+import { MatchingService } from "../matching/service";
 import { MarketsService } from "./service";
 
 const createEventBodySchema = z.object({
@@ -72,6 +73,10 @@ const orderBookDeltasQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(500).default(100),
 });
 
+const recentTradesQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(50),
+});
+
 function assertBootstrapToken(request: FastifyRequest) {
   const bootstrapToken = request.headers["x-bootstrap-token"];
 
@@ -82,6 +87,7 @@ function assertBootstrapToken(request: FastifyRequest) {
 
 async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions) {
   const marketsService = new MarketsService();
+  const matchingService = new MatchingService();
 
   app.get("/markets", async (request) => {
     const query = listMarketsQuerySchema.parse(request.query);
@@ -116,6 +122,13 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
       afterSequence: query.afterSequence,
       limit: query.limit,
     });
+  });
+
+  app.get("/markets/:marketId/trades", async (request) => {
+    const params = marketParamsSchema.parse(request.params);
+    const query = recentTradesQuerySchema.parse(request.query);
+
+    return matchingService.listRecentTrades(params.marketId, query.limit);
   });
 
   app.post("/internal/markets/events", async (request, reply) => {
@@ -154,6 +167,13 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
     });
 
     reply.status(201).send(result);
+  });
+
+  app.post("/internal/markets/:marketId/match", async (request) => {
+    assertBootstrapToken(request);
+    const params = marketParamsSchema.parse(request.params);
+
+    return matchingService.runLimitOrderMatching(params.marketId);
   });
 }
 

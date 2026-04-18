@@ -5,6 +5,7 @@ import { registerFundingRoutes } from "./modules/funding/routes";
 import { registerIdentityRoutes } from "./modules/identity/routes";
 import { registerMarketRoutes } from "./modules/markets/routes";
 import { registerOrderRoutes } from "./modules/orders/routes";
+import { registerPortfolioRoutes } from "./modules/portfolio/routes";
 
 export async function buildApp() {
   const app = Fastify({
@@ -33,6 +34,10 @@ export async function buildApp() {
   });
 
   await app.register(registerOrderRoutes, {
+    prefix: "/api/v1",
+  });
+
+  await app.register(registerPortfolioRoutes, {
     prefix: "/api/v1",
   });
 

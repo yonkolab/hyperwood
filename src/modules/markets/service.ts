@@ -275,7 +275,7 @@ export class MarketsService {
         outcome: orders.outcome,
         side: orders.side,
         priceBps: orders.limitPriceBps,
-        totalQuantity: sql<string>`sum(${orders.quantity})`,
+        totalQuantity: sql<string>`sum(${orders.quantity} - ${orders.filledQuantity})`,
         orderCount: sql<string>`count(*)`,
         latestOrderAt: sql<Date>`max(${orders.createdAt})`,
       })
@@ -283,7 +283,10 @@ export class MarketsService {
       .where(
         and(
           eq(orders.marketId, marketId),
-          eq(orders.status, "queued_for_matching"),
+          or(
+            eq(orders.status, "queued_for_matching"),
+            eq(orders.status, "partially_filled"),
+          ),
           eq(orders.type, "limit"),
         ),
       )
@@ -312,22 +315,10 @@ export class MarketsService {
       ),
     };
 
-    const snapshotTimestamp = priceLevels.reduce<Date | null>((latest, level) => {
-      if (!level.latestOrderAt) {
-        return latest;
-      }
-
-      if (!latest || level.latestOrderAt > latest) {
-        return level.latestOrderAt;
-      }
-
-      return latest;
-    }, null);
-
     return {
       marketId,
       snapshot: {
-        asOf: snapshotTimestamp?.toISOString() ?? new Date(0).toISOString(),
+        asOf: new Date().toISOString(),
         sequence: market.lastCommandSequence,
         sequenceToken: `${marketId}:${market.lastCommandSequence}`,
         totalPriceLevels: priceLevels.length,
@@ -417,12 +408,28 @@ export class MarketsService {
           metadata.reservedAmountMinor,
           row.reservedAmountMinor,
         );
+        const trade = row.commandType === "match_execution"
+          ? {
+              tradeId: this.pickString(metadata.tradeId, ""),
+              makerOrderId: this.pickString(metadata.makerOrderId, ""),
+              takerOrderId: this.pickString(metadata.takerOrderId, row.orderId),
+              outcome: this.pickEnumValue<OrderOutcome>(
+                metadata.outcome,
+                outcome,
+                orderOutcomeEnum.enumValues,
+              ),
+              priceBps: this.pickNumber(metadata.priceBps, referencePriceBps),
+              quantity: this.pickNumber(metadata.quantity, quantity),
+            }
+          : null;
         const bookEffect =
-          orderType !== "limit"
-            ? "none"
-            : row.commandType === "order_create"
-              ? "resting_add"
-              : "resting_remove";
+          row.commandType === "match_execution"
+            ? this.pickString(metadata.bookEffect, "trade")
+            : orderType !== "limit"
+              ? "none"
+              : row.commandType === "order_create"
+                ? "resting_add"
+                : "resting_remove";
 
         return {
           id: row.id,
@@ -444,8 +451,13 @@ export class MarketsService {
             stateAtSequence:
               row.commandType === "order_create"
                 ? "queued_for_matching"
-                : "cancelled",
+                : row.commandType === "order_cancel"
+                  ? "cancelled"
+                  : this.pickNumber(metadata.takerRemainingQuantity, 0) === 0
+                    ? "filled"
+                    : "partially_filled",
           },
+          ...(trade ? { trade } : {}),
           metadata,
         };
       }),

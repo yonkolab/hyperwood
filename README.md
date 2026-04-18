@@ -64,6 +64,9 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/markets/:marketId`
 - `GET /api/v1/markets/:marketId/order-book`
 - `GET /api/v1/markets/:marketId/order-book/deltas`
+- `GET /api/v1/markets/:marketId/trades`
+- `GET /api/v1/portfolio`
+- `GET /api/v1/portfolio/fills`
 - `POST /api/v1/orders`
 - `DELETE /api/v1/orders/:orderId`
 - `POST /api/v1/auth/api-keys`
@@ -80,6 +83,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/internal/funding/users/:userId/wallet/seed`
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
+- `POST /api/v1/internal/markets/:marketId/match`
 
 For users with active MFA, sensitive account actions like API key creation and revocation require a short-lived step-up authorization from `POST /api/v1/auth/mfa/totp/authorize`.
 

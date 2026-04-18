@@ -308,13 +308,18 @@ export class OrdersService {
         };
       }
 
-      if (order.status !== "queued_for_matching") {
+      if (
+        order.status !== "queued_for_matching" &&
+        order.status !== "partially_filled"
+      ) {
         throw new AppError(
           409,
           "order_not_cancellable",
           "order is not eligible for cancellation",
         );
       }
+
+      const releaseAmountMinor = order.reservedAmountMinor;
 
       const availableWallet = await this.getOrCreateWalletAccount(tx, {
         ownerUserId: input.userId,
@@ -331,6 +336,7 @@ export class OrdersService {
         .update(orders)
         .set({
           status: "cancelled",
+          reservedAmountMinor: 0,
           cancelledAt: new Date(),
           updatedAt: new Date(),
         })
@@ -372,14 +378,14 @@ export class OrdersService {
           transactionId: transaction.id,
           walletAccountId: reservedWallet.id,
           side: "debit",
-          amountMinor: cancelledOrder.reservedAmountMinor,
+          amountMinor: releaseAmountMinor,
           currency: cancelledOrder.currency,
         },
         {
           transactionId: transaction.id,
           walletAccountId: availableWallet.id,
           side: "credit",
-          amountMinor: cancelledOrder.reservedAmountMinor,
+          amountMinor: releaseAmountMinor,
           currency: cancelledOrder.currency,
         },
       ]);
@@ -395,7 +401,7 @@ export class OrdersService {
           quantity: cancelledOrder.quantity,
           limitPriceBps: cancelledOrder.limitPriceBps,
           referencePriceBps: cancelledOrder.referencePriceBps,
-          reservedAmountMinor: cancelledOrder.reservedAmountMinor,
+          reservedAmountMinor: releaseAmountMinor,
           currency: cancelledOrder.currency,
           reason: "user_cancelled_order",
         },

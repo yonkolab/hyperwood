@@ -48,6 +48,7 @@ export const orders = pgTable(
     outcome: orderOutcomeEnum("outcome").notNull(),
     status: orderStatusEnum("status").notNull().default("queued_for_matching"),
     quantity: integer("quantity").notNull(),
+    filledQuantity: integer("filled_quantity").notNull().default(0),
     limitPriceBps: integer("limit_price_bps"),
     referencePriceBps: integer("reference_price_bps").notNull(),
     reservedAmountMinor: bigint("reserved_amount_minor", { mode: "number" }).notNull(),

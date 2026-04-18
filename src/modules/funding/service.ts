@@ -118,20 +118,33 @@ export class FundingService {
       type: "user_order_reserved",
       currency,
     });
+    const positionCollateralWallet = await this.getOrCreateWalletAccount({
+      ownerUserId: userId,
+      type: "user_position_collateral",
+      currency,
+    });
 
-    const [availableBalanceMinor, reservedBalanceMinor] = await Promise.all([
+    const [
+      availableBalanceMinor,
+      reservedBalanceMinor,
+      positionCollateralMinor,
+    ] = await Promise.all([
       this.getWalletAccountBalance(wallet.id),
       this.getWalletAccountBalance(reservedWallet.id),
+      this.getWalletAccountBalance(positionCollateralWallet.id),
     ]);
 
     return {
       walletAccountId: wallet.id,
       reservedWalletAccountId: reservedWallet.id,
+      positionCollateralWalletAccountId: positionCollateralWallet.id,
       currency,
       balanceMinor: availableBalanceMinor,
       availableBalanceMinor,
       reservedBalanceMinor,
-      totalBalanceMinor: availableBalanceMinor + reservedBalanceMinor,
+      positionCollateralMinor,
+      totalBalanceMinor:
+        availableBalanceMinor + reservedBalanceMinor + positionCollateralMinor,
     };
   }
 
