@@ -31,6 +31,7 @@ export const fundingMethodStatusEnum = pgEnum("funding_method_status", [
 
 export const walletAccountTypeEnum = pgEnum("wallet_account_type", [
   "user_cash",
+  "user_order_reserved",
   "platform_clearing",
 ]);
 

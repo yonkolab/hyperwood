@@ -19,6 +19,7 @@ Prediction market API skeleton focused on the day-1 `identity-and-access` founda
 - compliance capability evaluation and review holds
 - funding method registry with ledger-backed wallet balances
 - public market catalog and market detail bootstrap
+- authenticated order intake with idempotent reservation
 
 ## Setup
 
@@ -61,6 +62,8 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/wallet/balance`
 - `GET /api/v1/markets`
 - `GET /api/v1/markets/:marketId`
+- `POST /api/v1/orders`
+- `DELETE /api/v1/orders/:orderId`
 - `POST /api/v1/auth/api-keys`
 - `GET /api/v1/auth/api-keys`
 - `GET /api/v1/auth/api-key/me`
@@ -93,6 +96,11 @@ For HMAC requests, send:
 - `x-api-timestamp`: unix timestamp in seconds
 - `x-api-nonce`: unique client nonce
 - `x-api-signature`: hex HMAC-SHA256 of `METHOD + "\\n" + PATH + "\\n" + TIMESTAMP + "\\n" + NONCE`
+
+For order creation requests, send:
+
+- `Authorization: Bearer <session-token>`
+- `idempotency-key`: stable client-generated key for retried submissions
 
 The internal link route requires the `x-bootstrap-token` header matching `INTERNAL_BOOTSTRAP_TOKEN`.
 

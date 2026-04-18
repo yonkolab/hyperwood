@@ -113,18 +113,25 @@ export class FundingService {
       type: "user_cash",
       currency,
     });
+    const reservedWallet = await this.getOrCreateWalletAccount({
+      ownerUserId: userId,
+      type: "user_order_reserved",
+      currency,
+    });
 
-    const balanceRows = await db
-      .select({
-        balanceMinor: sql<string>`coalesce(sum(case when ${ledgerEntries.side} = 'credit' then ${ledgerEntries.amountMinor} else -${ledgerEntries.amountMinor} end), 0)`,
-      })
-      .from(ledgerEntries)
-      .where(eq(ledgerEntries.walletAccountId, wallet.id));
+    const [availableBalanceMinor, reservedBalanceMinor] = await Promise.all([
+      this.getWalletAccountBalance(wallet.id),
+      this.getWalletAccountBalance(reservedWallet.id),
+    ]);
 
     return {
       walletAccountId: wallet.id,
+      reservedWalletAccountId: reservedWallet.id,
       currency,
-      balanceMinor: Number(balanceRows[0]?.balanceMinor ?? 0),
+      balanceMinor: availableBalanceMinor,
+      availableBalanceMinor,
+      reservedBalanceMinor,
+      totalBalanceMinor: availableBalanceMinor + reservedBalanceMinor,
     };
   }
 
@@ -197,6 +204,17 @@ export class FundingService {
     if (!user) {
       throw new AppError(404, "user_not_found", "user was not found");
     }
+  }
+
+  private async getWalletAccountBalance(walletAccountId: string) {
+    const balanceRows = await db
+      .select({
+        balanceMinor: sql<string>`coalesce(sum(case when ${ledgerEntries.side} = 'credit' then ${ledgerEntries.amountMinor} else -${ledgerEntries.amountMinor} end), 0)`,
+      })
+      .from(ledgerEntries)
+      .where(eq(ledgerEntries.walletAccountId, walletAccountId));
+
+    return Number(balanceRows[0]?.balanceMinor ?? 0);
   }
 
   private async getOrCreateWalletAccount(input: {
