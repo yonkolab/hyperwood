@@ -18,12 +18,16 @@ const fundingMethodBodySchema = z.object({
 
 const seedWalletBodySchema = z.object({
   amountMinor: z.number().int().positive(),
-  currency: z.string().length(3),
+  currency: z.enum(["USD", "BRL"]),
   referenceId: z.string().min(1).max(255).optional(),
 });
 
 const fundingUserParamsSchema = z.object({
   userId: z.string().uuid(),
+});
+
+const walletBalanceQuerySchema = z.object({
+  currency: z.enum(["USD", "BRL"]).default("USD"),
 });
 
 function getSessionTokenFromRequest(request: FastifyRequest) {
@@ -57,9 +61,10 @@ async function fundingRoutes(app: FastifyInstance, _options: FastifyPluginOption
 
   app.get("/wallet/balance", async (request) => {
     const sessionToken = getSessionTokenFromRequest(request);
+    const query = walletBalanceQuerySchema.parse(request.query);
     const user = await identityService.getUserFromSessionToken(sessionToken);
 
-    return fundingService.getWalletBalance(user.id);
+    return fundingService.getWalletBalance(user.id, query.currency);
   });
 
   app.post("/internal/funding/users/:userId/methods", async (request, reply) => {

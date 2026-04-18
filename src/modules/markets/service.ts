@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gt, ilike, or, sql } from "drizzle-orm";
 import { db } from "../../db/client";
 import {
   marketCommandEvents,
+  marketCurrencyEnum,
   marketEvents,
   markets,
   marketStatusEnum,
@@ -13,6 +14,7 @@ import {
 import { AppError } from "../../lib/errors";
 
 type MarketStatus = (typeof marketStatusEnum.enumValues)[number];
+type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
 type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
 type OrderSide = (typeof orderSideEnum.enumValues)[number];
 type OrderType = (typeof orderTypeEnum.enumValues)[number];
@@ -31,6 +33,7 @@ type CreateMarketInput = {
   slug: string;
   title: string;
   summary?: string;
+  currency: MarketCurrency;
   status: MarketStatus;
   tags?: string[];
   resolutionRules: string;
@@ -58,6 +61,7 @@ type MarketRecord = {
   title: string;
   summary: string | null;
   status: MarketStatus;
+  currency: MarketCurrency;
   tags: string[];
   yesPriceBps: number;
   noPriceBps: number;
@@ -111,6 +115,7 @@ export class MarketsService {
         title: input.title,
         summary: input.summary,
         status: input.status,
+        currency: input.currency,
         tags: input.tags ?? [],
         resolutionRules: input.resolutionRules,
         resolutionSources: input.resolutionSources ?? [],
@@ -138,6 +143,7 @@ export class MarketsService {
         title: markets.title,
         summary: markets.summary,
         status: markets.status,
+        currency: markets.currency,
         tags: markets.tags,
         yesPriceBps: markets.yesPriceBps,
         noPriceBps: markets.noPriceBps,
@@ -223,6 +229,7 @@ export class MarketsService {
         title: markets.title,
         summary: markets.summary,
         status: markets.status,
+        currency: markets.currency,
         tags: markets.tags,
         resolutionRules: markets.resolutionRules,
         resolutionSources: markets.resolutionSources,
@@ -483,6 +490,7 @@ export class MarketsService {
       .select({
         id: markets.id,
         lastCommandSequence: markets.lastCommandSequence,
+        currency: markets.currency,
       })
       .from(markets)
       .where(eq(markets.id, marketId))
@@ -531,6 +539,7 @@ export class MarketsService {
     title: string;
     summary: string | null;
     status: MarketStatus;
+    currency: MarketCurrency;
     tags: string[];
     yesPriceBps: number;
     noPriceBps: number;
@@ -555,6 +564,7 @@ export class MarketsService {
       title: row.title,
       summary: row.summary,
       status: row.status,
+      currency: row.currency,
       tags: row.tags,
       yesPriceBps: row.yesPriceBps,
       noPriceBps: row.noPriceBps,

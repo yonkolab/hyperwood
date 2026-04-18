@@ -19,6 +19,7 @@ const createMarketBodySchema = z.object({
   slug: z.string().min(3).max(128),
   title: z.string().min(3).max(160),
   summary: z.string().min(3).max(2000).optional(),
+  currency: z.enum(["USD", "BRL"]).default("USD"),
   status: z.enum([
     "draft",
     "scheduled",
@@ -153,6 +154,7 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
       eventId: body.eventId,
       slug: body.slug,
       title: body.title,
+      currency: body.currency,
       status: body.status,
       resolutionRules: body.resolutionRules,
       yesPriceBps: body.yesPriceBps,

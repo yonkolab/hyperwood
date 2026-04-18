@@ -1,15 +1,14 @@
 ## Purpose
 
 Define how Hyperwood derives portfolio state, manages market resolution, and applies settlement outcomes to positions and balances.
-
 ## Requirements
-
 ### Requirement: Derived positions and portfolio views
 The system SHALL expose portfolio data including cash totals, available balance, reserved balance, resting order value, open positions, fills, transfers, and settlement history.
 
 #### Scenario: Portfolio summary is requested
 - **WHEN** an authenticated user requests portfolio data
 - **THEN** the system returns current cash balances, reserved funds, open positions, and recent account activity derived from authoritative transaction and execution records
+- **AND** matched-but-unsettled collateral is reported separately from resting order reserve
 
 ### Requirement: Positions are derived from events
 The system MUST derive positions from executions and settlement events rather than treating positions as uncontrolled mutable fields.
@@ -37,3 +36,4 @@ The system MUST freeze trading on a resolved market, calculate winning and losin
 #### Scenario: Settlement completes
 - **WHEN** settlement executes successfully for a resolved market
 - **THEN** the system records settlement outputs, updates balances and positions, and exposes the settlement through user-facing APIs
+

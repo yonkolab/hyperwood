@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: Ledger-backed balances and reservations
+### Requirement: Immutable ledger and reservations
 The system MUST use an append-only double-entry ledger as the source of truth for wallet balances, reservations, settlements, and transfer adjustments.
 
 #### Scenario: Match reclassifies resting reserve

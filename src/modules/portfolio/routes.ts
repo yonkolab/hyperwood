@@ -6,6 +6,11 @@ import { PortfolioService } from "./service";
 
 const fillsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(50),
+  currency: z.enum(["USD", "BRL"]).default("USD"),
+});
+
+const portfolioQuerySchema = z.object({
+  currency: z.enum(["USD", "BRL"]).default("USD"),
 });
 
 function getSessionTokenFromRequest(request: FastifyRequest) {
@@ -24,9 +29,10 @@ async function portfolioRoutes(app: FastifyInstance, _options: FastifyPluginOpti
 
   app.get("/portfolio", async (request) => {
     const sessionToken = getSessionTokenFromRequest(request);
+    const query = portfolioQuerySchema.parse(request.query);
     const user = await identityService.getUserFromSessionToken(sessionToken);
 
-    return portfolioService.getPortfolioSummary(user.id);
+    return portfolioService.getPortfolioSummary(user.id, query.currency);
   });
 
   app.get("/portfolio/fills", async (request) => {
@@ -34,7 +40,7 @@ async function portfolioRoutes(app: FastifyInstance, _options: FastifyPluginOpti
     const query = fillsQuerySchema.parse(request.query);
     const user = await identityService.getUserFromSessionToken(sessionToken);
 
-    return portfolioService.listFills(user.id, query.limit);
+    return portfolioService.listFills(user.id, query.limit, query.currency);
   });
 }
 

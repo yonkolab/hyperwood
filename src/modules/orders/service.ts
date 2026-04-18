@@ -5,6 +5,7 @@ import {
   ledgerTransactions,
   marketCommandEvents,
   marketCommandTypeEnum,
+  marketCurrencyEnum,
   markets,
   orders,
   walletAccounts,
@@ -24,6 +25,7 @@ type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0
 type OrderType = (typeof orderTypeEnum.enumValues)[number];
 type OrderSide = (typeof orderSideEnum.enumValues)[number];
 type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
+type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
 type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
 type SelfTradePrevention = (typeof selfTradePreventionEnum.enumValues)[number];
 type MarketStatus = (typeof marketStatusEnum.enumValues)[number];
@@ -41,7 +43,6 @@ type CreateOrderInput = {
   selfTradePrevention: SelfTradePrevention;
 };
 
-const ORDER_CURRENCY = "USD";
 const MAX_ORDER_QUANTITY = 100_000;
 const MAX_ORDER_RESERVE_MINOR = 10_000_000;
 
@@ -76,6 +77,7 @@ export class OrdersService {
         .select({
           id: markets.id,
           status: markets.status,
+          currency: markets.currency,
           yesPriceBps: markets.yesPriceBps,
           noPriceBps: markets.noPriceBps,
         })
@@ -147,15 +149,16 @@ export class OrdersService {
         );
       }
 
+      const orderCurrency: MarketCurrency = market.currency;
       const availableWallet = await this.getOrCreateWalletAccount(tx, {
         ownerUserId: input.userId,
         type: "user_cash",
-        currency: ORDER_CURRENCY,
+        currency: orderCurrency,
       });
       const reservedWallet = await this.getOrCreateWalletAccount(tx, {
         ownerUserId: input.userId,
         type: "user_order_reserved",
-        currency: ORDER_CURRENCY,
+        currency: orderCurrency,
       });
 
       const availableBalanceMinor = await this.getWalletAccountBalance(tx, availableWallet.id);
@@ -183,7 +186,7 @@ export class OrdersService {
           limitPriceBps: input.limitPriceBps,
           referencePriceBps,
           reservedAmountMinor,
-          currency: ORDER_CURRENCY,
+          currency: orderCurrency,
           selfTradePrevention: input.selfTradePrevention,
           updatedAt: new Date(),
         })
@@ -227,14 +230,14 @@ export class OrdersService {
           walletAccountId: availableWallet.id,
           side: "debit",
           amountMinor: reservedAmountMinor,
-          currency: ORDER_CURRENCY,
+          currency: orderCurrency,
         },
         {
           transactionId: transaction.id,
           walletAccountId: reservedWallet.id,
           side: "credit",
           amountMinor: reservedAmountMinor,
-          currency: ORDER_CURRENCY,
+          currency: orderCurrency,
         },
       ]);
 

@@ -27,6 +27,8 @@ export const marketStatusEnum = pgEnum("market_status", [
   "voided",
 ]);
 
+export const marketCurrencyEnum = pgEnum("market_currency", ["USD", "BRL"]);
+
 export const marketEvents = pgTable(
   "market_events",
   {
@@ -57,6 +59,7 @@ export const markets = pgTable(
     title: varchar("title", { length: 160 }).notNull(),
     summary: text("summary"),
     status: marketStatusEnum("status").notNull().default("draft"),
+    currency: marketCurrencyEnum("currency").notNull().default("USD"),
     tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     resolutionRules: text("resolution_rules").notNull(),
     resolutionSources: jsonb("resolution_sources")

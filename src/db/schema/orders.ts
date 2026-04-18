@@ -13,7 +13,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { markets } from "./markets";
+import { marketCurrencyEnum, markets } from "./markets";
 import { users } from "./users";
 
 export const orderTypeEnum = pgEnum("order_type", ["limit", "market"]);
@@ -52,7 +52,7 @@ export const orders = pgTable(
     limitPriceBps: integer("limit_price_bps"),
     referencePriceBps: integer("reference_price_bps").notNull(),
     reservedAmountMinor: bigint("reserved_amount_minor", { mode: "number" }).notNull(),
-    currency: varchar("currency", { length: 3 }).notNull().default("USD"),
+    currency: marketCurrencyEnum("currency").notNull().default("USD"),
     selfTradePrevention: selfTradePreventionEnum("self_trade_prevention")
       .notNull()
       .default("decrement_and_cancel"),

@@ -4,6 +4,7 @@ import { db } from "../../db/client";
 import {
   ledgerEntries,
   ledgerTransactions,
+  marketCurrencyEnum,
   marketTrades,
   markets,
   orders,
@@ -13,6 +14,7 @@ import {
 import { AppError } from "../../lib/errors";
 
 type FillRole = "maker" | "taker";
+type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
 type WalletAccountType =
   | "user_cash"
   | "user_order_reserved"
@@ -31,16 +33,18 @@ const DEFAULT_RECENT_FILL_LIMIT = 20;
 const DEFAULT_RECENT_ACTIVITY_LIMIT = 20;
 
 export class PortfolioService {
-  async getPortfolioSummary(userId: string) {
-    const cash = await this.getCashSummary(userId);
-    const positions = await this.getDerivedPositions(userId);
-    const recentFills = await this.listFills(userId, DEFAULT_RECENT_FILL_LIMIT);
+  async getPortfolioSummary(userId: string, currency: MarketCurrency = "USD") {
+    const cash = await this.getCashSummary(userId, currency);
+    const positions = await this.getDerivedPositions(userId, currency);
+    const recentFills = await this.listFills(userId, DEFAULT_RECENT_FILL_LIMIT, currency);
     const recentLedgerActivity = await this.listLedgerActivity(
       userId,
       DEFAULT_RECENT_ACTIVITY_LIMIT,
+      currency,
     );
 
     return {
+      currency,
       cash: {
         ...cash,
       },
@@ -50,27 +54,28 @@ export class PortfolioService {
     };
   }
 
-  async listFills(userId: string, limit: number) {
+  async listFills(userId: string, limit: number, currency: MarketCurrency = "USD") {
     await this.assertUserExists(userId);
 
-    const rows = await this.loadUserFillRows(userId);
+    const rows = await this.loadUserFillRows(userId, currency);
     const fills = rows
       .sort((left, right) => right.executedAt.getTime() - left.executedAt.getTime())
       .slice(0, Math.min(limit, 100))
       .map((row) => this.mapFill(row));
 
     return {
+      currency,
       fills,
     };
   }
 
-  private async getCashSummary(userId: string) {
+  private async getCashSummary(userId: string, currency: MarketCurrency) {
     await this.assertUserExists(userId);
 
     const [cashWallet, reservedWallet, positionCollateralWallet] = await Promise.all([
-      this.getOrCreateWalletAccount(userId, "user_cash", "USD"),
-      this.getOrCreateWalletAccount(userId, "user_order_reserved", "USD"),
-      this.getOrCreateWalletAccount(userId, "user_position_collateral", "USD"),
+      this.getOrCreateWalletAccount(userId, "user_cash", currency),
+      this.getOrCreateWalletAccount(userId, "user_order_reserved", currency),
+      this.getOrCreateWalletAccount(userId, "user_position_collateral", currency),
     ]);
 
     const [
@@ -82,11 +87,11 @@ export class PortfolioService {
         this.getWalletAccountBalance(cashWallet.id),
         this.getWalletAccountBalance(reservedWallet.id),
         this.getWalletAccountBalance(positionCollateralWallet.id),
-        this.getRestingOrderValueMinor(userId),
+        this.getRestingOrderValueMinor(userId, currency),
       ]);
 
     return {
-      currency: "USD",
+      currency,
       walletAccountId: cashWallet.id,
       reservedWalletAccountId: reservedWallet.id,
       positionCollateralWalletAccountId: positionCollateralWallet.id,
@@ -99,8 +104,8 @@ export class PortfolioService {
     };
   }
 
-  private async getDerivedPositions(userId: string) {
-    const fills = await this.loadUserFillRows(userId);
+  private async getDerivedPositions(userId: string, currency: MarketCurrency) {
+    const fills = await this.loadUserFillRows(userId, currency);
     const grouped = fills.reduce<
       Map<string, PositionRecord & { totalWeightedPriceBpsQuantity: number }>
     >((positions, fill) => {
@@ -129,7 +134,11 @@ export class PortfolioService {
       .sort((left, right) => left.marketTitle.localeCompare(right.marketTitle));
   }
 
-  private async listLedgerActivity(userId: string, limit: number) {
+  private async listLedgerActivity(
+    userId: string,
+    limit: number,
+    currency: MarketCurrency,
+  ) {
     const rows = await db
       .select({
         transactionId: ledgerTransactions.id,
@@ -149,6 +158,7 @@ export class PortfolioService {
       .where(
         and(
           eq(walletAccounts.ownerUserId, userId),
+          eq(walletAccounts.currency, currency),
           inArray(walletAccounts.type, [
             "user_cash",
             "user_order_reserved",
@@ -203,7 +213,7 @@ export class PortfolioService {
     return Array.from(grouped.values()).slice(0, limit);
   }
 
-  private async getRestingOrderValueMinor(userId: string) {
+  private async getRestingOrderValueMinor(userId: string, currency: MarketCurrency) {
     const rows = await db
       .select({
         side: orders.side,
@@ -215,6 +225,7 @@ export class PortfolioService {
       .where(
         and(
           eq(orders.userId, userId),
+          eq(orders.currency, currency),
           or(
             eq(orders.status, "queued_for_matching"),
             eq(orders.status, "partially_filled"),
@@ -233,7 +244,7 @@ export class PortfolioService {
     }, 0);
   }
 
-  private async loadUserFillRows(userId: string) {
+  private async loadUserFillRows(userId: string, currency: MarketCurrency) {
     const makerOrders = alias(orders, "maker_orders");
     const takerOrders = alias(orders, "taker_orders");
     const marketTable = alias(markets, "portfolio_markets");
@@ -244,6 +255,7 @@ export class PortfolioService {
         marketId: marketTrades.marketId,
         marketSlug: marketTable.slug,
         marketTitle: marketTable.title,
+        marketCurrency: marketTable.currency,
         makerOrderId: marketTrades.makerOrderId,
         takerOrderId: marketTrades.takerOrderId,
         priceBps: marketTrades.priceBps,
@@ -260,7 +272,12 @@ export class PortfolioService {
       .innerJoin(makerOrders, eq(makerOrders.id, marketTrades.makerOrderId))
       .innerJoin(takerOrders, eq(takerOrders.id, marketTrades.takerOrderId))
       .innerJoin(marketTable, eq(marketTable.id, marketTrades.marketId))
-      .where(or(eq(makerOrders.userId, userId), eq(takerOrders.userId, userId)));
+      .where(
+        and(
+          eq(marketTable.currency, currency),
+          or(eq(makerOrders.userId, userId), eq(takerOrders.userId, userId)),
+        ),
+      );
 
     return rows.flatMap((row) => {
       const entries = [];

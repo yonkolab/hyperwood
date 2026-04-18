@@ -1,9 +1,7 @@
 ## Purpose
 
 Define how Hyperwood distributes live market and account updates and how it separates, retains, and exports historical data.
-
 ## Requirements
-
 ### Requirement: Public and private realtime channels
 The system SHALL provide streaming channels for public market data and authenticated private account updates.
 
@@ -21,6 +19,12 @@ The system MUST support snapshot-plus-delta recovery with sequence numbers so cl
 #### Scenario: Client detects a gap
 - **WHEN** a client receives a realtime sequence gap or reconnects after interruption
 - **THEN** the system provides a recovery path using current snapshots and subsequent deltas
+- **AND** the snapshot includes the latest authoritative sequence baseline for the requested market scope
+
+#### Scenario: Client replays deltas after a snapshot
+- **WHEN** a client requests market deltas after a known snapshot sequence
+- **THEN** the recovery response includes the latest known market sequence, a bounded delta page, and a cursor for additional replay if more data remains
+- **AND** the client can advance to the next cursor without ambiguity or silent sequence skips
 
 ### Requirement: Separate historical access paths
 The system SHALL expose historical data through dedicated historical access paths for archived markets, orders, fills, trades, charts, and account exports.
@@ -35,3 +39,4 @@ The system MUST support archival policies, historical exports, and retained orde
 #### Scenario: User requests historical export
 - **WHEN** an eligible user or admin requests an account or market history export
 - **THEN** the system generates an export job and makes the resulting artifact available through an approved delivery path
+

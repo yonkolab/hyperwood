@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
-### Requirement: Order cancellation
-The system SHALL allow users to cancel eligible resting orders and receive a stable outcome for repeated cancellation requests.
+### Requirement: Order lifecycle management
+The system SHALL support cancellation, decrease, and amendment workflows with user-visible order status updates.
 
 #### Scenario: Partially-filled order cancels remaining quantity
 - **WHEN** a user cancels an order that is partially filled but still has remaining resting quantity

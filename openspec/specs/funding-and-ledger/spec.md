@@ -30,10 +30,11 @@ The system MUST support deposits and withdrawals across configured rails with pe
 ### Requirement: Immutable ledger and reservations
 The system MUST use an append-only double-entry ledger as the source of truth for wallet balances, reservations, settlements, and transfer adjustments.
 
-#### Scenario: Wallet balance is derived from append-only ledger entries
-- **WHEN** the system returns a user's wallet balance
-- **THEN** the balance is computed from ledger entries associated with that wallet account
-- **AND** the platform does not mutate historical ledger entries destructively
+#### Scenario: Match reclassifies resting reserve
+- **WHEN** an order fill occurs
+- **THEN** the system debits the consumed amount from the user's resting order reserve wallet
+- **AND** it credits the matched exposure to a dedicated user position collateral wallet
+- **AND** any price-improvement excess is credited back to available cash through the same append-only ledger model
 
 ### Requirement: Reconciliation workflows
 The system SHALL run intraday and daily reconciliation against providers, transfer states, reservations, ledger invariants, and settlement outputs.
