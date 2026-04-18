@@ -442,6 +442,9 @@ export class FundingService {
             rail: fundingMethod.rail,
             fundingMethodDisplayName: fundingMethod.displayName,
             requiresReview: initialStatus === "in_review",
+            reviewReason: initialStatus === "in_review" ? "amount_threshold" : null,
+            reviewThresholdMinor:
+              initialStatus === "in_review" ? WITHDRAWAL_REVIEW_THRESHOLD_MINOR : null,
           },
           updatedAt: new Date(),
         })
