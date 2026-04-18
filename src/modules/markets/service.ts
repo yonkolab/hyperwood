@@ -1,13 +1,21 @@
-import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, or, sql } from "drizzle-orm";
 import { db } from "../../db/client";
 import {
+  marketCommandEvents,
   marketEvents,
   markets,
   marketStatusEnum,
+  orders,
+  orderOutcomeEnum,
+  orderSideEnum,
+  orderTypeEnum,
 } from "../../db/schema";
 import { AppError } from "../../lib/errors";
 
 type MarketStatus = (typeof marketStatusEnum.enumValues)[number];
+type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
+type OrderSide = (typeof orderSideEnum.enumValues)[number];
+type OrderType = (typeof orderTypeEnum.enumValues)[number];
 
 type CreateMarketEventInput = {
   slug: string;
@@ -209,6 +217,7 @@ export class MarketsService {
   async getMarketDetail(marketId: string) {
     const rows = await db
       .select({
+        lastCommandSequence: markets.lastCommandSequence,
         id: markets.id,
         slug: markets.slug,
         title: markets.title,
@@ -253,7 +262,193 @@ export class MarketsService {
         resolutionRules: market.resolutionRules,
         resolutionSources: market.resolutionSources,
         statusTimeline: this.buildStatusTimeline(market),
+        lastCommandSequence: market.lastCommandSequence,
       },
+    };
+  }
+
+  async getOrderBookSnapshot(marketId: string) {
+    const market = await this.assertMarketExists(marketId);
+
+    const rows = await db
+      .select({
+        outcome: orders.outcome,
+        side: orders.side,
+        priceBps: orders.limitPriceBps,
+        totalQuantity: sql<string>`sum(${orders.quantity})`,
+        orderCount: sql<string>`count(*)`,
+        latestOrderAt: sql<Date>`max(${orders.createdAt})`,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.marketId, marketId),
+          eq(orders.status, "queued_for_matching"),
+          eq(orders.type, "limit"),
+        ),
+      )
+      .groupBy(orders.outcome, orders.side, orders.limitPriceBps);
+
+    const priceLevels = rows
+      .filter(
+        (row): row is typeof row & { priceBps: number } =>
+          typeof row.priceBps === "number",
+      )
+      .map((row) => ({
+        outcome: row.outcome,
+        side: row.side,
+        priceBps: row.priceBps,
+        totalQuantity: Number(row.totalQuantity),
+        orderCount: Number(row.orderCount),
+        latestOrderAt: row.latestOrderAt,
+      }));
+
+    const books = {
+      yes: this.buildOutcomeBook(
+        priceLevels.filter((level) => level.outcome === "yes"),
+      ),
+      no: this.buildOutcomeBook(
+        priceLevels.filter((level) => level.outcome === "no"),
+      ),
+    };
+
+    const snapshotTimestamp = priceLevels.reduce<Date | null>((latest, level) => {
+      if (!level.latestOrderAt) {
+        return latest;
+      }
+
+      if (!latest || level.latestOrderAt > latest) {
+        return level.latestOrderAt;
+      }
+
+      return latest;
+    }, null);
+
+    return {
+      marketId,
+      snapshot: {
+        asOf: snapshotTimestamp?.toISOString() ?? new Date(0).toISOString(),
+        sequence: market.lastCommandSequence,
+        sequenceToken: `${marketId}:${market.lastCommandSequence}`,
+        totalPriceLevels: priceLevels.length,
+      },
+      books,
+    };
+  }
+
+  async getOrderBookDeltas(
+    marketId: string,
+    input: {
+      afterSequence: number;
+      limit: number;
+    },
+  ) {
+    const market = await this.assertMarketExists(marketId);
+    const pageSize = Math.min(input.limit, 500);
+
+    const rows = await db
+      .select({
+        id: marketCommandEvents.id,
+        sequence: marketCommandEvents.sequence,
+        commandType: marketCommandEvents.commandType,
+        metadata: marketCommandEvents.metadata,
+        createdAt: marketCommandEvents.createdAt,
+        orderId: orders.id,
+        orderType: orders.type,
+        side: orders.side,
+        outcome: orders.outcome,
+        quantity: orders.quantity,
+        limitPriceBps: orders.limitPriceBps,
+        referencePriceBps: orders.referencePriceBps,
+        reservedAmountMinor: orders.reservedAmountMinor,
+        currency: orders.currency,
+      })
+      .from(marketCommandEvents)
+      .innerJoin(orders, eq(orders.id, marketCommandEvents.orderId))
+      .where(
+        and(
+          eq(marketCommandEvents.marketId, marketId),
+          gt(marketCommandEvents.sequence, input.afterSequence),
+        ),
+      )
+      .orderBy(asc(marketCommandEvents.sequence))
+      .limit(pageSize + 1);
+
+    const hasMore = rows.length > pageSize;
+    const pageRows = rows.slice(0, pageSize);
+    const endingSequence = pageRows.at(-1)?.sequence ?? input.afterSequence;
+
+    return {
+      marketId,
+      recovery: {
+        requestedAfterSequence: input.afterSequence,
+        latestSequence: market.lastCommandSequence,
+        hasMore,
+        nextAfterSequence: hasMore ? endingSequence : null,
+        sequenceToken: `${marketId}:${market.lastCommandSequence}`,
+      },
+      deltas: pageRows.map((row) => {
+        const metadata = this.asRecord(row.metadata);
+        const orderType = this.pickEnumValue<OrderType>(
+          metadata.orderType,
+          row.orderType,
+          orderTypeEnum.enumValues,
+        );
+        const side = this.pickEnumValue<OrderSide>(
+          metadata.side,
+          row.side,
+          orderSideEnum.enumValues,
+        );
+        const outcome = this.pickEnumValue<OrderOutcome>(
+          metadata.outcome,
+          row.outcome,
+          orderOutcomeEnum.enumValues,
+        );
+        const quantity = this.pickNumber(metadata.quantity, row.quantity);
+        const limitPriceBps = this.pickNullableNumber(
+          metadata.limitPriceBps,
+          row.limitPriceBps,
+        );
+        const referencePriceBps = this.pickNumber(
+          metadata.referencePriceBps,
+          row.referencePriceBps,
+        );
+        const reservedAmountMinor = this.pickNumber(
+          metadata.reservedAmountMinor,
+          row.reservedAmountMinor,
+        );
+        const bookEffect =
+          orderType !== "limit"
+            ? "none"
+            : row.commandType === "order_create"
+              ? "resting_add"
+              : "resting_remove";
+
+        return {
+          id: row.id,
+          sequence: row.sequence,
+          occurredAt: row.createdAt.toISOString(),
+          commandType: row.commandType,
+          bookEffect,
+          affectsBook: bookEffect !== "none",
+          order: {
+            id: row.orderId,
+            type: orderType,
+            side,
+            outcome,
+            quantity,
+            limitPriceBps,
+            referencePriceBps,
+            reservedAmountMinor,
+            currency: this.pickString(metadata.currency, row.currency),
+            stateAtSequence:
+              row.commandType === "order_create"
+                ? "queued_for_matching"
+                : "cancelled",
+          },
+          metadata,
+        };
+      }),
     };
   }
 
@@ -269,6 +464,23 @@ export class MarketsService {
     if (!event) {
       throw new AppError(404, "event_not_found", "event was not found");
     }
+  }
+
+  private async assertMarketExists(marketId: string) {
+    const [market] = await db
+      .select({
+        id: markets.id,
+        lastCommandSequence: markets.lastCommandSequence,
+      })
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1);
+
+    if (!market) {
+      throw new AppError(404, "market_not_found", "market was not found");
+    }
+
+    return market;
   }
 
   private assertPriceSnapshot(yesPriceBps: number, noPriceBps: number) {
@@ -395,5 +607,82 @@ export class MarketsService {
     });
 
     return timeline;
+  }
+
+  private buildOutcomeBook(
+    levels: Array<{
+      outcome: OrderOutcome;
+      side: OrderSide;
+      priceBps: number;
+      totalQuantity: number;
+      orderCount: number;
+      latestOrderAt: Date | null;
+    }>,
+  ) {
+    const bids = levels
+      .filter((level) => level.side === "buy")
+      .sort((left, right) => right.priceBps - left.priceBps)
+      .map((level) => ({
+        priceBps: level.priceBps,
+        quantity: level.totalQuantity,
+        orderCount: level.orderCount,
+      }));
+    const asks = levels
+      .filter((level) => level.side === "sell")
+      .sort((left, right) => left.priceBps - right.priceBps)
+      .map((level) => ({
+        priceBps: level.priceBps,
+        quantity: level.totalQuantity,
+        orderCount: level.orderCount,
+      }));
+
+    return {
+      bestBidPriceBps: bids[0]?.priceBps ?? null,
+      bestAskPriceBps: asks[0]?.priceBps ?? null,
+      bids,
+      asks,
+    };
+  }
+
+  private asRecord(value: unknown) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return {};
+    }
+
+    return value as Record<string, unknown>;
+  }
+
+  private pickEnumValue<T extends string>(
+    candidate: unknown,
+    fallback: T,
+    values: readonly T[],
+  ) {
+    if (typeof candidate === "string" && values.includes(candidate as T)) {
+      return candidate as T;
+    }
+
+    return fallback;
+  }
+
+  private pickNumber(candidate: unknown, fallback: number) {
+    return typeof candidate === "number" && Number.isFinite(candidate)
+      ? candidate
+      : fallback;
+  }
+
+  private pickNullableNumber(candidate: unknown, fallback: number | null) {
+    if (candidate === null) {
+      return null;
+    }
+
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return candidate;
+    }
+
+    return fallback;
+  }
+
+  private pickString(candidate: unknown, fallback: string) {
+    return typeof candidate === "string" ? candidate : fallback;
   }
 }

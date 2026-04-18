@@ -67,6 +67,11 @@ const marketParamsSchema = z.object({
   marketId: z.string().uuid(),
 });
 
+const orderBookDeltasQuerySchema = z.object({
+  afterSequence: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().positive().max(500).default(100),
+});
+
 function assertBootstrapToken(request: FastifyRequest) {
   const bootstrapToken = request.headers["x-bootstrap-token"];
 
@@ -95,6 +100,22 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
     const params = marketParamsSchema.parse(request.params);
 
     return marketsService.getMarketDetail(params.marketId);
+  });
+
+  app.get("/markets/:marketId/order-book", async (request) => {
+    const params = marketParamsSchema.parse(request.params);
+
+    return marketsService.getOrderBookSnapshot(params.marketId);
+  });
+
+  app.get("/markets/:marketId/order-book/deltas", async (request) => {
+    const params = marketParamsSchema.parse(request.params);
+    const query = orderBookDeltasQuerySchema.parse(request.query);
+
+    return marketsService.getOrderBookDeltas(params.marketId, {
+      afterSequence: query.afterSequence,
+      limit: query.limit,
+    });
   });
 
   app.post("/internal/markets/events", async (request, reply) => {

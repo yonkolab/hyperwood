@@ -3,6 +3,8 @@ import { db } from "../../db/client";
 import {
   ledgerEntries,
   ledgerTransactions,
+  marketCommandEvents,
+  marketCommandTypeEnum,
   markets,
   orders,
   walletAccounts,
@@ -25,6 +27,7 @@ type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
 type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
 type SelfTradePrevention = (typeof selfTradePreventionEnum.enumValues)[number];
 type MarketStatus = (typeof marketStatusEnum.enumValues)[number];
+type MarketCommandType = (typeof marketCommandTypeEnum.enumValues)[number];
 
 type CreateOrderInput = {
   userId: string;
@@ -69,6 +72,24 @@ export class OrdersService {
     );
 
     return db.transaction(async (tx) => {
+      const marketRows = await tx
+        .select({
+          id: markets.id,
+          status: markets.status,
+          yesPriceBps: markets.yesPriceBps,
+          noPriceBps: markets.noPriceBps,
+        })
+        .from(markets)
+        .where(eq(markets.id, input.marketId))
+        .limit(1);
+
+      const market = marketRows[0];
+
+      if (!market) {
+        throw new AppError(404, "market_not_found", "market was not found");
+      }
+
+      await this.acquireMarketWriteLock(tx, market.id);
       const existingRows = await tx
         .select()
         .from(orders)
@@ -91,31 +112,20 @@ export class OrdersService {
           );
         }
 
+        const existingCommand = await this.findExistingMarketCommand(
+          tx,
+          existingOrder.id,
+          "order_create",
+        );
+
         return {
           order: existingOrder,
           idempotentReplay: true,
+          ...(existingCommand ? { marketCommand: existingCommand } : {}),
         };
       }
 
       this.assertOrderQuantity(input.quantity);
-
-      const marketRows = await tx
-        .select({
-          id: markets.id,
-          status: markets.status,
-          yesPriceBps: markets.yesPriceBps,
-          noPriceBps: markets.noPriceBps,
-        })
-        .from(markets)
-        .where(eq(markets.id, input.marketId))
-        .limit(1);
-
-      const market = marketRows[0];
-
-      if (!market) {
-        throw new AppError(404, "market_not_found", "market was not found");
-      }
-
       this.assertMarketTradable(market.status);
 
       const referencePriceBps =
@@ -228,9 +238,26 @@ export class OrdersService {
         },
       ]);
 
+      const command = await this.recordMarketCommand(tx, {
+        marketId: market.id,
+        orderId: order.id,
+        commandType: "order_create",
+        metadata: {
+          orderType: order.type,
+          side: order.side,
+          outcome: order.outcome,
+          quantity: order.quantity,
+          limitPriceBps: order.limitPriceBps,
+          referencePriceBps: order.referencePriceBps,
+          reservedAmountMinor: order.reservedAmountMinor,
+          currency: order.currency,
+        },
+      });
+
       return {
         order,
         idempotentReplay: false,
+        marketCommand: command,
       };
     });
   }
@@ -238,21 +265,46 @@ export class OrdersService {
   async cancelOrder(input: { userId: string; orderId: string }) {
     return db.transaction(async (tx) => {
       const orderRows = await tx
+        .select({
+          id: orders.id,
+          userId: orders.userId,
+          marketId: orders.marketId,
+        })
+        .from(orders)
+        .where(and(eq(orders.id, input.orderId), eq(orders.userId, input.userId)))
+        .limit(1);
+
+      const orderReference = orderRows[0];
+
+      if (!orderReference) {
+        throw new AppError(404, "order_not_found", "order was not found");
+      }
+
+      await this.acquireMarketWriteLock(tx, orderReference.marketId);
+
+      const currentOrderRows = await tx
         .select()
         .from(orders)
         .where(and(eq(orders.id, input.orderId), eq(orders.userId, input.userId)))
         .limit(1);
 
-      const order = orderRows[0];
+      const order = currentOrderRows[0];
 
       if (!order) {
         throw new AppError(404, "order_not_found", "order was not found");
       }
 
       if (order.status === "cancelled") {
+        const existingCommand = await this.findExistingMarketCommand(
+          tx,
+          order.id,
+          "order_cancel",
+        );
+
         return {
           order,
           alreadyCancelled: true,
+          ...(existingCommand ? { marketCommand: existingCommand } : {}),
         };
       }
 
@@ -332,9 +384,27 @@ export class OrdersService {
         },
       ]);
 
+      const command = await this.recordMarketCommand(tx, {
+        marketId: cancelledOrder.marketId,
+        orderId: cancelledOrder.id,
+        commandType: "order_cancel",
+        metadata: {
+          orderType: cancelledOrder.type,
+          side: cancelledOrder.side,
+          outcome: cancelledOrder.outcome,
+          quantity: cancelledOrder.quantity,
+          limitPriceBps: cancelledOrder.limitPriceBps,
+          referencePriceBps: cancelledOrder.referencePriceBps,
+          reservedAmountMinor: cancelledOrder.reservedAmountMinor,
+          currency: cancelledOrder.currency,
+          reason: "user_cancelled_order",
+        },
+      });
+
       return {
         order: cancelledOrder,
         alreadyCancelled: false,
+        marketCommand: command,
       };
     });
   }
@@ -415,6 +485,77 @@ export class OrdersService {
       .where(eq(ledgerEntries.walletAccountId, walletAccountId));
 
     return Number(balanceRows[0]?.balanceMinor ?? 0);
+  }
+
+  private async acquireMarketWriteLock(executor: DbExecutor, marketId: string) {
+    await executor.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${marketId}, 0))`,
+    );
+  }
+
+  private async recordMarketCommand(
+    executor: DbExecutor,
+    input: {
+      marketId: string;
+      orderId: string;
+      commandType: MarketCommandType;
+      metadata?: Record<string, unknown>;
+    },
+  ) {
+    const updatedMarketRows = await executor
+      .update(markets)
+      .set({
+        lastCommandSequence: sql`${markets.lastCommandSequence} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(markets.id, input.marketId))
+      .returning({
+        lastCommandSequence: markets.lastCommandSequence,
+      });
+
+    const updatedMarket = updatedMarketRows[0];
+
+    if (!updatedMarket) {
+      throw new AppError(500, "market_sequence_failed", "failed to advance market sequence");
+    }
+
+    const commandRows = await executor
+      .insert(marketCommandEvents)
+      .values({
+        marketId: input.marketId,
+        orderId: input.orderId,
+        sequence: updatedMarket.lastCommandSequence,
+        commandType: input.commandType,
+        metadata: input.metadata ?? {},
+      })
+      .returning();
+
+    const command = commandRows[0];
+
+    if (!command) {
+      throw new AppError(500, "market_command_failed", "failed to record market command");
+    }
+
+    return command;
+  }
+
+  private async findExistingMarketCommand(
+    executor: DbExecutor,
+    orderId: string,
+    commandType: MarketCommandType,
+  ) {
+    const rows = await executor
+      .select()
+      .from(marketCommandEvents)
+      .where(
+        and(
+          eq(marketCommandEvents.orderId, orderId),
+          eq(marketCommandEvents.commandType, commandType),
+        ),
+      )
+      .limit(1);
+
+    return rows[0];
   }
 
   private async getOrCreateWalletAccount(

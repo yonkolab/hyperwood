@@ -66,6 +66,9 @@ export const markets = pgTable(
     yesPriceBps: integer("yes_price_bps").notNull().default(5000),
     noPriceBps: integer("no_price_bps").notNull().default(5000),
     volumeUsdMinor: bigint("volume_usd_minor", { mode: "number" }).notNull().default(0),
+    lastCommandSequence: bigint("last_command_sequence", { mode: "number" })
+      .notNull()
+      .default(0),
     opensAt: timestamp("opens_at", { withTimezone: true }),
     closesAt: timestamp("closes_at", { withTimezone: true }),
     resolvesAt: timestamp("resolves_at", { withTimezone: true }),

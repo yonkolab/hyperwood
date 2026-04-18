@@ -62,6 +62,8 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/wallet/balance`
 - `GET /api/v1/markets`
 - `GET /api/v1/markets/:marketId`
+- `GET /api/v1/markets/:marketId/order-book`
+- `GET /api/v1/markets/:marketId/order-book/deltas`
 - `POST /api/v1/orders`
 - `DELETE /api/v1/orders/:orderId`
 - `POST /api/v1/auth/api-keys`
