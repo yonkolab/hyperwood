@@ -4,6 +4,7 @@ import {
   fundingMethods,
   ledgerEntries,
   ledgerTransactions,
+  marketCurrencyEnum,
   walletAccounts,
   users,
   type fundingRailEnum,
@@ -12,10 +13,16 @@ import {
 } from "../../db/schema";
 import { AppError } from "../../lib/errors";
 import { ComplianceService } from "../compliance/service";
+import {
+  doesFundingRailSupportCurrency,
+  getSupportedCurrenciesForFundingRail,
+  isFundingRailAllowedForCountry,
+} from "./policy";
 
 type FundingRail = (typeof fundingRailEnum.enumValues)[number];
 type FundingMethodStatus = (typeof fundingMethodStatusEnum.enumValues)[number];
 type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
+type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
 
 type LinkFundingMethodInput = {
   userId: string;
@@ -41,6 +48,15 @@ export class FundingService {
 
   async linkFundingMethod(input: LinkFundingMethodInput) {
     await this.assertUserExists(input.userId);
+    const countryCode = input.countryCode.toUpperCase();
+
+    if (!isFundingRailAllowedForCountry(input.rail, countryCode)) {
+      throw new AppError(
+        400,
+        "funding_method_country_not_supported",
+        "funding rail is not supported for the provided country",
+      );
+    }
 
     const insertedRows = await db
       .insert(fundingMethods)
@@ -49,7 +65,7 @@ export class FundingService {
         rail: input.rail,
         status: input.status,
         displayName: input.displayName,
-        countryCode: input.countryCode.toUpperCase(),
+        countryCode,
         provider: input.provider,
         providerReference: input.providerReference,
         last4: input.last4,
@@ -63,7 +79,7 @@ export class FundingService {
     };
   }
 
-  async listEligibleFundingMethods(userId: string) {
+  async listEligibleFundingMethods(userId: string, currency: MarketCurrency = "USD") {
     await this.assertUserExists(userId);
 
     const capabilityEvaluation = await this.complianceService.getCapabilityEvaluation(userId);
@@ -72,6 +88,7 @@ export class FundingService {
       return {
         fundingAllowed: false,
         fundingReasons: capabilityEvaluation.capabilities.funding.reasons,
+        requestedCurrency: currency,
         fundingMethods: [],
       };
     }
@@ -101,7 +118,18 @@ export class FundingService {
     return {
       fundingAllowed: true,
       fundingReasons: [],
-      fundingMethods: methods.filter((method) => allowedRails.has(method.rail)),
+      requestedCurrency: currency,
+      fundingMethods: methods
+        .filter(
+          (method) =>
+            allowedRails.has(method.rail) &&
+            isFundingRailAllowedForCountry(method.rail, method.countryCode) &&
+            doesFundingRailSupportCurrency(method.rail, currency),
+        )
+        .map((method) => ({
+          ...method,
+          supportedCurrencies: getSupportedCurrenciesForFundingRail(method.rail),
+        })),
     };
   }
 

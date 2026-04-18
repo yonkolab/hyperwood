@@ -108,6 +108,8 @@ For order creation requests, send:
 - `Authorization: Bearer <session-token>`
 - `idempotency-key`: stable client-generated key for retried submissions
 
+Funding method discovery and wallet or portfolio reads accept an optional `currency` query, for example `GET /api/v1/funding/methods?currency=BRL`.
+
 The internal link route requires the `x-bootstrap-token` header matching `INTERNAL_BOOTSTRAP_TOKEN`.
 
 The internal compliance routes use the same `x-bootstrap-token` header and let you upsert KYC/jurisdiction state or place an account under a compliance hold.

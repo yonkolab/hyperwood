@@ -4,16 +4,19 @@ import {
   accountRestrictions,
   complianceProfiles,
   users,
+  type fundingRailEnum,
   type kycStatusEnum,
   type sanctionsStatusEnum,
   type restrictionSourceEnum,
 } from "../../db/schema";
 import { AppError } from "../../lib/errors";
+import { getAllowedFundingRailsForCountry } from "../funding/policy";
 
 type KycStatus = (typeof kycStatusEnum.enumValues)[number];
 type SanctionsStatus = (typeof sanctionsStatusEnum.enumValues)[number];
 type RestrictionSource = (typeof restrictionSourceEnum.enumValues)[number];
 type CapabilityName = "trading" | "funding" | "withdrawal";
+type FundingRail = (typeof fundingRailEnum.enumValues)[number];
 
 type UpsertComplianceProfileInput = {
   userId: string;
@@ -37,12 +40,6 @@ type ApplyAccountRestrictionInput = {
 };
 
 const RESTRICTED_JURISDICTIONS = new Set(["CU", "IR", "KP", "SY"]);
-
-const FUNDING_METHODS_BY_COUNTRY: Record<string, string[]> = {
-  BR: ["pix", "wire"],
-  GB: ["fps", "wire"],
-  US: ["ach", "wire"],
-};
 
 type CapabilityEvaluation = {
   allowed: boolean;
@@ -196,7 +193,8 @@ export class ComplianceService {
         funding,
         withdrawal,
       },
-      fundingMethods: funding.allowed && profile ? this.getFundingMethods(profile.countryCode) : [],
+      fundingMethods:
+        funding.allowed && profile ? this.getFundingMethods(profile.countryCode) : [],
     };
   }
 
@@ -244,7 +242,7 @@ export class ComplianceService {
     };
   }
 
-  private getFundingMethods(countryCode: string) {
-    return FUNDING_METHODS_BY_COUNTRY[countryCode] ?? ["wire"];
+  private getFundingMethods(countryCode: string): FundingRail[] {
+    return getAllowedFundingRailsForCountry(countryCode);
   }
 }
