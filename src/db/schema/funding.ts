@@ -47,6 +47,7 @@ export const walletAccountTypeEnum = pgEnum("wallet_account_type", [
   "user_cash",
   "user_order_reserved",
   "user_position_collateral",
+  "user_withdrawal_hold",
   "platform_clearing",
 ]);
 

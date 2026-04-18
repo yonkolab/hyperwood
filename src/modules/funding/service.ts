@@ -55,6 +55,15 @@ type CreateDepositInput = {
   currency: MarketCurrency;
 };
 
+type CreateWithdrawalInput = {
+  userId: string;
+  fundingMethodId: string;
+  amountMinor: number;
+  currency: MarketCurrency;
+};
+
+const WITHDRAWAL_REVIEW_THRESHOLD_MINOR = 250_000;
+
 export class FundingService {
   private readonly complianceService = new ComplianceService();
 
@@ -163,28 +172,40 @@ export class FundingService {
       type: "user_position_collateral",
       currency,
     });
+    const withdrawalHoldWallet = await this.getOrCreateWalletAccount({
+      ownerUserId: userId,
+      type: "user_withdrawal_hold",
+      currency,
+    });
 
     const [
       availableBalanceMinor,
       reservedBalanceMinor,
       positionCollateralMinor,
+      withdrawalHoldMinor,
     ] = await Promise.all([
       this.getWalletAccountBalance(wallet.id),
       this.getWalletAccountBalance(reservedWallet.id),
       this.getWalletAccountBalance(positionCollateralWallet.id),
+      this.getWalletAccountBalance(withdrawalHoldWallet.id),
     ]);
 
     return {
       walletAccountId: wallet.id,
       reservedWalletAccountId: reservedWallet.id,
       positionCollateralWalletAccountId: positionCollateralWallet.id,
+      withdrawalHoldWalletAccountId: withdrawalHoldWallet.id,
       currency,
       balanceMinor: availableBalanceMinor,
       availableBalanceMinor,
       reservedBalanceMinor,
       positionCollateralMinor,
+      withdrawalHoldMinor,
       totalBalanceMinor:
-        availableBalanceMinor + reservedBalanceMinor + positionCollateralMinor,
+        availableBalanceMinor +
+        reservedBalanceMinor +
+        positionCollateralMinor +
+        withdrawalHoldMinor,
     };
   }
 
@@ -287,6 +308,180 @@ export class FundingService {
         fundingMethodDisplayName: fundingMethod.displayName,
       }),
     };
+  }
+
+  async listWithdrawals(
+    userId: string,
+    input: {
+      currency?: MarketCurrency;
+      limit: number;
+    },
+  ) {
+    await this.assertUserExists(userId);
+
+    const rows = await db
+      .select({
+        id: fundingTransfers.id,
+        type: fundingTransfers.type,
+        status: fundingTransfers.status,
+        amountMinor: fundingTransfers.amountMinor,
+        currency: fundingTransfers.currency,
+        fundingMethodId: fundingTransfers.fundingMethodId,
+        fundingMethodRail: fundingMethods.rail,
+        fundingMethodDisplayName: fundingMethods.displayName,
+        requestedAt: fundingTransfers.requestedAt,
+        settledAt: fundingTransfers.settledAt,
+        failedAt: fundingTransfers.failedAt,
+        providerTransferReference: fundingTransfers.providerTransferReference,
+        failureReason: fundingTransfers.failureReason,
+      })
+      .from(fundingTransfers)
+      .innerJoin(fundingMethods, eq(fundingMethods.id, fundingTransfers.fundingMethodId))
+      .where(
+        and(
+          eq(fundingTransfers.userId, userId),
+          eq(fundingTransfers.type, "withdrawal"),
+          input.currency ? eq(fundingTransfers.currency, input.currency) : undefined,
+        ),
+      )
+      .orderBy(sql`${fundingTransfers.requestedAt} desc`)
+      .limit(Math.min(input.limit, 100));
+
+    return {
+      withdrawals: rows.map((row) => this.mapTransfer(row)),
+    };
+  }
+
+  async createWithdrawal(input: CreateWithdrawalInput) {
+    if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+      throw new AppError(400, "invalid_amount", "amount must be a positive integer");
+    }
+
+    await this.assertUserExists(input.userId);
+
+    const capabilityEvaluation = await this.complianceService.getCapabilityEvaluation(input.userId);
+
+    if (!capabilityEvaluation.capabilities.withdrawal.allowed) {
+      throw new AppError(
+        403,
+        "withdrawal_not_allowed",
+        `withdrawal not allowed: ${capabilityEvaluation.capabilities.withdrawal.reasons.join(", ")}`,
+      );
+    }
+
+    const fundingMethod = await this.getVerifiedFundingMethod(input.userId, input.fundingMethodId);
+
+    if (!doesFundingRailSupportCurrency(fundingMethod.rail, input.currency)) {
+      throw new AppError(
+        409,
+        "funding_method_currency_not_supported",
+        "funding method rail does not support the requested currency",
+      );
+    }
+
+    return db.transaction(async (tx) => {
+      const cashWallet = await this.getOrCreateWalletAccount({
+        ownerUserId: input.userId,
+        type: "user_cash",
+        currency: input.currency,
+      });
+      const withdrawalHoldWallet = await this.getOrCreateWalletAccount({
+        ownerUserId: input.userId,
+        type: "user_withdrawal_hold",
+        currency: input.currency,
+      });
+
+      const availableBalanceMinor = await this.getWalletAccountBalance(cashWallet.id);
+
+      if (availableBalanceMinor < input.amountMinor) {
+        throw new AppError(
+          409,
+          "insufficient_available_balance",
+          "insufficient available balance for withdrawal",
+        );
+      }
+
+      const initialStatus = this.requiresWithdrawalReview(input.amountMinor)
+        ? "in_review"
+        : "pending";
+
+      const insertedRows = await tx
+        .insert(fundingTransfers)
+        .values({
+          userId: input.userId,
+          fundingMethodId: fundingMethod.id,
+          type: "withdrawal",
+          status: initialStatus,
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          metadata: {
+            rail: fundingMethod.rail,
+            fundingMethodDisplayName: fundingMethod.displayName,
+            requiresReview: initialStatus === "in_review",
+          },
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      const withdrawal = insertedRows[0];
+
+      if (!withdrawal) {
+        throw new AppError(
+          500,
+          "withdrawal_creation_failed",
+          "failed to create withdrawal",
+        );
+      }
+
+      const transactionRows = await tx
+        .insert(ledgerTransactions)
+        .values({
+          referenceType: "withdrawal_hold",
+          referenceId: withdrawal.id,
+          metadata: {
+            fundingMethodId: fundingMethod.id,
+            rail: fundingMethod.rail,
+          },
+        })
+        .returning({
+          id: ledgerTransactions.id,
+        });
+
+      const transaction = transactionRows[0];
+
+      if (!transaction) {
+        throw new AppError(
+          500,
+          "ledger_transaction_failed",
+          "failed to create ledger transaction",
+        );
+      }
+
+      await tx.insert(ledgerEntries).values([
+        {
+          transactionId: transaction.id,
+          walletAccountId: cashWallet.id,
+          side: "debit",
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+        },
+        {
+          transactionId: transaction.id,
+          walletAccountId: withdrawalHoldWallet.id,
+          side: "credit",
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+        },
+      ]);
+
+      return {
+        withdrawal: this.mapTransfer({
+          ...withdrawal,
+          fundingMethodRail: fundingMethod.rail,
+          fundingMethodDisplayName: fundingMethod.displayName,
+        }),
+      };
+    });
   }
 
   async seedWalletBalance(input: SeedWalletBalanceInput) {
@@ -470,6 +665,328 @@ export class FundingService {
     });
   }
 
+  async approveWithdrawalReview(withdrawalId: string) {
+    const rows = await db
+      .select({
+        id: fundingTransfers.id,
+        status: fundingTransfers.status,
+        type: fundingTransfers.type,
+        amountMinor: fundingTransfers.amountMinor,
+        currency: fundingTransfers.currency,
+        fundingMethodId: fundingTransfers.fundingMethodId,
+        requestedAt: fundingTransfers.requestedAt,
+        settledAt: fundingTransfers.settledAt,
+        failedAt: fundingTransfers.failedAt,
+        providerTransferReference: fundingTransfers.providerTransferReference,
+        failureReason: fundingTransfers.failureReason,
+        fundingMethodRail: fundingMethods.rail,
+        fundingMethodDisplayName: fundingMethods.displayName,
+      })
+      .from(fundingTransfers)
+      .innerJoin(fundingMethods, eq(fundingMethods.id, fundingTransfers.fundingMethodId))
+      .where(eq(fundingTransfers.id, withdrawalId))
+      .limit(1);
+
+    const withdrawal = rows[0];
+
+    if (!withdrawal || withdrawal.type !== "withdrawal") {
+      throw new AppError(404, "withdrawal_not_found", "withdrawal was not found");
+    }
+
+    if (withdrawal.status === "pending") {
+      return {
+        withdrawal: this.mapTransfer(withdrawal),
+        alreadyApproved: true,
+      };
+    }
+
+    if (withdrawal.status !== "in_review") {
+      throw new AppError(
+        409,
+        "withdrawal_not_reviewable",
+        "withdrawal is not awaiting review approval",
+      );
+    }
+
+    const updatedRows = await db
+      .update(fundingTransfers)
+      .set({
+        status: "pending",
+        updatedAt: new Date(),
+      })
+      .where(eq(fundingTransfers.id, withdrawal.id))
+      .returning();
+
+    const approvedWithdrawal = updatedRows[0];
+
+    if (!approvedWithdrawal) {
+      throw new AppError(500, "withdrawal_approval_failed", "failed to approve withdrawal");
+    }
+
+    return {
+      withdrawal: this.mapTransfer({
+        ...approvedWithdrawal,
+        fundingMethodRail: withdrawal.fundingMethodRail,
+        fundingMethodDisplayName: withdrawal.fundingMethodDisplayName,
+      }),
+      alreadyApproved: false,
+    };
+  }
+
+  async failWithdrawal(withdrawalId: string, failureReason: string) {
+    return db.transaction(async (tx) => {
+      const rows = await tx
+        .select({
+          id: fundingTransfers.id,
+          userId: fundingTransfers.userId,
+          fundingMethodId: fundingTransfers.fundingMethodId,
+          type: fundingTransfers.type,
+          status: fundingTransfers.status,
+          amountMinor: fundingTransfers.amountMinor,
+          currency: fundingTransfers.currency,
+          requestedAt: fundingTransfers.requestedAt,
+          settledAt: fundingTransfers.settledAt,
+          failedAt: fundingTransfers.failedAt,
+          providerTransferReference: fundingTransfers.providerTransferReference,
+          failureReason: fundingTransfers.failureReason,
+          fundingMethodRail: fundingMethods.rail,
+          fundingMethodDisplayName: fundingMethods.displayName,
+        })
+        .from(fundingTransfers)
+        .innerJoin(fundingMethods, eq(fundingMethods.id, fundingTransfers.fundingMethodId))
+        .where(eq(fundingTransfers.id, withdrawalId))
+        .limit(1);
+
+      const withdrawal = rows[0];
+
+      if (!withdrawal || withdrawal.type !== "withdrawal") {
+        throw new AppError(404, "withdrawal_not_found", "withdrawal was not found");
+      }
+
+      if (withdrawal.status === "failed") {
+        return {
+          withdrawal: this.mapTransfer(withdrawal),
+          alreadyFailed: true,
+        };
+      }
+
+      if (withdrawal.status === "settled") {
+        throw new AppError(
+          409,
+          "withdrawal_not_failurable",
+          "settled withdrawal cannot be failed",
+        );
+      }
+
+      const cashWallet = await this.getOrCreateWalletAccount({
+        ownerUserId: withdrawal.userId,
+        type: "user_cash",
+        currency: withdrawal.currency,
+      });
+      const withdrawalHoldWallet = await this.getOrCreateWalletAccount({
+        ownerUserId: withdrawal.userId,
+        type: "user_withdrawal_hold",
+        currency: withdrawal.currency,
+      });
+
+      const transactionRows = await tx
+        .insert(ledgerTransactions)
+        .values({
+          referenceType: "withdrawal_release",
+          referenceId: withdrawal.id,
+          metadata: {
+            fundingMethodId: withdrawal.fundingMethodId,
+            rail: withdrawal.fundingMethodRail,
+            failureReason,
+          },
+        })
+        .returning({
+          id: ledgerTransactions.id,
+        });
+
+      const transaction = transactionRows[0];
+
+      if (!transaction) {
+        throw new AppError(
+          500,
+          "ledger_transaction_failed",
+          "failed to create ledger transaction",
+        );
+      }
+
+      await tx.insert(ledgerEntries).values([
+        {
+          transactionId: transaction.id,
+          walletAccountId: withdrawalHoldWallet.id,
+          side: "debit",
+          amountMinor: withdrawal.amountMinor,
+          currency: withdrawal.currency,
+        },
+        {
+          transactionId: transaction.id,
+          walletAccountId: cashWallet.id,
+          side: "credit",
+          amountMinor: withdrawal.amountMinor,
+          currency: withdrawal.currency,
+        },
+      ]);
+
+      const updatedRows = await tx
+        .update(fundingTransfers)
+        .set({
+          status: "failed",
+          failureReason,
+          failedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(fundingTransfers.id, withdrawal.id))
+        .returning();
+
+      const failedWithdrawal = updatedRows[0];
+
+      if (!failedWithdrawal) {
+        throw new AppError(500, "withdrawal_failure_failed", "failed to update withdrawal");
+      }
+
+      return {
+        withdrawal: this.mapTransfer({
+          ...failedWithdrawal,
+          fundingMethodRail: withdrawal.fundingMethodRail,
+          fundingMethodDisplayName: withdrawal.fundingMethodDisplayName,
+        }),
+        alreadyFailed: false,
+      };
+    });
+  }
+
+  async settleWithdrawal(withdrawalId: string) {
+    return db.transaction(async (tx) => {
+      const rows = await tx
+        .select({
+          id: fundingTransfers.id,
+          userId: fundingTransfers.userId,
+          fundingMethodId: fundingTransfers.fundingMethodId,
+          type: fundingTransfers.type,
+          status: fundingTransfers.status,
+          amountMinor: fundingTransfers.amountMinor,
+          currency: fundingTransfers.currency,
+          requestedAt: fundingTransfers.requestedAt,
+          settledAt: fundingTransfers.settledAt,
+          failedAt: fundingTransfers.failedAt,
+          providerTransferReference: fundingTransfers.providerTransferReference,
+          failureReason: fundingTransfers.failureReason,
+          fundingMethodRail: fundingMethods.rail,
+          fundingMethodDisplayName: fundingMethods.displayName,
+        })
+        .from(fundingTransfers)
+        .innerJoin(fundingMethods, eq(fundingMethods.id, fundingTransfers.fundingMethodId))
+        .where(eq(fundingTransfers.id, withdrawalId))
+        .limit(1);
+
+      const withdrawal = rows[0];
+
+      if (!withdrawal || withdrawal.type !== "withdrawal") {
+        throw new AppError(404, "withdrawal_not_found", "withdrawal was not found");
+      }
+
+      if (withdrawal.status === "settled") {
+        return {
+          withdrawal: this.mapTransfer(withdrawal),
+          alreadySettled: true,
+        };
+      }
+
+      if (withdrawal.status !== "pending") {
+        throw new AppError(
+          409,
+          "withdrawal_not_settleable",
+          "withdrawal is not in a settleable state",
+        );
+      }
+
+      const withdrawalHoldWallet = await this.getOrCreateWalletAccount({
+        ownerUserId: withdrawal.userId,
+        type: "user_withdrawal_hold",
+        currency: withdrawal.currency,
+      });
+      const platformClearingWallet = await this.getOrCreateWalletAccount({
+        ownerUserId: null,
+        type: "platform_clearing",
+        currency: withdrawal.currency,
+      });
+
+      const transactionRows = await tx
+        .insert(ledgerTransactions)
+        .values({
+          referenceType: "withdrawal_settlement",
+          referenceId: withdrawal.id,
+          metadata: {
+            fundingMethodId: withdrawal.fundingMethodId,
+            rail: withdrawal.fundingMethodRail,
+          },
+        })
+        .returning({
+          id: ledgerTransactions.id,
+        });
+
+      const transaction = transactionRows[0];
+
+      if (!transaction) {
+        throw new AppError(
+          500,
+          "ledger_transaction_failed",
+          "failed to create ledger transaction",
+        );
+      }
+
+      await tx.insert(ledgerEntries).values([
+        {
+          transactionId: transaction.id,
+          walletAccountId: withdrawalHoldWallet.id,
+          side: "debit",
+          amountMinor: withdrawal.amountMinor,
+          currency: withdrawal.currency,
+        },
+        {
+          transactionId: transaction.id,
+          walletAccountId: platformClearingWallet.id,
+          side: "credit",
+          amountMinor: withdrawal.amountMinor,
+          currency: withdrawal.currency,
+        },
+      ]);
+
+      const updatedRows = await tx
+        .update(fundingTransfers)
+        .set({
+          status: "settled",
+          settledAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(fundingTransfers.id, withdrawal.id))
+        .returning();
+
+      const settledWithdrawal = updatedRows[0];
+
+      if (!settledWithdrawal) {
+        throw new AppError(
+          500,
+          "withdrawal_settlement_failed",
+          "failed to settle withdrawal",
+        );
+      }
+
+      return {
+        withdrawal: this.mapTransfer({
+          ...settledWithdrawal,
+          fundingMethodRail: withdrawal.fundingMethodRail,
+          fundingMethodDisplayName: withdrawal.fundingMethodDisplayName,
+        }),
+        alreadySettled: false,
+      };
+    });
+  }
+
   private async assertUserExists(userId: string) {
     const [user] = await db
       .select({
@@ -529,6 +1046,10 @@ export class FundingService {
     }
 
     return fundingMethod;
+  }
+
+  private requiresWithdrawalReview(amountMinor: number) {
+    return amountMinor >= WITHDRAWAL_REVIEW_THRESHOLD_MINOR;
   }
 
   private async getWalletAccountBalance(walletAccountId: string) {
@@ -629,6 +1150,24 @@ export class FundingService {
   }
 
   private mapDeposit(row: {
+    id: string;
+    type: FundingTransferType;
+    status: FundingTransferStatus;
+    amountMinor: number;
+    currency: string;
+    fundingMethodId: string;
+    fundingMethodRail: FundingRail;
+    fundingMethodDisplayName: string;
+    requestedAt: Date;
+    settledAt: Date | null;
+    failedAt: Date | null;
+    providerTransferReference: string | null;
+    failureReason: string | null;
+  }) {
+    return this.mapTransfer(row);
+  }
+
+  private mapTransfer(row: {
     id: string;
     type: FundingTransferType;
     status: FundingTransferStatus;

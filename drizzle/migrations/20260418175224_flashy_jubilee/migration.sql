@@ -1,0 +1,1 @@
+ALTER TYPE "wallet_account_type" ADD VALUE 'user_withdrawal_hold' BEFORE 'platform_clearing';

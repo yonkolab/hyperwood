@@ -26,7 +26,18 @@ const createDepositBodySchema = z.object({
   currency: z.enum(["USD", "BRL"]),
 });
 
+const createWithdrawalBodySchema = z.object({
+  fundingMethodId: z.string().uuid(),
+  amountMinor: z.number().int().positive(),
+  currency: z.enum(["USD", "BRL"]),
+});
+
 const listDepositsQuerySchema = z.object({
+  currency: z.enum(["USD", "BRL"]).optional(),
+  limit: z.coerce.number().int().positive().max(100).default(25),
+});
+
+const listWithdrawalsQuerySchema = z.object({
   currency: z.enum(["USD", "BRL"]).optional(),
   limit: z.coerce.number().int().positive().max(100).default(25),
 });
@@ -43,6 +54,10 @@ const fundingUserParamsSchema = z.object({
 
 const fundingDepositParamsSchema = z.object({
   depositId: z.string().uuid(),
+});
+
+const fundingWithdrawalParamsSchema = z.object({
+  withdrawalId: z.string().uuid(),
 });
 
 const walletBalanceQuerySchema = z.object({
@@ -112,6 +127,31 @@ async function fundingRoutes(app: FastifyInstance, _options: FastifyPluginOption
     reply.status(201).send(result);
   });
 
+  app.get("/funding/withdrawals", async (request) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const query = listWithdrawalsQuerySchema.parse(request.query);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+
+    return fundingService.listWithdrawals(user.id, {
+      limit: query.limit,
+      ...(query.currency ? { currency: query.currency } : {}),
+    });
+  });
+
+  app.post("/funding/withdrawals", async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const body = createWithdrawalBodySchema.parse(request.body);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const result = await fundingService.createWithdrawal({
+      userId: user.id,
+      fundingMethodId: body.fundingMethodId,
+      amountMinor: body.amountMinor,
+      currency: body.currency,
+    });
+
+    reply.status(201).send(result);
+  });
+
   app.post("/internal/funding/users/:userId/methods", async (request, reply) => {
     assertBootstrapToken(request);
     const params = fundingUserParamsSchema.parse(request.params);
@@ -149,6 +189,33 @@ async function fundingRoutes(app: FastifyInstance, _options: FastifyPluginOption
     assertBootstrapToken(request);
     const params = fundingDepositParamsSchema.parse(request.params);
     const result = await fundingService.settleDeposit(params.depositId);
+
+    reply.status(200).send(result);
+  });
+
+  app.post("/internal/funding/withdrawals/:withdrawalId/approve", async (request, reply) => {
+    assertBootstrapToken(request);
+    const params = fundingWithdrawalParamsSchema.parse(request.params);
+    const result = await fundingService.approveWithdrawalReview(params.withdrawalId);
+
+    reply.status(200).send(result);
+  });
+
+  app.post("/internal/funding/withdrawals/:withdrawalId/fail", async (request, reply) => {
+    assertBootstrapToken(request);
+    const params = fundingWithdrawalParamsSchema.parse(request.params);
+    const result = await fundingService.failWithdrawal(
+      params.withdrawalId,
+      "manual_review_failure",
+    );
+
+    reply.status(200).send(result);
+  });
+
+  app.post("/internal/funding/withdrawals/:withdrawalId/settle", async (request, reply) => {
+    assertBootstrapToken(request);
+    const params = fundingWithdrawalParamsSchema.parse(request.params);
+    const result = await fundingService.settleWithdrawal(params.withdrawalId);
 
     reply.status(200).send(result);
   });

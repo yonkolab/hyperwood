@@ -18,7 +18,8 @@ type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
 type WalletAccountType =
   | "user_cash"
   | "user_order_reserved"
-  | "user_position_collateral";
+  | "user_position_collateral"
+  | "user_withdrawal_hold";
 type PositionRecord = {
   marketId: string;
   marketSlug: string;
@@ -72,21 +73,25 @@ export class PortfolioService {
   private async getCashSummary(userId: string, currency: MarketCurrency) {
     await this.assertUserExists(userId);
 
-    const [cashWallet, reservedWallet, positionCollateralWallet] = await Promise.all([
-      this.getOrCreateWalletAccount(userId, "user_cash", currency),
-      this.getOrCreateWalletAccount(userId, "user_order_reserved", currency),
-      this.getOrCreateWalletAccount(userId, "user_position_collateral", currency),
-    ]);
+    const [cashWallet, reservedWallet, positionCollateralWallet, withdrawalHoldWallet] =
+      await Promise.all([
+        this.getOrCreateWalletAccount(userId, "user_cash", currency),
+        this.getOrCreateWalletAccount(userId, "user_order_reserved", currency),
+        this.getOrCreateWalletAccount(userId, "user_position_collateral", currency),
+        this.getOrCreateWalletAccount(userId, "user_withdrawal_hold", currency),
+      ]);
 
     const [
       availableBalanceMinor,
       reservedBalanceMinor,
       positionCollateralMinor,
+      withdrawalHoldMinor,
       restingOrderValueMinor,
     ] = await Promise.all([
         this.getWalletAccountBalance(cashWallet.id),
         this.getWalletAccountBalance(reservedWallet.id),
         this.getWalletAccountBalance(positionCollateralWallet.id),
+        this.getWalletAccountBalance(withdrawalHoldWallet.id),
         this.getRestingOrderValueMinor(userId, currency),
       ]);
 
@@ -95,11 +100,16 @@ export class PortfolioService {
       walletAccountId: cashWallet.id,
       reservedWalletAccountId: reservedWallet.id,
       positionCollateralWalletAccountId: positionCollateralWallet.id,
+      withdrawalHoldWalletAccountId: withdrawalHoldWallet.id,
       availableBalanceMinor,
       reservedBalanceMinor,
       positionCollateralMinor,
+      withdrawalHoldMinor,
       totalBalanceMinor:
-        availableBalanceMinor + reservedBalanceMinor + positionCollateralMinor,
+        availableBalanceMinor +
+        reservedBalanceMinor +
+        positionCollateralMinor +
+        withdrawalHoldMinor,
       restingOrderValueMinor,
     };
   }
@@ -163,6 +173,7 @@ export class PortfolioService {
             "user_cash",
             "user_order_reserved",
             "user_position_collateral",
+            "user_withdrawal_hold",
           ]),
         ),
       )
