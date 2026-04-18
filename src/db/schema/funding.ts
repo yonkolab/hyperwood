@@ -43,6 +43,26 @@ export const fundingTransferStatusEnum = pgEnum("funding_transfer_status", [
   "reversed",
 ]);
 
+export const fundingReconciliationScopeEnum = pgEnum("funding_reconciliation_scope", [
+  "funding_transfers",
+]);
+
+export const fundingReconciliationRunStatusEnum = pgEnum(
+  "funding_reconciliation_run_status",
+  ["completed", "completed_with_discrepancies"],
+);
+
+export const fundingDiscrepancyTypeEnum = pgEnum("funding_discrepancy_type", [
+  "missing_internal_transfer",
+  "status_mismatch",
+  "ledger_invariant_violation",
+]);
+
+export const fundingDiscrepancySeverityEnum = pgEnum("funding_discrepancy_severity", [
+  "warning",
+  "critical",
+]);
+
 export const walletAccountTypeEnum = pgEnum("wallet_account_type", [
   "user_cash",
   "user_order_reserved",
@@ -110,6 +130,62 @@ export const fundingTransfers = pgTable(
     index("funding_transfers_method_id_idx").on(table.fundingMethodId),
     index("funding_transfers_user_status_idx").on(table.userId, table.status),
     index("funding_transfers_type_status_idx").on(table.type, table.status),
+  ],
+);
+
+export const fundingReconciliationRuns = pgTable(
+  "funding_reconciliation_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    scope: fundingReconciliationScopeEnum("scope").notNull(),
+    provider: varchar("provider", { length: 64 }),
+    status: fundingReconciliationRunStatusEnum("status").notNull(),
+    comparedRecordsCount: bigint("compared_records_count", { mode: "number" })
+      .notNull()
+      .default(0),
+    discrepancyCount: bigint("discrepancy_count", { mode: "number" })
+      .notNull()
+      .default(0),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("funding_reconciliation_runs_scope_idx").on(table.scope),
+    index("funding_reconciliation_runs_status_idx").on(table.status),
+    index("funding_reconciliation_runs_completed_at_idx").on(table.completedAt),
+  ],
+);
+
+export const fundingReconciliationDiscrepancies = pgTable(
+  "funding_reconciliation_discrepancies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => fundingReconciliationRuns.id, { onDelete: "cascade" }),
+    transferId: uuid("transfer_id").references(() => fundingTransfers.id, { onDelete: "set null" }),
+    discrepancyType: fundingDiscrepancyTypeEnum("discrepancy_type").notNull(),
+    severity: fundingDiscrepancySeverityEnum("severity").notNull(),
+    expectedStatus: fundingTransferStatusEnum("expected_status"),
+    actualStatus: fundingTransferStatusEnum("actual_status"),
+    message: text("message").notNull(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("funding_reconciliation_discrepancies_run_id_idx").on(table.runId),
+    index("funding_reconciliation_discrepancies_transfer_id_idx").on(table.transferId),
+    index("funding_reconciliation_discrepancies_type_idx").on(table.discrepancyType),
+    index("funding_reconciliation_discrepancies_resolved_at_idx").on(table.resolvedAt),
   ],
 );
 
@@ -185,6 +261,27 @@ export const fundingTransfersRelations = relations(fundingTransfers, ({ one }) =
     references: [fundingMethods.id],
   }),
 }));
+
+export const fundingReconciliationRunsRelations = relations(
+  fundingReconciliationRuns,
+  ({ many }) => ({
+    discrepancies: many(fundingReconciliationDiscrepancies),
+  }),
+);
+
+export const fundingReconciliationDiscrepanciesRelations = relations(
+  fundingReconciliationDiscrepancies,
+  ({ one }) => ({
+    run: one(fundingReconciliationRuns, {
+      fields: [fundingReconciliationDiscrepancies.runId],
+      references: [fundingReconciliationRuns.id],
+    }),
+    transfer: one(fundingTransfers, {
+      fields: [fundingReconciliationDiscrepancies.transferId],
+      references: [fundingTransfers.id],
+    }),
+  }),
+);
 
 export const walletAccountsRelations = relations(walletAccounts, ({ one, many }) => ({
   ownerUser: one(users, {

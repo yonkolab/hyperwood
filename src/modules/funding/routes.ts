@@ -60,6 +60,28 @@ const fundingWithdrawalParamsSchema = z.object({
   withdrawalId: z.string().uuid(),
 });
 
+const reconciliationSnapshotSchema = z.object({
+  transferId: z.string().uuid(),
+  expectedStatus: z.enum([
+    "pending",
+    "in_review",
+    "settled",
+    "failed",
+    "cancelled",
+    "reversed",
+  ]),
+});
+
+const reconciliationRunBodySchema = z.object({
+  provider: z.string().min(1).max(64).optional(),
+  snapshots: z.array(reconciliationSnapshotSchema).min(1).max(500),
+});
+
+const reconciliationDiscrepanciesQuerySchema = z.object({
+  unresolvedOnly: z.coerce.boolean().default(true),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+});
+
 const walletBalanceQuerySchema = z.object({
   currency: z.enum(["USD", "BRL"]).default("USD"),
 });
@@ -218,6 +240,27 @@ async function fundingRoutes(app: FastifyInstance, _options: FastifyPluginOption
     const result = await fundingService.settleWithdrawal(params.withdrawalId);
 
     reply.status(200).send(result);
+  });
+
+  app.post("/internal/funding/reconciliation/runs", async (request, reply) => {
+    assertBootstrapToken(request);
+    const body = reconciliationRunBodySchema.parse(request.body);
+    const result = await fundingService.runTransferReconciliation({
+      ...(body.provider ? { provider: body.provider } : {}),
+      snapshots: body.snapshots,
+    });
+
+    reply.status(201).send(result);
+  });
+
+  app.get("/internal/funding/reconciliation/discrepancies", async (request) => {
+    assertBootstrapToken(request);
+    const query = reconciliationDiscrepanciesQuerySchema.parse(request.query);
+
+    return fundingService.listReconciliationDiscrepancies({
+      unresolvedOnly: query.unresolvedOnly,
+      limit: query.limit,
+    });
   });
 }
 

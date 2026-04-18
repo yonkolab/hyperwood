@@ -1,8 +1,14 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../../db/client";
 import {
+  fundingDiscrepancySeverityEnum,
+  fundingDiscrepancyTypeEnum,
   fundingMethods,
+  fundingReconciliationDiscrepancies,
+  fundingReconciliationRunStatusEnum,
+  fundingReconciliationRuns,
   fundingTransfers,
+  fundingTransferStatusEnum,
   ledgerEntries,
   ledgerTransactions,
   marketCurrencyEnum,
@@ -10,7 +16,6 @@ import {
   users,
   type fundingRailEnum,
   type fundingMethodStatusEnum,
-  type fundingTransferStatusEnum,
   type fundingTransferTypeEnum,
   type walletAccountTypeEnum,
 } from "../../db/schema";
@@ -26,6 +31,10 @@ type FundingRail = (typeof fundingRailEnum.enumValues)[number];
 type FundingMethodStatus = (typeof fundingMethodStatusEnum.enumValues)[number];
 type FundingTransferType = (typeof fundingTransferTypeEnum.enumValues)[number];
 type FundingTransferStatus = (typeof fundingTransferStatusEnum.enumValues)[number];
+type FundingReconciliationRunStatus =
+  (typeof fundingReconciliationRunStatusEnum.enumValues)[number];
+type FundingDiscrepancyType = (typeof fundingDiscrepancyTypeEnum.enumValues)[number];
+type FundingDiscrepancySeverity = (typeof fundingDiscrepancySeverityEnum.enumValues)[number];
 type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
 type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
 
@@ -60,6 +69,21 @@ type CreateWithdrawalInput = {
   fundingMethodId: string;
   amountMinor: number;
   currency: MarketCurrency;
+};
+
+type ReconciliationSnapshotInput = {
+  transferId: string;
+  expectedStatus: FundingTransferStatus;
+};
+
+type ReconciliationDiscrepancyRecord = {
+  transferId: string;
+  discrepancyType: FundingDiscrepancyType;
+  severity: FundingDiscrepancySeverity;
+  expectedStatus: FundingTransferStatus;
+  actualStatus: FundingTransferStatus | null;
+  message: string;
+  metadata: Record<string, unknown>;
 };
 
 const WITHDRAWAL_REVIEW_THRESHOLD_MINOR = 250_000;
@@ -987,6 +1011,243 @@ export class FundingService {
     });
   }
 
+  async runTransferReconciliation(input: {
+    provider?: string;
+    snapshots: ReconciliationSnapshotInput[];
+  }) {
+    const transferIds = Array.from(new Set(input.snapshots.map((snapshot) => snapshot.transferId)));
+    const snapshotMap = new Map(
+      input.snapshots.map((snapshot) => [snapshot.transferId, snapshot.expectedStatus]),
+    );
+
+    const transfers = transferIds.length
+      ? await db
+          .select({
+            id: fundingTransfers.id,
+            type: fundingTransfers.type,
+            status: fundingTransfers.status,
+            amountMinor: fundingTransfers.amountMinor,
+            currency: fundingTransfers.currency,
+            fundingMethodId: fundingTransfers.fundingMethodId,
+            fundingMethodRail: fundingMethods.rail,
+            fundingMethodDisplayName: fundingMethods.displayName,
+            requestedAt: fundingTransfers.requestedAt,
+            settledAt: fundingTransfers.settledAt,
+            failedAt: fundingTransfers.failedAt,
+            providerTransferReference: fundingTransfers.providerTransferReference,
+            failureReason: fundingTransfers.failureReason,
+          })
+          .from(fundingTransfers)
+          .innerJoin(fundingMethods, eq(fundingMethods.id, fundingTransfers.fundingMethodId))
+          .where(inArray(fundingTransfers.id, transferIds))
+      : [];
+
+    const transferMap = new Map(transfers.map((transfer) => [transfer.id, transfer]));
+    const referenceTypes = this.getLedgerReferenceTypesForTransfers(transfers);
+    const ledgerRows =
+      transferIds.length > 0 && referenceTypes.length > 0
+        ? await db
+            .select({
+              referenceId: ledgerTransactions.referenceId,
+              referenceType: ledgerTransactions.referenceType,
+            })
+            .from(ledgerTransactions)
+            .where(
+              and(
+                inArray(ledgerTransactions.referenceId, transferIds),
+                inArray(ledgerTransactions.referenceType, referenceTypes),
+              ),
+            )
+        : [];
+
+    const ledgerReferenceSet = new Set(
+      ledgerRows.map((row) => `${row.referenceId}:${row.referenceType}`),
+    );
+
+    const discrepancies: ReconciliationDiscrepancyRecord[] = transferIds.flatMap(
+      (transferId) => {
+        const expectedStatus = snapshotMap.get(transferId);
+        const transfer = transferMap.get(transferId);
+
+        if (!expectedStatus) {
+          return [];
+        }
+
+        if (!transfer) {
+          return [
+            {
+              transferId,
+              discrepancyType: "missing_internal_transfer" as FundingDiscrepancyType,
+              severity: "critical" as FundingDiscrepancySeverity,
+              expectedStatus,
+              actualStatus: null,
+              message: "transfer was missing from internal records during reconciliation",
+              metadata: {},
+            },
+          ];
+        }
+
+        const statusMismatch: ReconciliationDiscrepancyRecord[] =
+          transfer.status !== expectedStatus
+            ? [
+                {
+                  transferId: transfer.id,
+                  discrepancyType: "status_mismatch" as FundingDiscrepancyType,
+                  severity: "critical" as FundingDiscrepancySeverity,
+                  expectedStatus,
+                  actualStatus: transfer.status,
+                  message:
+                    "authoritative transfer status did not match the internal status",
+                  metadata: {
+                    transferType: transfer.type,
+                  },
+                },
+              ]
+            : [];
+
+        const ledgerInvariantMismatch: ReconciliationDiscrepancyRecord[] =
+          this.getRequiredLedgerReferenceTypesForTransfer(transfer).map((referenceType) => ({
+            transferId: transfer.id,
+            discrepancyType:
+              "ledger_invariant_violation" as FundingDiscrepancyType,
+            severity: "critical" as FundingDiscrepancySeverity,
+            expectedStatus: transfer.status,
+            actualStatus: transfer.status,
+            message: `missing expected ledger transaction for ${referenceType}`,
+            metadata: {
+              transferType: transfer.type,
+              requiredReferenceType: referenceType,
+            },
+          }))
+          .filter(
+            (discrepancy) =>
+              !ledgerReferenceSet.has(
+                `${discrepancy.transferId}:${String(discrepancy.metadata.requiredReferenceType)}`,
+              ),
+          );
+
+        return [...statusMismatch, ...ledgerInvariantMismatch];
+      },
+    );
+
+    const runStatus: FundingReconciliationRunStatus =
+      discrepancies.length > 0 ? "completed_with_discrepancies" : "completed";
+
+    return db.transaction(async (tx) => {
+      const runRows = await tx
+        .insert(fundingReconciliationRuns)
+        .values({
+          scope: "funding_transfers",
+          provider: input.provider,
+          status: runStatus,
+          comparedRecordsCount: transferIds.length,
+          discrepancyCount: discrepancies.length,
+          metadata: {
+            snapshotCount: input.snapshots.length,
+          },
+          startedAt: new Date(),
+          completedAt: new Date(),
+        })
+        .returning();
+
+      const run = runRows[0];
+
+      if (!run) {
+        throw new AppError(
+          500,
+          "reconciliation_run_creation_failed",
+          "failed to create reconciliation run",
+        );
+      }
+
+      if (discrepancies.length > 0) {
+        await tx.insert(fundingReconciliationDiscrepancies).values(
+          discrepancies.map((discrepancy) => ({
+            runId: run.id,
+            transferId: transferMap.get(discrepancy.transferId)?.id ?? null,
+            discrepancyType: discrepancy.discrepancyType,
+            severity: discrepancy.severity,
+            expectedStatus: discrepancy.expectedStatus,
+            actualStatus: discrepancy.actualStatus,
+            message: discrepancy.message,
+            metadata: discrepancy.metadata,
+          })),
+        );
+      }
+
+      const persistedDiscrepancies = discrepancies.length
+        ? await tx
+            .select({
+              id: fundingReconciliationDiscrepancies.id,
+              transferId: fundingReconciliationDiscrepancies.transferId,
+              discrepancyType: fundingReconciliationDiscrepancies.discrepancyType,
+              severity: fundingReconciliationDiscrepancies.severity,
+              expectedStatus: fundingReconciliationDiscrepancies.expectedStatus,
+              actualStatus: fundingReconciliationDiscrepancies.actualStatus,
+              message: fundingReconciliationDiscrepancies.message,
+              metadata: fundingReconciliationDiscrepancies.metadata,
+              createdAt: fundingReconciliationDiscrepancies.createdAt,
+              resolvedAt: fundingReconciliationDiscrepancies.resolvedAt,
+              runId: fundingReconciliationRuns.id,
+              runScope: fundingReconciliationRuns.scope,
+              runProvider: fundingReconciliationRuns.provider,
+              runStatus: fundingReconciliationRuns.status,
+              runCompletedAt: fundingReconciliationRuns.completedAt,
+            })
+            .from(fundingReconciliationDiscrepancies)
+            .innerJoin(
+              fundingReconciliationRuns,
+              eq(fundingReconciliationRuns.id, fundingReconciliationDiscrepancies.runId),
+            )
+            .where(eq(fundingReconciliationDiscrepancies.runId, run.id))
+            .orderBy(desc(fundingReconciliationDiscrepancies.createdAt))
+        : [];
+
+      return {
+        run: this.mapReconciliationRun(run),
+        discrepancies: persistedDiscrepancies.map((row) =>
+          this.mapReconciliationDiscrepancy(row),
+        ),
+      };
+    });
+  }
+
+  async listReconciliationDiscrepancies(input: {
+    unresolvedOnly: boolean;
+    limit: number;
+  }) {
+    const rows = await db
+      .select({
+        id: fundingReconciliationDiscrepancies.id,
+        transferId: fundingReconciliationDiscrepancies.transferId,
+        discrepancyType: fundingReconciliationDiscrepancies.discrepancyType,
+        severity: fundingReconciliationDiscrepancies.severity,
+        expectedStatus: fundingReconciliationDiscrepancies.expectedStatus,
+        actualStatus: fundingReconciliationDiscrepancies.actualStatus,
+        message: fundingReconciliationDiscrepancies.message,
+        metadata: fundingReconciliationDiscrepancies.metadata,
+        createdAt: fundingReconciliationDiscrepancies.createdAt,
+        resolvedAt: fundingReconciliationDiscrepancies.resolvedAt,
+        runId: fundingReconciliationRuns.id,
+        runScope: fundingReconciliationRuns.scope,
+        runProvider: fundingReconciliationRuns.provider,
+        runStatus: fundingReconciliationRuns.status,
+        runCompletedAt: fundingReconciliationRuns.completedAt,
+      })
+      .from(fundingReconciliationDiscrepancies)
+      .innerJoin(
+        fundingReconciliationRuns,
+        eq(fundingReconciliationRuns.id, fundingReconciliationDiscrepancies.runId),
+      )
+      .where(input.unresolvedOnly ? isNull(fundingReconciliationDiscrepancies.resolvedAt) : undefined)
+      .orderBy(desc(fundingReconciliationDiscrepancies.createdAt))
+      .limit(Math.min(input.limit, 200));
+
+    return {
+      discrepancies: rows.map((row) => this.mapReconciliationDiscrepancy(row)),
+    };
+  }
+
   private async assertUserExists(userId: string) {
     const [user] = await db
       .select({
@@ -1050,6 +1311,45 @@ export class FundingService {
 
   private requiresWithdrawalReview(amountMinor: number) {
     return amountMinor >= WITHDRAWAL_REVIEW_THRESHOLD_MINOR;
+  }
+
+  private getLedgerReferenceTypesForTransfers(
+    transfers: Array<{
+      id: string;
+      type: FundingTransferType;
+      status: FundingTransferStatus;
+    }>,
+  ) {
+    return Array.from(
+      new Set(
+        transfers.flatMap((transfer) =>
+          this.getRequiredLedgerReferenceTypesForTransfer(transfer),
+        ),
+      ),
+    );
+  }
+
+  private getRequiredLedgerReferenceTypesForTransfer(transfer: {
+    type: FundingTransferType;
+    status: FundingTransferStatus;
+  }) {
+    if (transfer.type === "deposit") {
+      return transfer.status === "settled" ? ["deposit_settlement"] : [];
+    }
+
+    if (transfer.status === "pending" || transfer.status === "in_review") {
+      return ["withdrawal_hold"];
+    }
+
+    if (transfer.status === "settled") {
+      return ["withdrawal_settlement"];
+    }
+
+    if (transfer.status === "failed") {
+      return ["withdrawal_release"];
+    }
+
+    return [];
   }
 
   private async getWalletAccountBalance(walletAccountId: string) {
@@ -1199,5 +1499,73 @@ export class FundingService {
       providerTransferReference: row.providerTransferReference,
       failureReason: row.failureReason,
     };
+  }
+
+  private mapReconciliationRun(row: {
+    id: string;
+    scope: "funding_transfers";
+    provider: string | null;
+    status: FundingReconciliationRunStatus;
+    comparedRecordsCount: number;
+    discrepancyCount: number;
+    startedAt: Date;
+    completedAt: Date;
+  }) {
+    return {
+      id: row.id,
+      scope: row.scope,
+      provider: row.provider,
+      status: row.status,
+      comparedRecordsCount: row.comparedRecordsCount,
+      discrepancyCount: row.discrepancyCount,
+      startedAt: row.startedAt.toISOString(),
+      completedAt: row.completedAt.toISOString(),
+    };
+  }
+
+  private mapReconciliationDiscrepancy(row: {
+    id: string;
+    transferId: string | null;
+    discrepancyType: FundingDiscrepancyType;
+    severity: FundingDiscrepancySeverity;
+    expectedStatus: FundingTransferStatus | null;
+    actualStatus: FundingTransferStatus | null;
+    message: string;
+    metadata: Record<string, unknown>;
+    createdAt: Date;
+    resolvedAt: Date | null;
+    runId: string;
+    runScope: "funding_transfers";
+    runProvider: string | null;
+    runStatus: FundingReconciliationRunStatus;
+    runCompletedAt: Date;
+  }) {
+    return {
+      id: row.id,
+      transferId: row.transferId,
+      discrepancyType: row.discrepancyType,
+      severity: row.severity,
+      expectedStatus: row.expectedStatus,
+      actualStatus: row.actualStatus,
+      message: row.message,
+      metadata: this.asRecord(row.metadata),
+      createdAt: row.createdAt.toISOString(),
+      resolvedAt: row.resolvedAt?.toISOString() ?? null,
+      run: {
+        id: row.runId,
+        scope: row.runScope,
+        provider: row.runProvider,
+        status: row.runStatus,
+        completedAt: row.runCompletedAt.toISOString(),
+      },
+    };
+  }
+
+  private asRecord(value: unknown) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return {};
+    }
+
+    return value as Record<string, unknown>;
   }
 }
