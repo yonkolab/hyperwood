@@ -29,6 +29,14 @@ Prediction market API skeleton focused on the day-1 `identity-and-access` founda
 4. Apply the current migration set with `npm run db:migrate`.
 5. Run the server with `npm run dev`.
 
+## Local Docker
+
+1. Copy `.env.example` to `.env`.
+2. Start the stack with `npm run docker:local:up`.
+3. The API will be available at `http://localhost:3000` and PostgreSQL at `localhost:5432`.
+
+The local Docker stack uses `docker-compose.local.yml`, starts PostgreSQL 17, overrides `DATABASE_URL` to the internal `db` service, and runs `npm run db:migrate` before the development server starts.
+
 ## Scripts
 
 - `npm run dev`
@@ -36,6 +44,8 @@ Prediction market API skeleton focused on the day-1 `identity-and-access` founda
 - `npm run check`
 - `npm run db:generate`
 - `npm run db:migrate`
+- `npm run docker:local:up`
+- `npm run docker:local:down`
 
 ## Database bootstrap
 
@@ -91,6 +101,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/internal/funding/withdrawals/:withdrawalId/settle`
 - `POST /api/v1/internal/funding/reconciliation/runs`
 - `GET /api/v1/internal/funding/reconciliation/discrepancies`
+- `GET /api/v1/internal/operations/reviews`
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`
