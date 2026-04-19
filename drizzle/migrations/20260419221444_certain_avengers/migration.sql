@@ -1,0 +1,1 @@
+ALTER TYPE "market_command_type" ADD VALUE 'order_amend' BEFORE 'order_cancel';

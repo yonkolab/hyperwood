@@ -8,6 +8,7 @@ import {
 import {
   createMarket,
   createMarketEvent,
+  runMarketMatch,
   seedWallet,
   upsertApprovedComplianceProfile,
   upsertExchangeSchedule,
@@ -25,6 +26,22 @@ const weekdayNames = [
 
 function getCurrentUtcWeekday() {
   return weekdayNames[new Date().getUTCDay()];
+}
+
+async function openExchangeForCurrentDay(app: FastifyInstance) {
+  await upsertExchangeSchedule(app, {
+    name: 'Open exchange schedule for order tests',
+    timezone: 'UTC',
+    weeklyWindows: [
+      {
+        weekday: getCurrentUtcWeekday(),
+        opensAt: '00:00',
+        closesAt: '23:59',
+      },
+    ],
+    maintenanceWindows: [],
+    notes: 'Keeps the exchange open for order workflow API tests.',
+  });
 }
 
 describe('orders api', () => {
@@ -146,6 +163,165 @@ describe('orders api', () => {
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({
       error: 'exchange_not_open',
+    });
+  });
+
+  it('amends a resting limit order and releases excess reserve', async () => {
+    const session = await createVerifiedSession(app);
+    await upsertApprovedComplianceProfile(app, session.body.user.id as string);
+    await seedWallet(app, session.body.user.id as string, {
+      amountMinor: 10_000,
+      currency: 'USD',
+      referenceId: 'order-amend-seed',
+    });
+    await openExchangeForCurrentDay(app);
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string, {
+      status: 'active',
+      currency: 'USD',
+    });
+
+    const order = await app.inject({
+      method: 'POST',
+      url: '/api/v1/orders',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+        'idempotency-key': 'resting-order-amend',
+      },
+      payload: {
+        marketId: market.body.market.id,
+        type: 'limit',
+        side: 'buy',
+        outcome: 'yes',
+        quantity: 10,
+        limitPriceBps: 5200,
+      },
+    });
+
+    expect(order.statusCode).toBe(201);
+
+    const amended = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/orders/${order.json().order.id}`,
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+      payload: {
+        quantity: 8,
+        limitPriceBps: 5000,
+      },
+    });
+
+    expect(amended.statusCode).toBe(200);
+    expect(amended.json()).toMatchObject({
+      alreadyApplied: false,
+      order: {
+        quantity: 8,
+        filledQuantity: 0,
+        limitPriceBps: 5000,
+        referencePriceBps: 5000,
+        reservedAmountMinor: 400,
+      },
+      marketCommand: {
+        commandType: 'order_amend',
+      },
+    });
+  });
+
+  it('decreases a partially-filled limit order without affecting filled quantity', async () => {
+    const buyer = await createVerifiedSession(app);
+    const seller = await createVerifiedSession(app);
+
+    await Promise.all([
+      upsertApprovedComplianceProfile(app, buyer.body.user.id as string),
+      upsertApprovedComplianceProfile(app, seller.body.user.id as string),
+      seedWallet(app, buyer.body.user.id as string, {
+        amountMinor: 10_000,
+        currency: 'USD',
+        referenceId: 'partial-amend-buyer-seed',
+      }),
+      seedWallet(app, seller.body.user.id as string, {
+        amountMinor: 10_000,
+        currency: 'USD',
+        referenceId: 'partial-amend-seller-seed',
+      }),
+    ]);
+
+    await openExchangeForCurrentDay(app);
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string, {
+      status: 'active',
+      currency: 'USD',
+      yesPriceBps: 5200,
+      noPriceBps: 4800,
+    });
+
+    const buyOrder = await app.inject({
+      method: 'POST',
+      url: '/api/v1/orders',
+      headers: {
+        authorization: `Bearer ${buyer.sessionToken}`,
+        'idempotency-key': 'partial-amend-buy',
+      },
+      payload: {
+        marketId: market.body.market.id,
+        type: 'limit',
+        side: 'buy',
+        outcome: 'yes',
+        quantity: 10,
+        limitPriceBps: 5200,
+      },
+    });
+
+    const sellOrder = await app.inject({
+      method: 'POST',
+      url: '/api/v1/orders',
+      headers: {
+        authorization: `Bearer ${seller.sessionToken}`,
+        'idempotency-key': 'partial-amend-sell',
+      },
+      payload: {
+        marketId: market.body.market.id,
+        type: 'limit',
+        side: 'sell',
+        outcome: 'yes',
+        quantity: 4,
+        limitPriceBps: 5200,
+      },
+    });
+
+    expect(buyOrder.statusCode).toBe(201);
+    expect(sellOrder.statusCode).toBe(201);
+
+    const match = await runMarketMatch(app, market.body.market.id as string);
+
+    expect(match.response.statusCode).toBe(200);
+    expect(match.body.summary.matchedTradeCount).toBe(1);
+
+    const amended = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/orders/${buyOrder.json().order.id}`,
+      headers: {
+        authorization: `Bearer ${buyer.sessionToken}`,
+      },
+      payload: {
+        quantity: 7,
+      },
+    });
+
+    expect(amended.statusCode).toBe(200);
+    expect(amended.json()).toMatchObject({
+      alreadyApplied: false,
+      order: {
+        status: 'partially_filled',
+        quantity: 7,
+        filledQuantity: 4,
+        limitPriceBps: 5200,
+        reservedAmountMinor: 156,
+      },
+      marketCommand: {
+        commandType: 'order_amend',
+      },
     });
   });
 });

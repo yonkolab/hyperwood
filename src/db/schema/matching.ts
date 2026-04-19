@@ -15,6 +15,7 @@ import { orderOutcomeEnum, orders } from './orders';
 
 export const marketCommandTypeEnum = pgEnum('market_command_type', [
   'order_create',
+  'order_amend',
   'order_cancel',
   'match_execution',
 ]);

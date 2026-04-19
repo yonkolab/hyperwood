@@ -195,6 +195,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/portfolio/fills`
 - `GET /api/v1/portfolio/settlements`
 - `POST /api/v1/orders`
+- `PATCH /api/v1/orders/:orderId`
 - `DELETE /api/v1/orders/:orderId`
 - `POST /api/v1/auth/api-keys`
 - `GET /api/v1/auth/api-keys`

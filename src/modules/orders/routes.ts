@@ -42,6 +42,18 @@ const orderParamsSchema = z.object({
   orderId: z.string().uuid(),
 });
 
+const amendOrderBodySchema = z
+  .object({
+    quantity: z.number().int().positive().optional(),
+    limitPriceBps: z.number().int().min(1).max(9999).optional(),
+  })
+  .refine(
+    (body) => body.quantity !== undefined || body.limitPriceBps !== undefined,
+    {
+      message: 'quantity or limitPriceBps is required',
+    },
+  );
+
 function getSessionTokenFromRequest(request: FastifyRequest) {
   const header = request.headers.authorization;
 
@@ -102,6 +114,23 @@ async function orderRoutes(
     const result = await ordersService.cancelOrder({
       userId: user.id,
       orderId: params.orderId,
+    });
+
+    reply.status(200).send(result);
+  });
+
+  app.patch('/orders/:orderId', async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const params = orderParamsSchema.parse(request.params);
+    const body = amendOrderBodySchema.parse(request.body);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const result = await ordersService.amendOrder({
+      userId: user.id,
+      orderId: params.orderId,
+      ...(body.quantity !== undefined ? { quantity: body.quantity } : {}),
+      ...(body.limitPriceBps !== undefined
+        ? { limitPriceBps: body.limitPriceBps }
+        : {}),
     });
 
     reply.status(200).send(result);

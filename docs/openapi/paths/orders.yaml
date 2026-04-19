@@ -41,6 +41,35 @@ orders:
         $ref: ../components/responses/common.yaml#/Conflict
 
 orderById:
+  patch:
+    operationId: amendOrder
+    tags: [Orders]
+    summary: Amend a resting limit order
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/OrderId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/orders.yaml#/AmendOrderRequest
+    responses:
+      '200':
+        description: Order amended or already matches the requested fields.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/orders.yaml#/AmendOrderResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
   delete:
     operationId: cancelOrder
     tags: [Orders]

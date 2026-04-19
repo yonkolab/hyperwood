@@ -45,6 +45,32 @@ CreateOrderResponse:
     marketCommand:
       $ref: ./common.yaml#/MarketCommand
 
+AmendOrderRequest:
+  type: object
+  minProperties: 1
+  properties:
+    quantity:
+      type: integer
+      minimum: 1
+    limitPriceBps:
+      type: integer
+      minimum: 1
+      maximum: 9999
+  example:
+    quantity: 8
+    limitPriceBps: 5000
+
+AmendOrderResponse:
+  type: object
+  required: [order, alreadyApplied]
+  properties:
+    order:
+      $ref: ./common.yaml#/OrderSummary
+    alreadyApplied:
+      type: boolean
+    marketCommand:
+      $ref: ./common.yaml#/MarketCommand
+
 CancelOrderResponse:
   type: object
   required: [order, alreadyCancelled]

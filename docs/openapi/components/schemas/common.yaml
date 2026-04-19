@@ -340,7 +340,7 @@ MarketCommand:
       type: integer
     commandType:
       type: string
-      enum: [order_create, order_cancel, match_execution]
+      enum: [order_create, order_amend, order_cancel, match_execution]
     metadata:
       type: object
       additionalProperties: true

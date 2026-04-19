@@ -439,6 +439,259 @@ export class OrdersService {
     });
   }
 
+  async amendOrder(input: {
+    userId: string;
+    orderId: string;
+    quantity?: number;
+    limitPriceBps?: number;
+  }) {
+    return db.transaction(async (tx) => {
+      const orderRows = await tx
+        .select({
+          id: orders.id,
+          userId: orders.userId,
+          marketId: orders.marketId,
+        })
+        .from(orders)
+        .where(
+          and(eq(orders.id, input.orderId), eq(orders.userId, input.userId)),
+        )
+        .limit(1);
+
+      const orderReference = orderRows[0];
+
+      if (!orderReference) {
+        throw new AppError(404, 'order_not_found', 'order was not found');
+      }
+
+      await this.acquireMarketWriteLock(tx, orderReference.marketId);
+
+      const currentOrderRows = await tx
+        .select()
+        .from(orders)
+        .where(
+          and(eq(orders.id, input.orderId), eq(orders.userId, input.userId)),
+        )
+        .limit(1);
+
+      const order = currentOrderRows[0];
+
+      if (!order) {
+        throw new AppError(404, 'order_not_found', 'order was not found');
+      }
+
+      if (order.type !== 'limit') {
+        throw new AppError(
+          409,
+          'order_not_amendable',
+          'only resting limit orders can be amended',
+        );
+      }
+
+      if (
+        order.status !== 'queued_for_matching' &&
+        order.status !== 'partially_filled'
+      ) {
+        throw new AppError(
+          409,
+          'order_not_amendable',
+          'order is not eligible for amendment',
+        );
+      }
+
+      const marketRows = await tx
+        .select({
+          id: markets.id,
+          status: markets.status,
+        })
+        .from(markets)
+        .where(eq(markets.id, order.marketId))
+        .limit(1);
+
+      const market = marketRows[0];
+
+      if (!market) {
+        throw new AppError(404, 'market_not_found', 'market was not found');
+      }
+
+      await this.exchangeService.assertTradingOpen(tx);
+      this.assertMarketTradable(market.status);
+
+      if (input.quantity !== undefined) {
+        this.assertAmendedQuantity(order, input.quantity);
+      }
+
+      const nextQuantity = input.quantity ?? order.quantity;
+      const nextLimitPriceBps =
+        input.limitPriceBps !== undefined
+          ? this.assertLimitPrice(input.limitPriceBps)
+          : order.limitPriceBps;
+
+      if (!nextLimitPriceBps) {
+        throw new AppError(
+          500,
+          'order_not_amendable',
+          'resting limit order is missing limit price state',
+        );
+      }
+
+      if (
+        nextQuantity === order.quantity &&
+        nextLimitPriceBps === order.limitPriceBps
+      ) {
+        return {
+          order,
+          alreadyApplied: true,
+        };
+      }
+
+      const nextRemainingQuantity = nextQuantity - order.filledQuantity;
+      const nextReservedAmountMinor = this.calculateReservedAmountMinor({
+        side: order.side,
+        quantity: nextRemainingQuantity,
+        referencePriceBps: nextLimitPriceBps,
+      });
+      const reserveDeltaMinor =
+        nextReservedAmountMinor - order.reservedAmountMinor;
+      const availableWallet = await this.getOrCreateWalletAccount(tx, {
+        ownerUserId: input.userId,
+        type: 'user_cash',
+        currency: order.currency,
+      });
+      const reservedWallet = await this.getOrCreateWalletAccount(tx, {
+        ownerUserId: input.userId,
+        type: 'user_order_reserved',
+        currency: order.currency,
+      });
+
+      if (reserveDeltaMinor > 0) {
+        const availableBalanceMinor = await this.getWalletAccountBalance(
+          tx,
+          availableWallet.id,
+        );
+
+        if (availableBalanceMinor < reserveDeltaMinor) {
+          throw new AppError(
+            409,
+            'insufficient_available_balance',
+            'insufficient available balance for amended order collateral',
+          );
+        }
+      }
+
+      const updatedRows = await tx
+        .update(orders)
+        .set({
+          quantity: nextQuantity,
+          limitPriceBps: nextLimitPriceBps,
+          referencePriceBps: nextLimitPriceBps,
+          reservedAmountMinor: nextReservedAmountMinor,
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, order.id))
+        .returning();
+
+      const amendedOrder = updatedRows[0];
+
+      if (!amendedOrder) {
+        throw new AppError(
+          500,
+          'order_amendment_failed',
+          'failed to amend order',
+        );
+      }
+
+      if (reserveDeltaMinor !== 0) {
+        const transactionRows = await tx
+          .insert(ledgerTransactions)
+          .values({
+            referenceType: 'order_amendment',
+            referenceId: amendedOrder.id,
+            metadata: {
+              marketId: amendedOrder.marketId,
+              previousQuantity: order.quantity,
+              amendedQuantity: amendedOrder.quantity,
+              previousLimitPriceBps: order.limitPriceBps,
+              amendedLimitPriceBps: amendedOrder.limitPriceBps,
+              reserveDeltaMinor,
+            },
+          })
+          .returning({
+            id: ledgerTransactions.id,
+          });
+
+        const transaction = transactionRows[0];
+
+        if (!transaction) {
+          throw new AppError(
+            500,
+            'ledger_transaction_failed',
+            'failed to create ledger transaction',
+          );
+        }
+
+        await tx.insert(ledgerEntries).values(
+          reserveDeltaMinor > 0
+            ? [
+                {
+                  transactionId: transaction.id,
+                  walletAccountId: availableWallet.id,
+                  side: 'debit',
+                  amountMinor: reserveDeltaMinor,
+                  currency: amendedOrder.currency,
+                },
+                {
+                  transactionId: transaction.id,
+                  walletAccountId: reservedWallet.id,
+                  side: 'credit',
+                  amountMinor: reserveDeltaMinor,
+                  currency: amendedOrder.currency,
+                },
+              ]
+            : [
+                {
+                  transactionId: transaction.id,
+                  walletAccountId: reservedWallet.id,
+                  side: 'debit',
+                  amountMinor: Math.abs(reserveDeltaMinor),
+                  currency: amendedOrder.currency,
+                },
+                {
+                  transactionId: transaction.id,
+                  walletAccountId: availableWallet.id,
+                  side: 'credit',
+                  amountMinor: Math.abs(reserveDeltaMinor),
+                  currency: amendedOrder.currency,
+                },
+              ],
+        );
+      }
+
+      const command = await this.recordMarketCommand(tx, {
+        marketId: amendedOrder.marketId,
+        orderId: amendedOrder.id,
+        commandType: 'order_amend',
+        metadata: {
+          previousQuantity: order.quantity,
+          amendedQuantity: amendedOrder.quantity,
+          filledQuantity: amendedOrder.filledQuantity,
+          previousLimitPriceBps: order.limitPriceBps,
+          amendedLimitPriceBps: amendedOrder.limitPriceBps,
+          previousReservedAmountMinor: order.reservedAmountMinor,
+          amendedReservedAmountMinor: amendedOrder.reservedAmountMinor,
+          reserveDeltaMinor,
+          currency: amendedOrder.currency,
+        },
+      });
+
+      return {
+        order: amendedOrder,
+        alreadyApplied: false,
+        marketCommand: command,
+      };
+    });
+  }
+
   private assertOrderQuantity(quantity: number) {
     if (!Number.isInteger(quantity) || quantity <= 0) {
       throw new AppError(
@@ -485,6 +738,29 @@ export class OrdersService {
     }
 
     return limitPriceBps;
+  }
+
+  private assertAmendedQuantity(
+    order: typeof orders.$inferSelect,
+    amendedQuantity: number,
+  ) {
+    this.assertOrderQuantity(amendedQuantity);
+
+    if (amendedQuantity > order.quantity) {
+      throw new AppError(
+        409,
+        'order_quantity_increase_not_supported',
+        'order quantity increases are not supported',
+      );
+    }
+
+    if (amendedQuantity <= order.filledQuantity) {
+      throw new AppError(
+        409,
+        'order_quantity_below_filled',
+        'amended quantity must remain above already filled quantity',
+      );
+    }
   }
 
   private getMarketPriceBps(
