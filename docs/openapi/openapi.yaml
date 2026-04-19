@@ -1,0 +1,352 @@
+openapi: 3.0.3
+info:
+  title: Hyperwood API
+  version: 0.1.0
+  description: |
+    Hyperwood is a prediction market API covering identity, compliance, funding, trading,
+    portfolio, and internal operations workflows.
+
+    This OpenAPI document is the source of truth for the HTTP API surface. It documents the
+    currently implemented REST endpoints under `/api/v1`.
+
+    Notes:
+    - Public read-only endpoints exist for market discovery and health checks.
+    - Authenticated endpoints use opaque bearer session tokens unless documented otherwise.
+    - Internal endpoints use the `x-bootstrap-token` header.
+    - Webhooks and realtime transports are not implemented yet and are documented as future work in `/docs/guides`.
+  license:
+    name: Proprietary
+servers:
+  - url: http://localhost:3000
+    description: Local development
+tags:
+  - name: Health
+    description: Basic service availability checks.
+  - name: Identity
+    description: Registration, login, MFA, sessions, and API key workflows.
+  - name: Compliance
+    description: Compliance profile and capability evaluation workflows.
+  - name: Funding
+    description: Wallet, funding methods, deposits, withdrawals, and reconciliation.
+  - name: Markets
+    description: Public market catalog, detail, order book, and matching operations.
+  - name: Orders
+    description: Authenticated order entry and cancellation.
+  - name: Portfolio
+    description: Portfolio summary, fills, and ledger-derived read models.
+  - name: Operations
+    description: Internal review queue and operational investigation endpoints.
+  - name: Internal
+    description: Bootstrap-protected internal administrative endpoints.
+paths:
+  /health:
+    $ref: ./paths/health.yaml#/health
+  /api/v1/auth/register:
+    $ref: ./paths/identity.yaml#/register
+  /api/v1/auth/login:
+    $ref: ./paths/identity.yaml#/login
+  /api/v1/auth/request-email-verification:
+    $ref: ./paths/identity.yaml#/requestEmailVerification
+  /api/v1/auth/verify-email:
+    $ref: ./paths/identity.yaml#/verifyEmail
+  /api/v1/auth/mfa/totp/verify:
+    $ref: ./paths/identity.yaml#/verifyTotpLogin
+  /api/v1/auth/mfa/totp/authorize:
+    $ref: ./paths/identity.yaml#/authorizeTotp
+  /api/v1/auth/me:
+    $ref: ./paths/identity.yaml#/authMe
+  /api/v1/auth/api-keys:
+    $ref: ./paths/identity.yaml#/apiKeys
+  /api/v1/auth/api-key/me:
+    $ref: ./paths/identity.yaml#/apiKeyMe
+  /api/v1/auth/api-key/hmac/me:
+    $ref: ./paths/identity.yaml#/apiKeyHmacMe
+  /api/v1/auth/api-keys/{apiKeyId}:
+    $ref: ./paths/identity.yaml#/apiKeyById
+  /api/v1/auth/mfa/totp/setup:
+    $ref: ./paths/identity.yaml#/totpSetup
+  /api/v1/auth/mfa/totp/confirm:
+    $ref: ./paths/identity.yaml#/totpConfirm
+  /api/v1/internal/auth/link-existing-user:
+    $ref: ./paths/identity.yaml#/linkExistingUser
+  /api/v1/compliance/me/capabilities:
+    $ref: ./paths/compliance.yaml#/capabilities
+  /api/v1/internal/compliance/users/{userId}/profile:
+    $ref: ./paths/compliance.yaml#/profile
+  /api/v1/internal/compliance/users/{userId}/restrictions:
+    $ref: ./paths/compliance.yaml#/restrictions
+  /api/v1/funding/methods:
+    $ref: ./paths/funding.yaml#/fundingMethods
+  /api/v1/wallet/balance:
+    $ref: ./paths/funding.yaml#/walletBalance
+  /api/v1/funding/deposits:
+    $ref: ./paths/funding.yaml#/deposits
+  /api/v1/funding/withdrawals:
+    $ref: ./paths/funding.yaml#/withdrawals
+  /api/v1/internal/funding/users/{userId}/methods:
+    $ref: ./paths/funding.yaml#/internalFundingMethods
+  /api/v1/internal/funding/users/{userId}/wallet/seed:
+    $ref: ./paths/funding.yaml#/walletSeed
+  /api/v1/internal/funding/deposits/{depositId}/settle:
+    $ref: ./paths/funding.yaml#/settleDeposit
+  /api/v1/internal/funding/withdrawals/{withdrawalId}/approve:
+    $ref: ./paths/funding.yaml#/approveWithdrawal
+  /api/v1/internal/funding/withdrawals/{withdrawalId}/fail:
+    $ref: ./paths/funding.yaml#/failWithdrawal
+  /api/v1/internal/funding/withdrawals/{withdrawalId}/settle:
+    $ref: ./paths/funding.yaml#/settleWithdrawal
+  /api/v1/internal/funding/reconciliation/runs:
+    $ref: ./paths/funding.yaml#/reconciliationRuns
+  /api/v1/internal/funding/reconciliation/discrepancies:
+    $ref: ./paths/funding.yaml#/reconciliationDiscrepancies
+  /api/v1/markets:
+    $ref: ./paths/markets.yaml#/markets
+  /api/v1/markets/{marketId}:
+    $ref: ./paths/markets.yaml#/marketById
+  /api/v1/markets/{marketId}/order-book:
+    $ref: ./paths/markets.yaml#/orderBook
+  /api/v1/markets/{marketId}/order-book/deltas:
+    $ref: ./paths/markets.yaml#/orderBookDeltas
+  /api/v1/markets/{marketId}/trades:
+    $ref: ./paths/markets.yaml#/trades
+  /api/v1/internal/markets/events:
+    $ref: ./paths/markets.yaml#/internalEvents
+  /api/v1/internal/markets:
+    $ref: ./paths/markets.yaml#/internalMarkets
+  /api/v1/internal/markets/{marketId}/match:
+    $ref: ./paths/markets.yaml#/internalMatch
+  /api/v1/orders:
+    $ref: ./paths/orders.yaml#/orders
+  /api/v1/orders/{orderId}:
+    $ref: ./paths/orders.yaml#/orderById
+  /api/v1/portfolio:
+    $ref: ./paths/portfolio.yaml#/portfolio
+  /api/v1/portfolio/fills:
+    $ref: ./paths/portfolio.yaml#/fills
+  /api/v1/internal/operations/reviews:
+    $ref: ./paths/operations.yaml#/reviews
+components:
+  securitySchemes:
+    SessionBearer:
+      $ref: ./components/securitySchemes/common.yaml#/SessionBearer
+    BootstrapToken:
+      $ref: ./components/securitySchemes/common.yaml#/BootstrapToken
+    ApiKeyHeader:
+      $ref: ./components/securitySchemes/common.yaml#/ApiKeyHeader
+  parameters:
+    Currency:
+      $ref: ./components/parameters/common.yaml#/Currency
+    OptionalCurrency:
+      $ref: ./components/parameters/common.yaml#/OptionalCurrency
+    Limit25:
+      $ref: ./components/parameters/common.yaml#/Limit25
+    Limit50:
+      $ref: ./components/parameters/common.yaml#/Limit50
+    LimitReconciliation:
+      $ref: ./components/parameters/common.yaml#/LimitReconciliation
+    UserId:
+      $ref: ./components/parameters/common.yaml#/UserId
+    MarketId:
+      $ref: ./components/parameters/common.yaml#/MarketId
+    OrderId:
+      $ref: ./components/parameters/common.yaml#/OrderId
+    ApiKeyId:
+      $ref: ./components/parameters/common.yaml#/ApiKeyId
+    DepositId:
+      $ref: ./components/parameters/common.yaml#/DepositId
+    WithdrawalId:
+      $ref: ./components/parameters/common.yaml#/WithdrawalId
+    AfterSequence:
+      $ref: ./components/parameters/common.yaml#/AfterSequence
+    DeltaLimit:
+      $ref: ./components/parameters/common.yaml#/DeltaLimit
+    UnresolvedOnly:
+      $ref: ./components/parameters/common.yaml#/UnresolvedOnly
+    Category:
+      $ref: ./components/parameters/common.yaml#/Category
+    MarketStatus:
+      $ref: ./components/parameters/common.yaml#/MarketStatus
+    Tag:
+      $ref: ./components/parameters/common.yaml#/Tag
+    Search:
+      $ref: ./components/parameters/common.yaml#/Search
+    MarketSort:
+      $ref: ./components/parameters/common.yaml#/MarketSort
+    IdempotencyKey:
+      $ref: ./components/parameters/common.yaml#/IdempotencyKey
+    MfaAuthorization:
+      $ref: ./components/parameters/common.yaml#/MfaAuthorization
+    ApiTimestamp:
+      $ref: ./components/parameters/common.yaml#/ApiTimestamp
+    ApiNonce:
+      $ref: ./components/parameters/common.yaml#/ApiNonce
+    ApiSignature:
+      $ref: ./components/parameters/common.yaml#/ApiSignature
+  responses:
+    BadRequest:
+      $ref: ./components/responses/common.yaml#/BadRequest
+    Unauthorized:
+      $ref: ./components/responses/common.yaml#/Unauthorized
+    Forbidden:
+      $ref: ./components/responses/common.yaml#/Forbidden
+    NotFound:
+      $ref: ./components/responses/common.yaml#/NotFound
+    Conflict:
+      $ref: ./components/responses/common.yaml#/Conflict
+    Gone:
+      $ref: ./components/responses/common.yaml#/Gone
+    TooManyRequests:
+      $ref: ./components/responses/common.yaml#/TooManyRequests
+    InternalError:
+      $ref: ./components/responses/common.yaml#/InternalError
+  schemas:
+    ErrorResponse:
+      $ref: ./components/schemas/common.yaml#/ErrorResponse
+    HealthStatus:
+      $ref: ./components/schemas/common.yaml#/HealthStatus
+    User:
+      $ref: ./components/schemas/common.yaml#/User
+    AuthenticatedUser:
+      $ref: ./components/schemas/common.yaml#/AuthenticatedUser
+    FundingMethodSummary:
+      $ref: ./components/schemas/common.yaml#/FundingMethodSummary
+    TransferSummary:
+      $ref: ./components/schemas/common.yaml#/TransferSummary
+    WalletBalance:
+      $ref: ./components/schemas/common.yaml#/WalletBalance
+    MarketEvent:
+      $ref: ./components/schemas/common.yaml#/MarketEvent
+    MarketRecord:
+      $ref: ./components/schemas/common.yaml#/MarketRecord
+    OrderSummary:
+      $ref: ./components/schemas/common.yaml#/OrderSummary
+    MarketCommand:
+      $ref: ./components/schemas/common.yaml#/MarketCommand
+    RegisterRequest:
+      $ref: ./components/schemas/identity.yaml#/RegisterRequest
+    VerificationResponse:
+      $ref: ./components/schemas/identity.yaml#/VerificationResponse
+    LoginRequest:
+      $ref: ./components/schemas/identity.yaml#/LoginRequest
+    LoginSessionResponse:
+      $ref: ./components/schemas/identity.yaml#/LoginSessionResponse
+    LoginMfaChallengeResponse:
+      $ref: ./components/schemas/identity.yaml#/LoginMfaChallengeResponse
+    VerifyEmailRequest:
+      $ref: ./components/schemas/identity.yaml#/VerifyEmailRequest
+    VerifyEmailResponse:
+      $ref: ./components/schemas/identity.yaml#/VerifyEmailResponse
+    EmailRequest:
+      $ref: ./components/schemas/identity.yaml#/EmailRequest
+    TotpVerifyLoginRequest:
+      $ref: ./components/schemas/identity.yaml#/TotpVerifyLoginRequest
+    TotpAuthorizeRequest:
+      $ref: ./components/schemas/identity.yaml#/TotpAuthorizeRequest
+    TotpAuthorizationResponse:
+      $ref: ./components/schemas/identity.yaml#/TotpAuthorizationResponse
+    AuthMeResponse:
+      $ref: ./components/schemas/identity.yaml#/AuthMeResponse
+    CreateApiKeyRequest:
+      $ref: ./components/schemas/identity.yaml#/CreateApiKeyRequest
+    CreateApiKeyResponse:
+      $ref: ./components/schemas/identity.yaml#/CreateApiKeyResponse
+    ApiKeySummary:
+      $ref: ./components/schemas/identity.yaml#/ApiKeySummary
+    ApiKeyListResponse:
+      $ref: ./components/schemas/identity.yaml#/ApiKeyListResponse
+    RevokeApiKeyResponse:
+      $ref: ./components/schemas/identity.yaml#/RevokeApiKeyResponse
+    TotpSetupResponse:
+      $ref: ./components/schemas/identity.yaml#/TotpSetupResponse
+    TotpConfirmRequest:
+      $ref: ./components/schemas/identity.yaml#/TotpConfirmRequest
+    TotpConfirmResponse:
+      $ref: ./components/schemas/identity.yaml#/TotpConfirmResponse
+    LinkExistingUserRequest:
+      $ref: ./components/schemas/identity.yaml#/LinkExistingUserRequest
+    LinkExistingUserResponse:
+      $ref: ./components/schemas/identity.yaml#/LinkExistingUserResponse
+    ComplianceProfile:
+      $ref: ./components/schemas/compliance.yaml#/ComplianceProfile
+    Restriction:
+      $ref: ./components/schemas/compliance.yaml#/Restriction
+    CapabilityEvaluation:
+      $ref: ./components/schemas/compliance.yaml#/CapabilityEvaluation
+    ComplianceProfileUpsertRequest:
+      $ref: ./components/schemas/compliance.yaml#/ComplianceProfileUpsertRequest
+    ComplianceProfileResponse:
+      $ref: ./components/schemas/compliance.yaml#/ComplianceProfileResponse
+    RestrictionRequest:
+      $ref: ./components/schemas/compliance.yaml#/RestrictionRequest
+    RestrictionResponse:
+      $ref: ./components/schemas/compliance.yaml#/RestrictionResponse
+    FundingMethod:
+      $ref: ./components/schemas/funding.yaml#/FundingMethod
+    FundingMethodCreateRequest:
+      $ref: ./components/schemas/funding.yaml#/FundingMethodCreateRequest
+    FundingMethodResponse:
+      $ref: ./components/schemas/funding.yaml#/FundingMethodResponse
+    EligibleFundingMethodsResponse:
+      $ref: ./components/schemas/funding.yaml#/EligibleFundingMethodsResponse
+    CreateTransferRequest:
+      $ref: ./components/schemas/funding.yaml#/CreateTransferRequest
+    DepositResponse:
+      $ref: ./components/schemas/funding.yaml#/DepositResponse
+    WithdrawalResponse:
+      $ref: ./components/schemas/funding.yaml#/WithdrawalResponse
+    DepositListResponse:
+      $ref: ./components/schemas/funding.yaml#/DepositListResponse
+    WithdrawalListResponse:
+      $ref: ./components/schemas/funding.yaml#/WithdrawalListResponse
+    WalletSeedRequest:
+      $ref: ./components/schemas/funding.yaml#/WalletSeedRequest
+    ReconciliationRunRequest:
+      $ref: ./components/schemas/funding.yaml#/ReconciliationRunRequest
+    ReconciliationRun:
+      $ref: ./components/schemas/funding.yaml#/ReconciliationRun
+    ReconciliationDiscrepancy:
+      $ref: ./components/schemas/funding.yaml#/ReconciliationDiscrepancy
+    ReconciliationRunResponse:
+      $ref: ./components/schemas/funding.yaml#/ReconciliationRunResponse
+    ReconciliationDiscrepancyListResponse:
+      $ref: ./components/schemas/funding.yaml#/ReconciliationDiscrepancyListResponse
+    CreateEventRequest:
+      $ref: ./components/schemas/markets.yaml#/CreateEventRequest
+    CreateEventResponse:
+      $ref: ./components/schemas/markets.yaml#/CreateEventResponse
+    CreateMarketRequest:
+      $ref: ./components/schemas/markets.yaml#/CreateMarketRequest
+    CreateMarketResponse:
+      $ref: ./components/schemas/markets.yaml#/CreateMarketResponse
+    MarketListResponse:
+      $ref: ./components/schemas/markets.yaml#/MarketListResponse
+    MarketDetailResponse:
+      $ref: ./components/schemas/markets.yaml#/MarketDetailResponse
+    OrderBookSnapshotResponse:
+      $ref: ./components/schemas/markets.yaml#/OrderBookSnapshotResponse
+    OrderBookDeltaResponse:
+      $ref: ./components/schemas/markets.yaml#/OrderBookDeltaResponse
+    Trade:
+      $ref: ./components/schemas/markets.yaml#/Trade
+    TradeListResponse:
+      $ref: ./components/schemas/markets.yaml#/TradeListResponse
+    MatchRunResponse:
+      $ref: ./components/schemas/markets.yaml#/MatchRunResponse
+    CreateOrderRequest:
+      $ref: ./components/schemas/orders.yaml#/CreateOrderRequest
+    CreateOrderResponse:
+      $ref: ./components/schemas/orders.yaml#/CreateOrderResponse
+    CancelOrderResponse:
+      $ref: ./components/schemas/orders.yaml#/CancelOrderResponse
+    Position:
+      $ref: ./components/schemas/portfolio.yaml#/Position
+    Fill:
+      $ref: ./components/schemas/portfolio.yaml#/Fill
+    LedgerActivity:
+      $ref: ./components/schemas/portfolio.yaml#/LedgerActivity
+    PortfolioSummaryResponse:
+      $ref: ./components/schemas/portfolio.yaml#/PortfolioSummaryResponse
+    FillListResponse:
+      $ref: ./components/schemas/portfolio.yaml#/FillListResponse
+    OperationsReviewQueueResponse:
+      $ref: ./components/schemas/operations.yaml#/OperationsReviewQueueResponse

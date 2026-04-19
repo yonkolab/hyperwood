@@ -1,0 +1,189 @@
+ComplianceProfile:
+  type: object
+  required:
+    - id
+    - userId
+    - countryCode
+    - jurisdictionCode
+    - legalEntity
+    - kycStatus
+    - sanctionsStatus
+    - ageVerifiedAt
+    - metadata
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+    countryCode:
+      type: string
+    jurisdictionCode:
+      type: string
+    legalEntity:
+      type: string
+    kycStatus:
+      type: string
+      enum: [pending, approved, rejected, restricted]
+    sanctionsStatus:
+      type: string
+      enum: [clear, pending_review, restricted]
+    kycProvider:
+      type: string
+      nullable: true
+    providerReference:
+      type: string
+      nullable: true
+    ageVerifiedAt:
+      type: string
+      format: date-time
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+Restriction:
+  type: object
+  required: [id, userId, scope, reason, source, expiresAt, resolvedAt, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+    scope:
+      type: string
+      enum: [all, trading, funding, withdrawal]
+    reason:
+      type: string
+    source:
+      type: string
+      enum: [system, provider, admin]
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+    resolvedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+
+CapabilityEvaluation:
+  type: object
+  required: [userId, profile, restrictions, capabilities, fundingMethods]
+  properties:
+    userId:
+      type: string
+      format: uuid
+    profile:
+      type: object
+      allOf:
+        - $ref: '#/ComplianceProfile'
+      nullable: true
+    restrictions:
+      type: array
+      items:
+        $ref: '#/Restriction'
+    capabilities:
+      type: object
+      required: [trading, funding, withdrawal]
+      properties:
+        trading:
+          $ref: '#/CapabilityState'
+        funding:
+          $ref: '#/CapabilityState'
+        withdrawal:
+          $ref: '#/CapabilityState'
+    fundingMethods:
+      type: array
+      items:
+        type: string
+        enum: [ach, fps, pix, wire, debit_card, crypto_wallet]
+
+CapabilityState:
+  type: object
+  required: [allowed, reasons]
+  properties:
+    allowed:
+      type: boolean
+    reasons:
+      type: array
+      items:
+        type: string
+
+ComplianceProfileUpsertRequest:
+  type: object
+  required:
+    - countryCode
+    - jurisdictionCode
+    - legalEntity
+    - kycStatus
+    - sanctionsStatus
+    - ageVerified
+  properties:
+    countryCode:
+      type: string
+      minLength: 2
+      maxLength: 2
+    jurisdictionCode:
+      type: string
+    legalEntity:
+      type: string
+    kycStatus:
+      type: string
+      enum: [pending, approved, rejected, restricted]
+    sanctionsStatus:
+      type: string
+      enum: [clear, pending_review, restricted]
+    kycProvider:
+      type: string
+    providerReference:
+      type: string
+    ageVerified:
+      type: boolean
+    metadata:
+      type: object
+      additionalProperties: true
+
+ComplianceProfileResponse:
+  type: object
+  required: [profile]
+  properties:
+    profile:
+      $ref: '#/ComplianceProfile'
+
+RestrictionRequest:
+  type: object
+  required: [scope, reason, source]
+  properties:
+    scope:
+      type: string
+      enum: [all, trading, funding, withdrawal]
+    reason:
+      type: string
+    source:
+      type: string
+      enum: [system, provider, admin]
+    expiresAt:
+      type: string
+      format: date-time
+
+RestrictionResponse:
+  type: object
+  required: [restriction]
+  properties:
+    restriction:
+      $ref: '#/Restriction'

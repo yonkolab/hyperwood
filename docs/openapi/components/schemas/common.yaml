@@ -1,0 +1,349 @@
+ErrorResponse:
+  type: object
+  required: [error, message]
+  properties:
+    error:
+      type: string
+      example: invalid_session
+    message:
+      type: string
+      example: session is invalid or expired
+
+HealthStatus:
+  type: object
+  required: [status, service]
+  properties:
+    status:
+      type: string
+      example: ok
+    service:
+      type: string
+      example: hyperwood
+
+User:
+  type: object
+  required: [id, email, status, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    username:
+      type: string
+      nullable: true
+    status:
+      type: string
+      enum: [pending_email_verification, active, disabled]
+    region:
+      type: string
+      nullable: true
+    kycStatus:
+      type: string
+      enum: [pending, approved, rejected, restricted]
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+AuthenticatedUser:
+  type: object
+  required: [apiKey, user]
+  properties:
+    apiKey:
+      $ref: ./identity.yaml#/ApiKeySummary
+    user:
+      $ref: '#/User'
+
+FundingMethodSummary:
+  type: object
+  required: [id, rail, displayName]
+  properties:
+    id:
+      type: string
+      format: uuid
+    rail:
+      type: string
+      enum: [ach, fps, pix, wire, debit_card, crypto_wallet]
+    displayName:
+      type: string
+
+TransferSummary:
+  type: object
+  required:
+    [id, type, status, amountMinor, currency, fundingMethod, requestedAt, settledAt, failedAt, providerTransferReference, failureReason]
+  properties:
+    id:
+      type: string
+      format: uuid
+    type:
+      type: string
+      enum: [deposit, withdrawal]
+    status:
+      type: string
+      enum: [pending, in_review, settled, failed, cancelled, reversed]
+    amountMinor:
+      type: integer
+    currency:
+      type: string
+      enum: [USD, BRL]
+    fundingMethod:
+      $ref: '#/FundingMethodSummary'
+    requestedAt:
+      type: string
+      format: date-time
+    settledAt:
+      type: string
+      format: date-time
+      nullable: true
+    failedAt:
+      type: string
+      format: date-time
+      nullable: true
+    providerTransferReference:
+      type: string
+      nullable: true
+    failureReason:
+      type: string
+      nullable: true
+
+WalletBalance:
+  type: object
+  required:
+    - walletAccountId
+    - reservedWalletAccountId
+    - positionCollateralWalletAccountId
+    - withdrawalHoldWalletAccountId
+    - currency
+    - balanceMinor
+    - availableBalanceMinor
+    - reservedBalanceMinor
+    - positionCollateralMinor
+    - withdrawalHoldMinor
+    - totalBalanceMinor
+  properties:
+    walletAccountId:
+      type: string
+      format: uuid
+    reservedWalletAccountId:
+      type: string
+      format: uuid
+    positionCollateralWalletAccountId:
+      type: string
+      format: uuid
+    withdrawalHoldWalletAccountId:
+      type: string
+      format: uuid
+    currency:
+      type: string
+      enum: [USD, BRL]
+    balanceMinor:
+      type: integer
+    availableBalanceMinor:
+      type: integer
+    reservedBalanceMinor:
+      type: integer
+    positionCollateralMinor:
+      type: integer
+    withdrawalHoldMinor:
+      type: integer
+    totalBalanceMinor:
+      type: integer
+
+MarketEvent:
+  type: object
+  required: [id, slug, title, category, startsAt, endsAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    slug:
+      type: string
+    title:
+      type: string
+    summary:
+      type: string
+      nullable: true
+    category:
+      type: string
+    startsAt:
+      type: string
+      format: date-time
+      nullable: true
+    endsAt:
+      type: string
+      format: date-time
+      nullable: true
+
+MarketRecord:
+  type: object
+  required:
+    - id
+    - slug
+    - title
+    - status
+    - currency
+    - tags
+    - yesPriceBps
+    - noPriceBps
+    - volumeUsdMinor
+    - opensAt
+    - closesAt
+    - resolvesAt
+    - statusChangedAt
+    - createdAt
+    - updatedAt
+    - event
+  properties:
+    id:
+      type: string
+      format: uuid
+    slug:
+      type: string
+    title:
+      type: string
+    summary:
+      type: string
+      nullable: true
+    status:
+      type: string
+      enum: [draft, scheduled, active, halted, trading_closed, awaiting_resolution, settled, cancelled, disputed, voided]
+    currency:
+      type: string
+      enum: [USD, BRL]
+    tags:
+      type: array
+      items:
+        type: string
+    yesPriceBps:
+      type: integer
+    noPriceBps:
+      type: integer
+    volumeUsdMinor:
+      type: integer
+    opensAt:
+      type: string
+      format: date-time
+      nullable: true
+    closesAt:
+      type: string
+      format: date-time
+      nullable: true
+    resolvesAt:
+      type: string
+      format: date-time
+      nullable: true
+    statusChangedAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    event:
+      $ref: '#/MarketEvent'
+
+OrderSummary:
+  type: object
+  required:
+    - id
+    - userId
+    - marketId
+    - idempotencyKey
+    - type
+    - side
+    - outcome
+    - status
+    - quantity
+    - filledQuantity
+    - limitPriceBps
+    - referencePriceBps
+    - reservedAmountMinor
+    - currency
+    - selfTradePrevention
+    - createdAt
+    - updatedAt
+    - cancelledAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    idempotencyKey:
+      type: string
+    requestHash:
+      type: string
+    type:
+      type: string
+      enum: [limit, market]
+    side:
+      type: string
+      enum: [buy, sell]
+    outcome:
+      type: string
+      enum: [yes, no]
+    status:
+      type: string
+      enum: [queued_for_matching, partially_filled, filled, cancelled]
+    quantity:
+      type: integer
+    filledQuantity:
+      type: integer
+    limitPriceBps:
+      type: integer
+      nullable: true
+    referencePriceBps:
+      type: integer
+    reservedAmountMinor:
+      type: integer
+    currency:
+      type: string
+      enum: [USD, BRL]
+    selfTradePrevention:
+      type: string
+      enum: [decrement_and_cancel, cancel_oldest, cancel_newest]
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    cancelledAt:
+      type: string
+      format: date-time
+      nullable: true
+
+MarketCommand:
+  type: object
+  required: [id, marketId, orderId, sequence, commandType, metadata, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    orderId:
+      type: string
+      format: uuid
+    sequence:
+      type: integer
+    commandType:
+      type: string
+      enum: [order_create, order_cancel, match_execution]
+    metadata:
+      type: object
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time

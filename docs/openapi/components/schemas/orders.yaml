@@ -1,0 +1,57 @@
+CreateOrderRequest:
+  type: object
+  required: [marketId, type, side, outcome, quantity]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    type:
+      type: string
+      enum: [limit, market]
+    side:
+      type: string
+      enum: [buy, sell]
+    outcome:
+      type: string
+      enum: [yes, no]
+    quantity:
+      type: integer
+      minimum: 1
+    limitPriceBps:
+      type: integer
+      minimum: 1
+      maximum: 9999
+    selfTradePrevention:
+      type: string
+      enum: [decrement_and_cancel, cancel_oldest, cancel_newest]
+      default: decrement_and_cancel
+  example:
+    marketId: 6dd8f6bf-1ad8-4fc5-84ad-0c96aab70001
+    type: limit
+    side: buy
+    outcome: yes
+    quantity: 10
+    limitPriceBps: 5500
+    selfTradePrevention: decrement_and_cancel
+
+CreateOrderResponse:
+  type: object
+  required: [order, idempotentReplay]
+  properties:
+    order:
+      $ref: ./common.yaml#/OrderSummary
+    idempotentReplay:
+      type: boolean
+    marketCommand:
+      $ref: ./common.yaml#/MarketCommand
+
+CancelOrderResponse:
+  type: object
+  required: [order, alreadyCancelled]
+  properties:
+    order:
+      $ref: ./common.yaml#/OrderSummary
+    alreadyCancelled:
+      type: boolean
+    marketCommand:
+      $ref: ./common.yaml#/MarketCommand

@@ -1,0 +1,379 @@
+CreateEventRequest:
+  type: object
+  required: [slug, title, category]
+  properties:
+    slug:
+      type: string
+    title:
+      type: string
+    summary:
+      type: string
+    category:
+      type: string
+    startsAt:
+      type: string
+      format: date-time
+    endsAt:
+      type: string
+      format: date-time
+
+CreateEventResponse:
+  type: object
+  required: [event]
+  properties:
+    event:
+      $ref: ./common.yaml#/MarketEvent
+
+CreateMarketRequest:
+  type: object
+  required:
+    - eventId
+    - slug
+    - title
+    - currency
+    - status
+    - resolutionRules
+    - yesPriceBps
+    - noPriceBps
+  properties:
+    eventId:
+      type: string
+      format: uuid
+    slug:
+      type: string
+    title:
+      type: string
+    summary:
+      type: string
+    currency:
+      type: string
+      enum: [USD, BRL]
+    status:
+      type: string
+      enum: [draft, scheduled, active, halted, trading_closed, awaiting_resolution, settled, cancelled, disputed, voided]
+    tags:
+      type: array
+      items:
+        type: string
+    resolutionRules:
+      type: string
+    resolutionSources:
+      type: array
+      items:
+        type: string
+        format: uri
+    yesPriceBps:
+      type: integer
+    noPriceBps:
+      type: integer
+    volumeUsdMinor:
+      type: integer
+    opensAt:
+      type: string
+      format: date-time
+    closesAt:
+      type: string
+      format: date-time
+    resolvesAt:
+      type: string
+      format: date-time
+
+CreateMarketResponse:
+  type: object
+  required: [market]
+  properties:
+    market:
+      $ref: ./common.yaml#/MarketRecord
+
+MarketListResponse:
+  type: object
+  required: [filters, categories, eventGroups, markets]
+  properties:
+    filters:
+      type: object
+      required: [category, status, tag, search, sort]
+      properties:
+        category:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        tag:
+          type: string
+          nullable: true
+        search:
+          type: string
+          nullable: true
+        sort:
+          type: string
+    categories:
+      type: array
+      items:
+        type: string
+    eventGroups:
+      type: array
+      items:
+        type: object
+        required: [eventId, eventSlug, eventTitle, category, marketIds]
+        properties:
+          eventId:
+            type: string
+            format: uuid
+          eventSlug:
+            type: string
+          eventTitle:
+            type: string
+          category:
+            type: string
+          marketIds:
+            type: array
+            items:
+              type: string
+              format: uuid
+    markets:
+      type: array
+      items:
+        $ref: ./common.yaml#/MarketRecord
+
+MarketDetailResponse:
+  type: object
+  required: [market]
+  properties:
+    market:
+      allOf:
+        - $ref: ./common.yaml#/MarketRecord
+        - type: object
+          required: [resolutionRules, resolutionSources, statusTimeline, lastCommandSequence]
+          properties:
+            resolutionRules:
+              type: string
+            resolutionSources:
+              type: array
+              items:
+                type: string
+            statusTimeline:
+              type: array
+              items:
+                type: object
+                required: [milestone, at]
+                properties:
+                  milestone:
+                    type: string
+                  at:
+                    type: string
+                    format: date-time
+            lastCommandSequence:
+              type: integer
+
+OrderBookSideLevel:
+  type: object
+  required: [priceBps, quantity, orderCount]
+  properties:
+    priceBps:
+      type: integer
+    quantity:
+      type: integer
+    orderCount:
+      type: integer
+
+OutcomeBook:
+  type: object
+  required: [bestBidPriceBps, bestAskPriceBps, bids, asks]
+  properties:
+    bestBidPriceBps:
+      type: integer
+      nullable: true
+    bestAskPriceBps:
+      type: integer
+      nullable: true
+    bids:
+      type: array
+      items:
+        $ref: '#/OrderBookSideLevel'
+    asks:
+      type: array
+      items:
+        $ref: '#/OrderBookSideLevel'
+
+OrderBookSnapshotResponse:
+  type: object
+  required: [marketId, snapshot, books]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    snapshot:
+      type: object
+      required: [asOf, sequence, sequenceToken, totalPriceLevels]
+      properties:
+        asOf:
+          type: string
+          format: date-time
+        sequence:
+          type: integer
+        sequenceToken:
+          type: string
+        totalPriceLevels:
+          type: integer
+    books:
+      type: object
+      required: [yes, no]
+      properties:
+        yes:
+          $ref: '#/OutcomeBook'
+        no:
+          $ref: '#/OutcomeBook'
+
+OrderBookDeltaResponse:
+  type: object
+  required: [marketId, recovery, deltas]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    recovery:
+      type: object
+      required: [requestedAfterSequence, latestSequence, hasMore, nextAfterSequence, sequenceToken]
+      properties:
+        requestedAfterSequence:
+          type: integer
+        latestSequence:
+          type: integer
+        hasMore:
+          type: boolean
+        nextAfterSequence:
+          type: integer
+          nullable: true
+        sequenceToken:
+          type: string
+    deltas:
+      type: array
+      items:
+        type: object
+        required: [id, sequence, occurredAt, commandType, bookEffect, affectsBook, order, metadata]
+        properties:
+          id:
+            type: string
+            format: uuid
+          sequence:
+            type: integer
+          occurredAt:
+            type: string
+            format: date-time
+          commandType:
+            type: string
+            enum: [order_create, order_cancel, match_execution]
+          bookEffect:
+            type: string
+          affectsBook:
+            type: boolean
+          order:
+            type: object
+            required: [id, type, side, outcome, quantity, limitPriceBps, referencePriceBps, reservedAmountMinor, currency, stateAtSequence]
+            properties:
+              id:
+                type: string
+                format: uuid
+              type:
+                type: string
+                enum: [limit, market]
+              side:
+                type: string
+                enum: [buy, sell]
+              outcome:
+                type: string
+                enum: [yes, no]
+              quantity:
+                type: integer
+              limitPriceBps:
+                type: integer
+                nullable: true
+              referencePriceBps:
+                type: integer
+              reservedAmountMinor:
+                type: integer
+              currency:
+                type: string
+                enum: [USD, BRL]
+              stateAtSequence:
+                type: string
+          trade:
+            type: object
+            nullable: true
+            properties:
+              tradeId:
+                type: string
+              makerOrderId:
+                type: string
+              takerOrderId:
+                type: string
+              outcome:
+                type: string
+                enum: [yes, no]
+              priceBps:
+                type: integer
+              quantity:
+                type: integer
+          metadata:
+            type: object
+            additionalProperties: true
+
+Trade:
+  type: object
+  required: [id, marketId, makerOrderId, takerOrderId, outcome, priceBps, quantity, executedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    makerOrderId:
+      type: string
+      format: uuid
+    takerOrderId:
+      type: string
+      format: uuid
+    outcome:
+      type: string
+      enum: [yes, no]
+    priceBps:
+      type: integer
+    quantity:
+      type: integer
+    makerRemainingQuantity:
+      type: integer
+    takerRemainingQuantity:
+      type: integer
+    executedAt:
+      type: string
+      format: date-time
+
+TradeListResponse:
+  type: object
+  required: [marketId, trades]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    trades:
+      type: array
+      items:
+        $ref: '#/Trade'
+
+MatchRunResponse:
+  type: object
+  required: [marketId, trades, commandEvents]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    trades:
+      type: array
+      items:
+        $ref: '#/Trade'
+    commandEvents:
+      type: array
+      items:
+        $ref: ./common.yaml#/MarketCommand

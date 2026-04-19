@@ -1,0 +1,324 @@
+fundingMethods:
+  get:
+    operationId: listFundingMethods
+    tags: [Funding]
+    summary: List eligible funding methods
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Currency
+    responses:
+      '200':
+        description: Funding methods filtered by user capability and currency.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/EligibleFundingMethodsResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+walletBalance:
+  get:
+    operationId: getWalletBalance
+    tags: [Funding]
+    summary: Get wallet balance breakdown
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Currency
+    responses:
+      '200':
+        description: Wallet balance summary for the requested currency.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/common.yaml#/WalletBalance
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+deposits:
+  get:
+    operationId: listDeposits
+    tags: [Funding]
+    summary: List deposit history
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/OptionalCurrency
+      - $ref: ../components/parameters/common.yaml#/Limit25
+    responses:
+      '200':
+        description: Deposit history.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/DepositListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+  post:
+    operationId: createDeposit
+    tags: [Funding]
+    summary: Create a deposit
+    security:
+      - SessionBearer: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/funding.yaml#/CreateTransferRequest
+    responses:
+      '201':
+        description: Deposit created in pending state.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/DepositResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses/common.yaml#/Forbidden
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+withdrawals:
+  get:
+    operationId: listWithdrawals
+    tags: [Funding]
+    summary: List withdrawal history
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/OptionalCurrency
+      - $ref: ../components/parameters/common.yaml#/Limit25
+    responses:
+      '200':
+        description: Withdrawal history.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/WithdrawalListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+  post:
+    operationId: createWithdrawal
+    tags: [Funding]
+    summary: Create a withdrawal
+    security:
+      - SessionBearer: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/funding.yaml#/CreateTransferRequest
+    responses:
+      '201':
+        description: Withdrawal created, potentially in review.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/WithdrawalResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses/common.yaml#/Forbidden
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+internalFundingMethods:
+  post:
+    operationId: linkFundingMethod
+    tags: [Funding, Internal]
+    summary: Link a funding method for a user
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/UserId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/funding.yaml#/FundingMethodCreateRequest
+    responses:
+      '201':
+        description: Funding method linked.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/FundingMethodResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+walletSeed:
+  post:
+    operationId: seedWalletBalance
+    tags: [Funding, Internal]
+    summary: Seed a user's wallet balance
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/UserId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/funding.yaml#/WalletSeedRequest
+    responses:
+      '201':
+        description: Wallet funded and current balance returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/common.yaml#/WalletBalance
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+settleDeposit:
+  post:
+    operationId: settleDeposit
+    tags: [Funding, Internal]
+    summary: Mark a deposit as settled
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/DepositId
+    responses:
+      '200':
+        description: Deposit settled or already settled.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/DepositResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+approveWithdrawal:
+  post:
+    operationId: approveWithdrawalReview
+    tags: [Funding, Internal]
+    summary: Approve a withdrawal in review
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/WithdrawalId
+    responses:
+      '200':
+        description: Withdrawal approved for payout.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/WithdrawalResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+failWithdrawal:
+  post:
+    operationId: failWithdrawal
+    tags: [Funding, Internal]
+    summary: Fail a withdrawal and release held funds
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/WithdrawalId
+    responses:
+      '200':
+        description: Withdrawal failed or already failed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/WithdrawalResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+settleWithdrawal:
+  post:
+    operationId: settleWithdrawal
+    tags: [Funding, Internal]
+    summary: Mark a withdrawal as settled
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/WithdrawalId
+    responses:
+      '200':
+        description: Withdrawal settled or already settled.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/WithdrawalResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+reconciliationRuns:
+  post:
+    operationId: runFundingReconciliation
+    tags: [Funding, Internal]
+    summary: Run funding transfer reconciliation
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/funding.yaml#/ReconciliationRunRequest
+    responses:
+      '201':
+        description: Reconciliation run recorded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/ReconciliationRunResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+reconciliationDiscrepancies:
+  get:
+    operationId: listReconciliationDiscrepancies
+    tags: [Funding, Internal]
+    summary: List reconciliation discrepancies
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/UnresolvedOnly
+      - $ref: ../components/parameters/common.yaml#/LimitReconciliation
+    responses:
+      '200':
+        description: Reconciliation discrepancies.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/ReconciliationDiscrepancyListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized

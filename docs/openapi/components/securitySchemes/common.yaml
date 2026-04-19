@@ -1,0 +1,17 @@
+SessionBearer:
+  type: http
+  scheme: bearer
+  bearerFormat: opaque session token
+  description: Bearer session token returned by `POST /api/v1/auth/login` or MFA verification.
+
+BootstrapToken:
+  type: apiKey
+  in: header
+  name: x-bootstrap-token
+  description: Internal bootstrap token used by private administrative endpoints.
+
+ApiKeyHeader:
+  type: apiKey
+  in: header
+  name: x-api-key
+  description: Raw API key or API key prefix depending on the endpoint.

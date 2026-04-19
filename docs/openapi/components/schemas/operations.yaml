@@ -1,0 +1,156 @@
+OperationsReviewQueueResponse:
+  type: object
+  required: [generatedAt, withdrawalReviews, reconciliationInvestigations]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    withdrawalReviews:
+      type: array
+      items:
+        type: object
+        required: [withdrawalId, amountMinor, currency, requestedAt, user, fundingMethod, reviewContext]
+        properties:
+          withdrawalId:
+            type: string
+            format: uuid
+          amountMinor:
+            type: integer
+          currency:
+            type: string
+            enum: [USD, BRL]
+          requestedAt:
+            type: string
+            format: date-time
+          user:
+            type: object
+            required: [id, email, region, kycStatus]
+            properties:
+              id:
+                type: string
+                format: uuid
+              email:
+                type: string
+                format: email
+              region:
+                type: string
+                nullable: true
+              kycStatus:
+                type: string
+                enum: [pending, approved, rejected, restricted]
+          fundingMethod:
+            type: object
+            required: [id, rail, displayName, countryCode, provider]
+            properties:
+              id:
+                type: string
+                format: uuid
+              rail:
+                type: string
+                enum: [ach, fps, pix, wire, debit_card, crypto_wallet]
+              displayName:
+                type: string
+              countryCode:
+                type: string
+              provider:
+                type: string
+                nullable: true
+          reviewContext:
+            type: object
+            required: [reason, thresholdMinor, metadata]
+            properties:
+              reason:
+                type: string
+              thresholdMinor:
+                type: integer
+                nullable: true
+              metadata:
+                type: object
+                additionalProperties: true
+    reconciliationInvestigations:
+      type: array
+      items:
+        type: object
+        required: [discrepancyId, discrepancyType, severity, expectedStatus, actualStatus, message, detectedAt, metadata, run, transfer]
+        properties:
+          discrepancyId:
+            type: string
+            format: uuid
+          discrepancyType:
+            type: string
+          severity:
+            type: string
+          expectedStatus:
+            type: string
+            nullable: true
+          actualStatus:
+            type: string
+            nullable: true
+          message:
+            type: string
+          detectedAt:
+            type: string
+            format: date-time
+          metadata:
+            type: object
+            additionalProperties: true
+          run:
+            type: object
+            required: [id, provider, status, completedAt]
+            properties:
+              id:
+                type: string
+                format: uuid
+              provider:
+                type: string
+                nullable: true
+              status:
+                type: string
+              completedAt:
+                type: string
+                format: date-time
+          transfer:
+            type: object
+            nullable: true
+            properties:
+              id:
+                type: string
+                format: uuid
+              type:
+                type: string
+              status:
+                type: string
+              amountMinor:
+                type: integer
+              currency:
+                type: string
+                enum: [USD, BRL]
+              requestedAt:
+                type: string
+                format: date-time
+              user:
+                type: object
+                nullable: true
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  email:
+                    type: string
+                    format: email
+                  region:
+                    type: string
+                    nullable: true
+                  kycStatus:
+                    type: string
+              fundingMethod:
+                type: object
+                nullable: true
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  rail:
+                    type: string
+                  displayName:
+                    type: string

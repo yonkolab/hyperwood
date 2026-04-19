@@ -1,0 +1,42 @@
+portfolio:
+  get:
+    operationId: getPortfolioSummary
+    tags: [Portfolio]
+    summary: Get portfolio summary
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Currency
+    responses:
+      '200':
+        description: Portfolio summary for the requested currency.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/portfolio.yaml#/PortfolioSummaryResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+fills:
+  get:
+    operationId: listPortfolioFills
+    tags: [Portfolio]
+    summary: List fills for the authenticated user
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit50
+      - $ref: ../components/parameters/common.yaml#/Currency
+    responses:
+      '200':
+        description: Recent fills.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/portfolio.yaml#/FillListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound

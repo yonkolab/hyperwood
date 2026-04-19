@@ -1,0 +1,90 @@
+BadRequest:
+  description: The request was malformed or failed validation.
+  content:
+    application/json:
+      schema:
+        $ref: ../schemas/common.yaml#/ErrorResponse
+      examples:
+        invalidRequest:
+          value:
+            error: invalid_amount
+            message: amount must be a positive integer
+
+Unauthorized:
+  description: Authentication failed or required credentials were missing.
+  content:
+    application/json:
+      schema:
+        $ref: ../schemas/common.yaml#/ErrorResponse
+      examples:
+        invalidSession:
+          value:
+            error: invalid_session
+            message: session is invalid or expired
+
+Forbidden:
+  description: The caller is authenticated but not allowed to perform the action.
+  content:
+    application/json:
+      schema:
+        $ref: ../schemas/common.yaml#/ErrorResponse
+      examples:
+        accountNotVerified:
+          value:
+            error: account_not_verified
+            message: account must be active before creating API keys
+
+NotFound:
+  description: The referenced resource was not found.
+  content:
+    application/json:
+      schema:
+        $ref: ../schemas/common.yaml#/ErrorResponse
+      examples:
+        notFound:
+          value:
+            error: market_not_found
+            message: market was not found
+
+Conflict:
+  description: The request conflicts with the current resource state.
+  content:
+    application/json:
+      schema:
+        $ref: ../schemas/common.yaml#/ErrorResponse
+      examples:
+        conflict:
+          value:
+            error: order_not_cancellable
+            message: order is not eligible for cancellation
+
+Gone:
+  description: The referenced token or challenge existed but has expired.
+  content:
+    application/json:
+      schema:
+        $ref: ../schemas/common.yaml#/ErrorResponse
+      examples:
+        expired:
+          value:
+            error: verification_expired
+            message: verification token has expired
+
+TooManyRequests:
+  description: The request was throttled or temporarily blocked.
+  content:
+    application/json:
+      schema:
+        $ref: ../schemas/common.yaml#/ErrorResponse
+      examples:
+        blocked:
+          value:
+            error: login_temporarily_restricted
+            message: login temporarily restricted due to suspicious activity
+
+InternalError:
+  description: The server encountered an unexpected error.
+  content:
+    application/json:
+      schema:
+        $ref: ../schemas/common.yaml#/ErrorResponse

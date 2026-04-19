@@ -1,0 +1,354 @@
+register:
+  post:
+    operationId: registerUser
+    tags: [Identity]
+    summary: Register a password-based user
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/RegisterRequest
+    responses:
+      '201':
+        description: User registered and email verification challenge issued.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/VerificationResponse
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+      '500':
+        $ref: ../components/responses/common.yaml#/InternalError
+
+login:
+  post:
+    operationId: loginUser
+    tags: [Identity]
+    summary: Log in with email and password
+    security: []
+    description: May either return a session token or an MFA challenge depending on the user's configuration.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/LoginRequest
+    responses:
+      '200':
+        description: Successful login or MFA challenge.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: ../components/schemas/identity.yaml#/LoginSessionResponse
+                - $ref: ../components/schemas/identity.yaml#/LoginMfaChallengeResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '429':
+        $ref: ../components/responses/common.yaml#/TooManyRequests
+
+requestEmailVerification:
+  post:
+    operationId: requestEmailVerification
+    tags: [Identity]
+    summary: Request a new email verification challenge
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/EmailRequest
+    responses:
+      '201':
+        description: Verification challenge created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/VerificationResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+verifyEmail:
+  post:
+    operationId: verifyEmail
+    tags: [Identity]
+    summary: Verify an email challenge token
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/VerifyEmailRequest
+    responses:
+      '200':
+        description: Email verified and user activated.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/VerifyEmailResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+      '410':
+        $ref: ../components/responses/common.yaml#/Gone
+
+verifyTotpLogin:
+  post:
+    operationId: verifyTotpLogin
+    tags: [Identity]
+    summary: Complete MFA login with a TOTP code
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/TotpVerifyLoginRequest
+    responses:
+      '200':
+        description: MFA challenge completed and session issued.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/LoginSessionResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+      '410':
+        $ref: ../components/responses/common.yaml#/Gone
+
+authorizeTotp:
+  post:
+    operationId: authorizeSensitiveAction
+    tags: [Identity]
+    summary: Request a short-lived MFA authorization token
+    security:
+      - SessionBearer: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/TotpAuthorizeRequest
+    responses:
+      '201':
+        description: MFA authorization issued.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/TotpAuthorizationResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+authMe:
+  get:
+    operationId: getAuthenticatedUser
+    tags: [Identity]
+    summary: Get the authenticated user
+    security:
+      - SessionBearer: []
+    responses:
+      '200':
+        description: Current user.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/AuthMeResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+apiKeys:
+  post:
+    operationId: createApiKey
+    tags: [Identity]
+    summary: Create an API key
+    description: Requires an MFA authorization token when the user has active MFA configured.
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MfaAuthorization
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/CreateApiKeyRequest
+    responses:
+      '201':
+        description: API key created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/CreateApiKeyResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses/common.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+  get:
+    operationId: listApiKeys
+    tags: [Identity]
+    summary: List API keys for the authenticated user
+    security:
+      - SessionBearer: []
+    responses:
+      '200':
+        description: API keys owned by the current user.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/ApiKeyListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+apiKeyMe:
+  get:
+    operationId: authenticateApiKey
+    tags: [Identity]
+    summary: Authenticate using a raw API key
+    security:
+      - ApiKeyHeader: []
+    responses:
+      '200':
+        description: API key authentication result.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/common.yaml#/AuthenticatedUser
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses/common.yaml#/Forbidden
+
+apiKeyHmacMe:
+  get:
+    operationId: authenticateHmacApiKey
+    tags: [Identity]
+    summary: Authenticate using HMAC-signed API key headers
+    security:
+      - ApiKeyHeader: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/ApiTimestamp
+      - $ref: ../components/parameters/common.yaml#/ApiNonce
+      - $ref: ../components/parameters/common.yaml#/ApiSignature
+    responses:
+      '200':
+        description: HMAC API key authentication result.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/common.yaml#/AuthenticatedUser
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses/common.yaml#/Forbidden
+
+apiKeyById:
+  delete:
+    operationId: revokeApiKey
+    tags: [Identity]
+    summary: Revoke an API key
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/ApiKeyId
+      - $ref: ../components/parameters/common.yaml#/MfaAuthorization
+    responses:
+      '200':
+        description: API key revoked.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/RevokeApiKeyResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+totpSetup:
+  post:
+    operationId: setupTotp
+    tags: [Identity]
+    summary: Create a TOTP factor setup challenge
+    security:
+      - SessionBearer: []
+    responses:
+      '201':
+        description: TOTP setup material created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/TotpSetupResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses/common.yaml#/Forbidden
+
+totpConfirm:
+  post:
+    operationId: confirmTotp
+    tags: [Identity]
+    summary: Confirm a TOTP factor
+    security:
+      - SessionBearer: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/TotpConfirmRequest
+    responses:
+      '200':
+        description: TOTP factor enabled.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/TotpConfirmResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+linkExistingUser:
+  post:
+    operationId: linkExistingUser
+    tags: [Identity, Internal]
+    summary: Link a password identity to an existing user
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/LinkExistingUserRequest
+    responses:
+      '201':
+        description: Password identity linked.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/LinkExistingUserResponse
+      '403':
+        $ref: ../components/responses/common.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict

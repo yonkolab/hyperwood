@@ -37,6 +37,34 @@ Prediction market API skeleton focused on the day-1 `identity-and-access` founda
 
 The local Docker stack uses `docker-compose.local.yml`, starts PostgreSQL 17, overrides `DATABASE_URL` to the internal `db` service, and runs `npm run db:migrate` before the development server starts.
 
+## API Docs
+
+The API documentation source lives in:
+
+- `docs/openapi/openapi.yaml`
+- `docs/openapi/paths/`
+- `docs/openapi/components/`
+- `docs/guides/`
+
+OpenAPI is the source of truth for HTTP reference documentation. Human guides live alongside it under `docs/guides`.
+The interactive reference is rendered with Scalar.
+
+Useful commands:
+
+- `npm run docs:lint`
+- `npm run docs:build`
+- `npm run docs:preview`
+
+`docs:preview` starts a small Fastify server with Scalar at `/reference`.
+`docs:build` generates a static Scalar reference into `docs/reference/`.
+
+When adding or changing endpoints:
+
+1. update the relevant route and service code
+2. update the matching OpenAPI path and component files
+3. update or add guides if the behavior affects client integration
+4. run `npm run docs:lint` and `npm run docs:build`
+
 ## Scripts
 
 - `npm run dev`

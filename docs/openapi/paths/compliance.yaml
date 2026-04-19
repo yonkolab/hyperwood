@@ -1,0 +1,70 @@
+capabilities:
+  get:
+    operationId: getComplianceCapabilities
+    tags: [Compliance]
+    summary: Get compliance-gated capabilities for the authenticated user
+    security:
+      - SessionBearer: []
+    responses:
+      '200':
+        description: Capability evaluation.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/compliance.yaml#/CapabilityEvaluation
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+profile:
+  post:
+    operationId: upsertComplianceProfile
+    tags: [Compliance, Internal]
+    summary: Upsert a compliance profile for a user
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/UserId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/compliance.yaml#/ComplianceProfileUpsertRequest
+    responses:
+      '200':
+        description: Compliance profile updated.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/compliance.yaml#/ComplianceProfileResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+restrictions:
+  post:
+    operationId: applyAccountRestriction
+    tags: [Compliance, Internal]
+    summary: Apply an account restriction
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/UserId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/compliance.yaml#/RestrictionRequest
+    responses:
+      '201':
+        description: Restriction created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/compliance.yaml#/RestrictionResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound

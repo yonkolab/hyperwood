@@ -9,6 +9,9 @@
     "check": "tsc --noEmit -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "docs:lint": "node scripts/docs/lint.mjs",
+    "docs:build": "node scripts/docs/build.mjs",
+    "docs:preview": "node scripts/docs/preview.mjs",
     "docker:local:up": "docker compose -f docker-compose.local.yml up --build",
     "docker:local:down": "docker compose -f docker-compose.local.yml down"
   },
@@ -20,6 +23,9 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^12.1.0",
+    "@scalar/api-reference": "^1.52.3",
+    "@scalar/fastify-api-reference": "^1.52.3",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "1.0.0-beta.21",

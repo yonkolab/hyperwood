@@ -1,0 +1,62 @@
+orders:
+  post:
+    operationId: createOrder
+    tags: [Orders]
+    summary: Create an order
+    description: Uses the `idempotency-key` header to safely replay client retries.
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/IdempotencyKey
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/orders.yaml#/CreateOrderRequest
+    responses:
+      '200':
+        description: Idempotent replay of a previously accepted order.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/orders.yaml#/CreateOrderResponse
+      '201':
+        description: Order accepted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/orders.yaml#/CreateOrderResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '403':
+        $ref: ../components/responses/common.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+orderById:
+  delete:
+    operationId: cancelOrder
+    tags: [Orders]
+    summary: Cancel an order
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/OrderId
+    responses:
+      '200':
+        description: Order cancelled or already cancelled.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/orders.yaml#/CancelOrderResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict

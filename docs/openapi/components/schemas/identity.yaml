@@ -1,0 +1,267 @@
+RegisterRequest:
+  type: object
+  required: [email, password]
+  properties:
+    email:
+      type: string
+      format: email
+    username:
+      type: string
+      minLength: 3
+      maxLength: 64
+    password:
+      type: string
+      minLength: 10
+  example:
+    email: trader@example.com
+    username: trader01
+    password: supersecure123
+
+VerificationChallenge:
+  type: object
+  required: [expiresAt]
+  properties:
+    expiresAt:
+      type: string
+      format: date-time
+    token:
+      type: string
+      description: Present in non-production environments.
+
+VerificationResponse:
+  type: object
+  required: [user, verificationChallenge]
+  properties:
+    user:
+      $ref: ./common.yaml#/User
+    verificationChallenge:
+      $ref: '#/VerificationChallenge'
+
+LoginRequest:
+  type: object
+  required: [email, password]
+  properties:
+    email:
+      type: string
+      format: email
+    password:
+      type: string
+
+LoginSessionResponse:
+  type: object
+  required: [mfaRequired, sessionToken, expiresAt, user]
+  properties:
+    mfaRequired:
+      type: boolean
+      enum: [false]
+    sessionToken:
+      type: string
+    expiresAt:
+      type: string
+      format: date-time
+    user:
+      $ref: ./common.yaml#/User
+
+LoginMfaChallengeResponse:
+  type: object
+  required: [mfaRequired, challengeToken, user]
+  properties:
+    mfaRequired:
+      type: boolean
+      enum: [true]
+    challengeToken:
+      type: string
+    user:
+      $ref: ./common.yaml#/User
+
+VerifyEmailRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+
+VerifyEmailResponse:
+  type: object
+  required: [user, verified]
+  properties:
+    user:
+      $ref: ./common.yaml#/User
+    verified:
+      type: boolean
+      enum: [true]
+
+EmailRequest:
+  type: object
+  required: [email]
+  properties:
+    email:
+      type: string
+      format: email
+
+TotpVerifyLoginRequest:
+  type: object
+  required: [challengeToken, code]
+  properties:
+    challengeToken:
+      type: string
+    code:
+      type: string
+      pattern: '^\d{6}$'
+
+TotpAuthorizeRequest:
+  type: object
+  required: [action, code]
+  properties:
+    action:
+      type: string
+      enum: [api_keys_manage]
+    code:
+      type: string
+      pattern: '^\d{6}$'
+
+TotpAuthorizationResponse:
+  type: object
+  required: [action, authorizationToken, expiresAt]
+  properties:
+    action:
+      type: string
+      enum: [api_keys_manage]
+    authorizationToken:
+      type: string
+    expiresAt:
+      type: string
+      format: date-time
+
+AuthMeResponse:
+  type: object
+  required: [user]
+  properties:
+    user:
+      $ref: ./common.yaml#/User
+
+CreateApiKeyRequest:
+  type: object
+  required: [scopes]
+  properties:
+    scopes:
+      type: array
+      minItems: 1
+      items:
+        type: string
+  example:
+    scopes: [account:read]
+
+CreateApiKeyResponse:
+  type: object
+  required: [apiKey, keyPrefix, scopes]
+  properties:
+    apiKey:
+      type: string
+    keyPrefix:
+      type: string
+    scopes:
+      type: array
+      items:
+        type: string
+
+ApiKeySummary:
+  type: object
+  required: [id, keyPrefix, scopes, lastUsedAt, revokedAt, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    keyPrefix:
+      type: string
+    scopes:
+      type: array
+      items:
+        type: string
+    lastUsedAt:
+      type: string
+      format: date-time
+      nullable: true
+    revokedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+
+ApiKeyListResponse:
+  type: object
+  required: [apiKeys]
+  properties:
+    apiKeys:
+      type: array
+      items:
+        $ref: '#/ApiKeySummary'
+
+RevokeApiKeyResponse:
+  type: object
+  required: [apiKey]
+  properties:
+    apiKey:
+      $ref: '#/ApiKeySummary'
+
+TotpSetupResponse:
+  type: object
+  required: [factorId, secret, otpauthUri]
+  properties:
+    factorId:
+      type: string
+      format: uuid
+    secret:
+      type: string
+    otpauthUri:
+      type: string
+
+TotpConfirmRequest:
+  type: object
+  required: [factorId, code]
+  properties:
+    factorId:
+      type: string
+      format: uuid
+    code:
+      type: string
+      pattern: '^\d{6}$'
+
+TotpConfirmResponse:
+  type: object
+  required: [factorId, enabled]
+  properties:
+    factorId:
+      type: string
+      format: uuid
+    enabled:
+      type: boolean
+      enum: [true]
+
+LinkExistingUserRequest:
+  type: object
+  required: [userId, email, password]
+  properties:
+    userId:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    password:
+      type: string
+      minLength: 10
+    emailVerified:
+      type: boolean
+
+LinkExistingUserResponse:
+  type: object
+  required: [user, linked]
+  properties:
+    user:
+      $ref: ./common.yaml#/User
+    linked:
+      type: boolean
+      enum: [true]

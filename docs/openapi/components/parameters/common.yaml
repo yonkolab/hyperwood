@@ -1,0 +1,223 @@
+Currency:
+  name: currency
+  in: query
+  description: Currency scope for the request.
+  required: false
+  schema:
+    type: string
+    enum: [USD, BRL]
+    default: USD
+
+OptionalCurrency:
+  name: currency
+  in: query
+  description: Optional currency filter.
+  required: false
+  schema:
+    type: string
+    enum: [USD, BRL]
+
+Limit25:
+  name: limit
+  in: query
+  required: false
+  description: Maximum number of items to return.
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 25
+
+Limit50:
+  name: limit
+  in: query
+  required: false
+  description: Maximum number of items to return.
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 50
+
+LimitReconciliation:
+  name: limit
+  in: query
+  required: false
+  description: Maximum number of discrepancies to return.
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 200
+    default: 50
+
+UserId:
+  name: userId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
+MarketId:
+  name: marketId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
+OrderId:
+  name: orderId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
+ApiKeyId:
+  name: apiKeyId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
+DepositId:
+  name: depositId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
+WithdrawalId:
+  name: withdrawalId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
+AfterSequence:
+  name: afterSequence
+  in: query
+  required: false
+  description: Replay cursor for order book delta recovery.
+  schema:
+    type: integer
+    minimum: 0
+    default: 0
+
+DeltaLimit:
+  name: limit
+  in: query
+  required: false
+  description: Maximum number of deltas to return.
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 500
+    default: 100
+
+UnresolvedOnly:
+  name: unresolvedOnly
+  in: query
+  required: false
+  description: Return only unresolved discrepancies.
+  schema:
+    type: boolean
+    default: true
+
+Category:
+  name: category
+  in: query
+  required: false
+  schema:
+    type: string
+    minLength: 2
+    maxLength: 64
+
+MarketStatus:
+  name: status
+  in: query
+  required: false
+  schema:
+    type: string
+    enum:
+      - draft
+      - scheduled
+      - active
+      - halted
+      - trading_closed
+      - awaiting_resolution
+      - settled
+      - cancelled
+      - disputed
+      - voided
+
+Tag:
+  name: tag
+  in: query
+  required: false
+  schema:
+    type: string
+    minLength: 1
+    maxLength: 64
+
+Search:
+  name: search
+  in: query
+  required: false
+  schema:
+    type: string
+    minLength: 1
+    maxLength: 160
+
+MarketSort:
+  name: sort
+  in: query
+  required: false
+  schema:
+    type: string
+    enum: [newest, closing_soon, highest_volume]
+
+IdempotencyKey:
+  name: idempotency-key
+  in: header
+  required: true
+  description: Stable client-generated key required for order creation retries.
+  schema:
+    type: string
+    minLength: 1
+
+MfaAuthorization:
+  name: x-mfa-authorization
+  in: header
+  required: false
+  description: Short-lived step-up MFA authorization token required when the user has active MFA.
+  schema:
+    type: string
+
+ApiTimestamp:
+  name: x-api-timestamp
+  in: header
+  required: true
+  description: Unix timestamp in seconds used for HMAC request signing.
+  schema:
+    type: string
+
+ApiNonce:
+  name: x-api-nonce
+  in: header
+  required: true
+  description: Unique nonce used for HMAC request signing.
+  schema:
+    type: string
+
+ApiSignature:
+  name: x-api-signature
+  in: header
+  required: true
+  description: Hex HMAC-SHA256 signature over the canonical payload.
+  schema:
+    type: string

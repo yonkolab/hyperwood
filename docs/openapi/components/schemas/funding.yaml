@@ -1,0 +1,306 @@
+FundingMethod:
+  allOf:
+    - $ref: ./common.yaml#/FundingMethodSummary
+    - type: object
+      required: [status, countryCode, provider, providerReference, createdAt, supportedCurrencies]
+      properties:
+        status:
+          type: string
+          enum: [pending_verification, verified, disabled]
+        last4:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+        provider:
+          type: string
+          nullable: true
+        providerReference:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        supportedCurrencies:
+          type: array
+          items:
+            type: string
+            enum: [USD, BRL]
+
+FundingMethodCreateRequest:
+  type: object
+  required: [rail, status, displayName, countryCode]
+  properties:
+    rail:
+      type: string
+      enum: [ach, fps, pix, wire, debit_card, crypto_wallet]
+    status:
+      type: string
+      enum: [pending_verification, verified, disabled]
+    displayName:
+      type: string
+    countryCode:
+      type: string
+    provider:
+      type: string
+    providerReference:
+      type: string
+    last4:
+      type: string
+      minLength: 4
+      maxLength: 4
+    metadata:
+      type: object
+      additionalProperties: true
+
+FundingMethodResponse:
+  type: object
+  required: [fundingMethod]
+  properties:
+    fundingMethod:
+      allOf:
+        - $ref: ./common.yaml#/FundingMethodSummary
+        - type: object
+          properties:
+            userId:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [pending_verification, verified, disabled]
+            countryCode:
+              type: string
+            provider:
+              type: string
+              nullable: true
+            providerReference:
+              type: string
+              nullable: true
+            last4:
+              type: string
+              nullable: true
+            metadata:
+              type: object
+              additionalProperties: true
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+EligibleFundingMethodsResponse:
+  type: object
+  required: [fundingAllowed, fundingReasons, requestedCurrency, fundingMethods]
+  properties:
+    fundingAllowed:
+      type: boolean
+    fundingReasons:
+      type: array
+      items:
+        type: string
+    requestedCurrency:
+      type: string
+      enum: [USD, BRL]
+    fundingMethods:
+      type: array
+      items:
+        $ref: '#/FundingMethod'
+
+CreateTransferRequest:
+  type: object
+  required: [fundingMethodId, amountMinor, currency]
+  properties:
+    fundingMethodId:
+      type: string
+      format: uuid
+    amountMinor:
+      type: integer
+      minimum: 1
+    currency:
+      type: string
+      enum: [USD, BRL]
+
+DepositResponse:
+  type: object
+  required: [deposit]
+  properties:
+    deposit:
+      $ref: ./common.yaml#/TransferSummary
+    alreadySettled:
+      type: boolean
+
+WithdrawalResponse:
+  type: object
+  required: [withdrawal]
+  properties:
+    withdrawal:
+      $ref: ./common.yaml#/TransferSummary
+    alreadyCancelled:
+      type: boolean
+
+DepositListResponse:
+  type: object
+  required: [deposits]
+  properties:
+    deposits:
+      type: array
+      items:
+        $ref: ./common.yaml#/TransferSummary
+
+WithdrawalListResponse:
+  type: object
+  required: [withdrawals]
+  properties:
+    withdrawals:
+      type: array
+      items:
+        $ref: ./common.yaml#/TransferSummary
+
+WalletSeedRequest:
+  type: object
+  required: [amountMinor, currency]
+  properties:
+    amountMinor:
+      type: integer
+    currency:
+      type: string
+      enum: [USD, BRL]
+    referenceId:
+      type: string
+
+ReconciliationRunRequest:
+  type: object
+  required: [snapshots]
+  properties:
+    provider:
+      type: string
+    snapshots:
+      type: array
+      minItems: 1
+      maxItems: 500
+      items:
+        type: object
+        required: [transferId, expectedStatus]
+        properties:
+          transferId:
+            type: string
+            format: uuid
+          expectedStatus:
+            type: string
+            enum: [pending, in_review, settled, failed, cancelled, reversed]
+
+ReconciliationRun:
+  type: object
+  required: [id, scope, provider, status, comparedRecordsCount, discrepancyCount, startedAt, completedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    scope:
+      type: string
+      enum: [funding_transfers]
+    provider:
+      type: string
+      nullable: true
+    status:
+      type: string
+      enum: [completed, completed_with_discrepancies]
+    comparedRecordsCount:
+      type: integer
+    discrepancyCount:
+      type: integer
+    startedAt:
+      type: string
+      format: date-time
+    completedAt:
+      type: string
+      format: date-time
+
+ReconciliationDiscrepancy:
+  type: object
+  required:
+    - id
+    - transferId
+    - discrepancyType
+    - severity
+    - expectedStatus
+    - actualStatus
+    - message
+    - metadata
+    - createdAt
+    - resolvedAt
+    - run
+  properties:
+    id:
+      type: string
+      format: uuid
+    transferId:
+      type: string
+      format: uuid
+      nullable: true
+    discrepancyType:
+      type: string
+      enum: [missing_internal_transfer, status_mismatch, ledger_invariant_violation]
+    severity:
+      type: string
+      enum: [warning, critical]
+    expectedStatus:
+      type: string
+      enum: [pending, in_review, settled, failed, cancelled, reversed]
+      nullable: true
+    actualStatus:
+      type: string
+      enum: [pending, in_review, settled, failed, cancelled, reversed]
+      nullable: true
+    message:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time
+    resolvedAt:
+      type: string
+      format: date-time
+      nullable: true
+    run:
+      type: object
+      required: [id, scope, provider, status, completedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scope:
+          type: string
+          enum: [funding_transfers]
+        provider:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [completed, completed_with_discrepancies]
+        completedAt:
+          type: string
+          format: date-time
+
+ReconciliationRunResponse:
+  type: object
+  required: [run, discrepancies]
+  properties:
+    run:
+      $ref: '#/ReconciliationRun'
+    discrepancies:
+      type: array
+      items:
+        $ref: '#/ReconciliationDiscrepancy'
+
+ReconciliationDiscrepancyListResponse:
+  type: object
+  required: [discrepancies]
+  properties:
+    discrepancies:
+      type: array
+      items:
+        $ref: '#/ReconciliationDiscrepancy'

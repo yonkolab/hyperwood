@@ -1,0 +1,147 @@
+Position:
+  type: object
+  required: [marketId, marketSlug, marketTitle, outcome, quantity, averageEntryPriceBps, costBasisMinor]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    marketSlug:
+      type: string
+    marketTitle:
+      type: string
+    outcome:
+      type: string
+      enum: [yes, no]
+    quantity:
+      type: integer
+    averageEntryPriceBps:
+      type: integer
+    costBasisMinor:
+      type: integer
+
+Fill:
+  type: object
+  required:
+    - tradeId
+    - marketId
+    - marketSlug
+    - marketTitle
+    - orderId
+    - role
+    - side
+    - outcome
+    - normalizedOutcome
+    - priceBps
+    - quantity
+    - costBasisMinor
+    - executedAt
+  properties:
+    tradeId:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    marketSlug:
+      type: string
+    marketTitle:
+      type: string
+    orderId:
+      type: string
+      format: uuid
+    role:
+      type: string
+      enum: [maker, taker]
+    side:
+      type: string
+      enum: [buy, sell]
+    outcome:
+      type: string
+      enum: [yes, no]
+    normalizedOutcome:
+      type: string
+      enum: [yes, no]
+    priceBps:
+      type: integer
+    quantity:
+      type: integer
+    costBasisMinor:
+      type: integer
+    executedAt:
+      type: string
+      format: date-time
+
+LedgerActivity:
+  type: object
+  required: [transactionId, referenceType, referenceId, metadata, createdAt, impacts]
+  properties:
+    transactionId:
+      type: string
+      format: uuid
+    referenceType:
+      type: string
+    referenceId:
+      type: string
+      nullable: true
+    metadata:
+      type: object
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time
+    impacts:
+      type: array
+      items:
+        type: object
+        required: [walletAccountId, walletAccountType, currency, amountMinor]
+        properties:
+          walletAccountId:
+            type: string
+            format: uuid
+          walletAccountType:
+            type: string
+          currency:
+            type: string
+            enum: [USD, BRL]
+          amountMinor:
+            type: integer
+
+PortfolioSummaryResponse:
+  type: object
+  required: [currency, cash, positions, recentFills, recentLedgerActivity]
+  properties:
+    currency:
+      type: string
+      enum: [USD, BRL]
+    cash:
+      allOf:
+        - $ref: ./common.yaml#/WalletBalance
+        - type: object
+          required: [restingOrderValueMinor]
+          properties:
+            restingOrderValueMinor:
+              type: integer
+    positions:
+      type: array
+      items:
+        $ref: '#/Position'
+    recentFills:
+      type: array
+      items:
+        $ref: '#/Fill'
+    recentLedgerActivity:
+      type: array
+      items:
+        $ref: '#/LedgerActivity'
+
+FillListResponse:
+  type: object
+  required: [currency, fills]
+  properties:
+    currency:
+      type: string
+      enum: [USD, BRL]
+    fills:
+      type: array
+      items:
+        $ref: '#/Fill'

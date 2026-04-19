@@ -1,0 +1,168 @@
+markets:
+  get:
+    operationId: listMarkets
+    tags: [Markets]
+    summary: List markets
+    security: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Category
+      - $ref: ../components/parameters/common.yaml#/MarketStatus
+      - $ref: ../components/parameters/common.yaml#/Tag
+      - $ref: ../components/parameters/common.yaml#/Search
+      - $ref: ../components/parameters/common.yaml#/MarketSort
+      - $ref: ../components/parameters/common.yaml#/Limit25
+    responses:
+      '200':
+        description: Market catalog listing.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/MarketListResponse
+
+marketById:
+  get:
+    operationId: getMarket
+    tags: [Markets]
+    summary: Get market detail
+    security: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    responses:
+      '200':
+        description: Market detail.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/MarketDetailResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+orderBook:
+  get:
+    operationId: getOrderBookSnapshot
+    tags: [Markets]
+    summary: Get current order book snapshot
+    security: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    responses:
+      '200':
+        description: Current order book snapshot.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/OrderBookSnapshotResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+orderBookDeltas:
+  get:
+    operationId: getOrderBookDeltas
+    tags: [Markets]
+    summary: Recover order book deltas after a sequence
+    security: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+      - $ref: ../components/parameters/common.yaml#/AfterSequence
+      - $ref: ../components/parameters/common.yaml#/DeltaLimit
+    responses:
+      '200':
+        description: Sequenced order book deltas.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/OrderBookDeltaResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+trades:
+  get:
+    operationId: listRecentTrades
+    tags: [Markets]
+    summary: List recent trades for a market
+    security: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+      - $ref: ../components/parameters/common.yaml#/Limit50
+    responses:
+      '200':
+        description: Recent trades.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/TradeListResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+internalEvents:
+  post:
+    operationId: createMarketEvent
+    tags: [Markets, Internal]
+    summary: Create a market event
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/markets.yaml#/CreateEventRequest
+    responses:
+      '201':
+        description: Event created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/CreateEventResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+internalMarkets:
+  post:
+    operationId: createMarket
+    tags: [Markets, Internal]
+    summary: Create a market
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/markets.yaml#/CreateMarketRequest
+    responses:
+      '201':
+        description: Market created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/CreateMarketResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+internalMatch:
+  post:
+    operationId: runLimitOrderMatching
+    tags: [Markets, Internal]
+    summary: Run bounded limit order matching for a market
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    responses:
+      '200':
+        description: Matching run result.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/MatchRunResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
