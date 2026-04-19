@@ -304,3 +304,68 @@ ReconciliationDiscrepancyListResponse:
       type: array
       items:
         $ref: '#/ReconciliationDiscrepancy'
+
+FundingProviderWebhookRequest:
+  type: object
+  required: [eventId, eventType, occurredAt, transferId, status]
+  properties:
+    eventId:
+      type: string
+    eventType:
+      type: string
+      enum: [funding.transfer.updated]
+    occurredAt:
+      type: string
+      format: date-time
+    transferId:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [pending, in_review, settled, failed]
+    providerTransferReference:
+      type: string
+    failureReason:
+      type: string
+
+FundingProviderWebhookEvent:
+  type: object
+  required:
+    [id, provider, eventId, eventType, transferId, status, payload, processedAt, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    provider:
+      type: string
+    eventId:
+      type: string
+    eventType:
+      type: string
+    transferId:
+      type: string
+      format: uuid
+      nullable: true
+    status:
+      type: string
+      enum: [applied]
+    payload:
+      type: object
+      additionalProperties: true
+    processedAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+
+FundingProviderWebhookResponse:
+  type: object
+  required: [alreadyProcessed, transfer, webhookEvent]
+  properties:
+    alreadyProcessed:
+      type: boolean
+    transfer:
+      $ref: ./common.yaml#/TransferSummary
+    webhookEvent:
+      $ref: '#/FundingProviderWebhookEvent'

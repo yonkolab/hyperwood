@@ -24,5 +24,21 @@ describe('health api', () => {
       status: 'ok',
       service: 'hyperwood',
     });
+    expect(response.headers['x-request-id']).toEqual(expect.any(String));
+  });
+
+  it('echoes a caller supplied request id', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: {
+        'x-request-id': 'health-check-correlation-id',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['x-request-id']).toBe(
+      'health-check-correlation-id',
+    );
   });
 });

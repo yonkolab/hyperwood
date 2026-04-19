@@ -1,5 +1,10 @@
 BadRequest:
   description: The request was malformed or failed validation.
+  headers:
+    X-Request-Id:
+      description: Correlation identifier for the request and associated server logs.
+      schema:
+        type: string
   content:
     application/json:
       schema:
@@ -12,6 +17,11 @@ BadRequest:
 
 Unauthorized:
   description: Authentication failed or required credentials were missing.
+  headers:
+    X-Request-Id:
+      description: Correlation identifier for the request and associated server logs.
+      schema:
+        type: string
   content:
     application/json:
       schema:
@@ -24,6 +34,11 @@ Unauthorized:
 
 Forbidden:
   description: The caller is authenticated but not allowed to perform the action.
+  headers:
+    X-Request-Id:
+      description: Correlation identifier for the request and associated server logs.
+      schema:
+        type: string
   content:
     application/json:
       schema:
@@ -36,6 +51,11 @@ Forbidden:
 
 NotFound:
   description: The referenced resource was not found.
+  headers:
+    X-Request-Id:
+      description: Correlation identifier for the request and associated server logs.
+      schema:
+        type: string
   content:
     application/json:
       schema:
@@ -48,6 +68,11 @@ NotFound:
 
 Conflict:
   description: The request conflicts with the current resource state.
+  headers:
+    X-Request-Id:
+      description: Correlation identifier for the request and associated server logs.
+      schema:
+        type: string
   content:
     application/json:
       schema:
@@ -60,6 +85,11 @@ Conflict:
 
 Gone:
   description: The referenced token or challenge existed but has expired.
+  headers:
+    X-Request-Id:
+      description: Correlation identifier for the request and associated server logs.
+      schema:
+        type: string
   content:
     application/json:
       schema:
@@ -72,6 +102,11 @@ Gone:
 
 TooManyRequests:
   description: The request was throttled or temporarily blocked.
+  headers:
+    X-Request-Id:
+      description: Correlation identifier for the request and associated server logs.
+      schema:
+        type: string
   content:
     application/json:
       schema:
@@ -88,6 +123,11 @@ TooManyRequests:
 
 InternalError:
   description: The server encountered an unexpected error.
+  headers:
+    X-Request-Id:
+      description: Correlation identifier for the request and associated server logs.
+      schema:
+        type: string
   content:
     application/json:
       schema:

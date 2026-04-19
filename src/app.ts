@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import cors from '@fastify/cors';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { env } from './config/env';
 import { AppError } from './lib/errors';
+import { getRequestLogContext } from './lib/observability';
 import { InMemoryRateLimiter, type RateLimitScopeType } from './lib/rate-limit';
 import { registerComplianceRoutes } from './modules/compliance/routes';
 import { registerExchangeRoutes } from './modules/exchange/routes';
@@ -174,9 +176,21 @@ function getRateLimitPolicy(
   };
 }
 
-export async function buildApp() {
+export async function buildApp(
+  options: { logger?: boolean | Record<string, unknown> } = {},
+) {
   const app = Fastify({
-    logger: env.NODE_ENV === 'development',
+    logger: options.logger ?? env.NODE_ENV === 'development',
+    requestIdHeader: 'x-request-id',
+    genReqId(request) {
+      const header = request.headers['x-request-id'];
+
+      if (typeof header === 'string' && header.trim().length > 0) {
+        return header.trim();
+      }
+
+      return randomUUID();
+    },
   });
 
   const allowedOrigins = parseAllowedOrigins(env.CORS_ALLOWED_ORIGINS);
@@ -225,17 +239,11 @@ export async function buildApp() {
     },
   });
 
-  app.setErrorHandler((error: Error, _request, reply) => {
-    app.log.error(error);
+  app.addHook('onRequest', async (request, reply) => {
+    reply.header('X-Request-Id', request.id);
+  });
 
-    if (error instanceof ZodError) {
-      reply.status(400).send({
-        error: 'invalid_request',
-        message: error.issues.map((issue) => issue.message).join('; '),
-      });
-      return;
-    }
-
+  app.setErrorHandler((error: Error, request, reply) => {
     const structuredError = error as Error & {
       statusCode?: unknown;
       code?: unknown;
@@ -250,6 +258,24 @@ export async function buildApp() {
       typeof structuredError.code === 'string'
         ? structuredError.code
         : 'internal_error';
+
+    request.log.error(
+      {
+        err: error,
+        ...getRequestLogContext(request),
+        statusCode,
+        code,
+      },
+      'request failed',
+    );
+
+    if (error instanceof ZodError) {
+      reply.status(400).send({
+        error: 'invalid_request',
+        message: error.issues.map((issue) => issue.message).join('; '),
+      });
+      return;
+    }
 
     reply.status(statusCode).send({
       error: code,
@@ -286,6 +312,21 @@ export async function buildApp() {
       ),
     );
 
+    request.log.warn(
+      {
+        event: 'api.rate_limit_exceeded',
+        ...getRequestLogContext(request),
+        bucket: policy.bucket,
+        limit: decision.limit,
+        observedCount: decision.observedCount,
+        scopeKey: policy.scopeKey,
+        scopeType: policy.scopeType,
+        windowEndsAt: decision.resetAt.toISOString(),
+        windowStartedAt: decision.windowStartedAt.toISOString(),
+      },
+      'api.rate_limit_exceeded',
+    );
+
     if (decision.shouldRecordExceededEvent) {
       try {
         await rateLimitEventService.recordExceededEvent({
@@ -307,9 +348,10 @@ export async function buildApp() {
           },
         });
       } catch (error) {
-        app.log.error(
+        request.log.error(
           {
             err: error,
+            ...getRequestLogContext(request),
             bucket: policy.bucket,
             path: pathname,
             scopeKey: policy.scopeKey,

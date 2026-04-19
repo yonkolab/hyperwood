@@ -1,0 +1,5 @@
+change:
+  id: add-structured-observability-logging
+  title: Add structured observability logging
+  owner: codex
+  status: active

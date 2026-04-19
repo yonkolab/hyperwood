@@ -6,6 +6,7 @@ import type {
 import { z } from 'zod';
 import { env } from '../../config/env';
 import { AppError } from '../../lib/errors';
+import { logWorkflowEvent } from '../../lib/observability';
 import { MatchingService } from '../matching/service';
 import { MarketsService } from './service';
 
@@ -225,8 +226,16 @@ async function marketRoutes(
   app.post('/internal/markets/:marketId/match', async (request) => {
     assertBootstrapToken(request);
     const params = marketParamsSchema.parse(request.params);
+    const result = await matchingService.runLimitOrderMatching(params.marketId);
 
-    return matchingService.runLimitOrderMatching(params.marketId);
+    logWorkflowEvent(request, 'matching.run.completed', {
+      marketId: result.marketId,
+      matchedTradeCount: result.summary.matchedTradeCount,
+      touchedOrderCount: result.summary.touchedOrderCount,
+      latestSequence: result.summary.latestSequence,
+    });
+
+    return result;
   });
 
   app.post(
@@ -244,6 +253,12 @@ async function marketRoutes(
         },
       );
 
+      logWorkflowEvent(request, 'market.announcement_published', {
+        marketId: result.market.id,
+        announcementId: result.announcement.id,
+        marketStatus: result.market.status,
+      });
+
       reply.status(201).send(result);
     },
   );
@@ -256,6 +271,13 @@ async function marketRoutes(
       status: body.status,
       reason: body.reason,
       ...(body.changedBy ? { changedBy: body.changedBy } : {}),
+    });
+
+    logWorkflowEvent(request, 'market.status_updated', {
+      marketId: result.market.id,
+      status: result.market.status,
+      alreadyApplied: result.alreadyApplied,
+      transitionId: result.transition?.id ?? null,
     });
 
     reply.status(200).send(result);
@@ -274,6 +296,13 @@ async function marketRoutes(
       ...(body.approvedBy ? { approvedBy: body.approvedBy } : {}),
     });
 
+    logWorkflowEvent(request, 'market.resolution.recorded', {
+      marketId: result.market.id,
+      resolutionId: result.resolution.id,
+      outcome: result.resolution.outcome,
+      status: result.market.status,
+    });
+
     reply.status(200).send(result);
   });
 
@@ -281,6 +310,15 @@ async function marketRoutes(
     assertBootstrapToken(request);
     const params = marketParamsSchema.parse(request.params);
     const result = await marketsService.settleMarket(params.marketId);
+
+    logWorkflowEvent(request, 'market.settlement.completed', {
+      marketId: result.marketId,
+      settlementId: result.settlement.id,
+      alreadySettled: result.alreadySettled,
+      outcome: result.resolution.outcome,
+      payoutCount: result.payouts.length,
+      totalPayoutMinor: result.settlement.totalPayoutMinor,
+    });
 
     reply.status(result.alreadySettled ? 200 : 201).send(result);
   });

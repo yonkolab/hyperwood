@@ -15,6 +15,7 @@ import {
   ledgerEntries,
   ledgerTransactions,
   type marketCurrencyEnum,
+  providerWebhookEvents,
   users,
   walletAccounts,
   type walletAccountTypeEnum,
@@ -41,6 +42,9 @@ type FundingDiscrepancySeverity =
   (typeof fundingDiscrepancySeverityEnum.enumValues)[number];
 type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
 type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
+type DbExecutor =
+  | typeof db
+  | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 type LinkFundingMethodInput = {
   userId: string;
@@ -73,6 +77,21 @@ type CreateWithdrawalInput = {
   fundingMethodId: string;
   amountMinor: number;
   currency: MarketCurrency;
+};
+
+type ProcessProviderFundingWebhookInput = {
+  provider: string;
+  eventId: string;
+  eventType: 'funding.transfer.updated';
+  occurredAt: Date;
+  transferId: string;
+  status: Extract<
+    FundingTransferStatus,
+    'pending' | 'in_review' | 'settled' | 'failed'
+  >;
+  providerTransferReference?: string;
+  failureReason?: string;
+  payload: Record<string, unknown>;
 };
 
 type ReconciliationSnapshotInput = {
@@ -553,6 +572,86 @@ export class FundingService {
           fundingMethodRail: fundingMethod.rail,
           fundingMethodDisplayName: fundingMethod.displayName,
         }),
+      };
+    });
+  }
+
+  async processProviderFundingWebhook(
+    input: ProcessProviderFundingWebhookInput,
+  ) {
+    return db.transaction(async (tx) => {
+      const existingEventRows = await tx
+        .select()
+        .from(providerWebhookEvents)
+        .where(
+          and(
+            eq(providerWebhookEvents.provider, input.provider),
+            eq(providerWebhookEvents.eventId, input.eventId),
+          ),
+        )
+        .limit(1);
+
+      const existingEvent = existingEventRows[0];
+
+      if (existingEvent) {
+        const transfer = await this.loadTransferForWebhook(
+          tx,
+          input.transferId,
+        );
+
+        return {
+          alreadyProcessed: true,
+          transfer: this.mapTransfer(transfer),
+          webhookEvent: this.mapProviderWebhookEvent(existingEvent),
+        };
+      }
+
+      const transfer = await this.loadTransferForWebhook(tx, input.transferId);
+
+      if (transfer.provider !== input.provider) {
+        throw new AppError(
+          409,
+          'provider_mismatch',
+          'provider does not match the linked funding method',
+        );
+      }
+
+      const nextTransfer =
+        input.status === 'pending'
+          ? await this.refreshTransferProviderState(tx, transfer, input)
+          : input.status === 'in_review'
+            ? await this.applyProviderReviewState(tx, transfer, input)
+            : input.status === 'settled'
+              ? await this.applyProviderSettledState(tx, transfer, input)
+              : await this.applyProviderFailedState(tx, transfer, input);
+
+      const eventRows = await tx
+        .insert(providerWebhookEvents)
+        .values({
+          provider: input.provider,
+          eventId: input.eventId,
+          eventType: input.eventType,
+          transferId: nextTransfer.id,
+          status: 'applied',
+          payload: input.payload,
+          processedAt: new Date(),
+        })
+        .returning();
+
+      const webhookEvent = eventRows[0];
+
+      if (!webhookEvent) {
+        throw new AppError(
+          500,
+          'provider_webhook_record_failed',
+          'failed to persist provider webhook event',
+        );
+      }
+
+      return {
+        alreadyProcessed: false,
+        transfer: this.mapTransfer(nextTransfer),
+        webhookEvent: this.mapProviderWebhookEvent(webhookEvent),
       };
     });
   }
@@ -1408,6 +1507,509 @@ export class FundingService {
     };
   }
 
+  private async loadTransferForWebhook(
+    executor: DbExecutor,
+    transferId: string,
+  ) {
+    const rows = await executor
+      .select({
+        id: fundingTransfers.id,
+        userId: fundingTransfers.userId,
+        fundingMethodId: fundingTransfers.fundingMethodId,
+        type: fundingTransfers.type,
+        status: fundingTransfers.status,
+        amountMinor: fundingTransfers.amountMinor,
+        currency: fundingTransfers.currency,
+        metadata: fundingTransfers.metadata,
+        requestedAt: fundingTransfers.requestedAt,
+        settledAt: fundingTransfers.settledAt,
+        failedAt: fundingTransfers.failedAt,
+        providerTransferReference: fundingTransfers.providerTransferReference,
+        failureReason: fundingTransfers.failureReason,
+        fundingMethodRail: fundingMethods.rail,
+        fundingMethodDisplayName: fundingMethods.displayName,
+        provider: fundingMethods.provider,
+      })
+      .from(fundingTransfers)
+      .innerJoin(
+        fundingMethods,
+        eq(fundingMethods.id, fundingTransfers.fundingMethodId),
+      )
+      .where(eq(fundingTransfers.id, transferId))
+      .limit(1);
+
+    const transfer = rows[0];
+
+    if (!transfer) {
+      throw new AppError(
+        404,
+        'funding_transfer_not_found',
+        'funding transfer was not found',
+      );
+    }
+
+    return transfer;
+  }
+
+  private mergeWebhookTransferMetadata(
+    metadata: Record<string, unknown>,
+    input: ProcessProviderFundingWebhookInput,
+  ) {
+    return {
+      ...metadata,
+      lastProviderWebhookAt: input.occurredAt.toISOString(),
+      lastProviderWebhookEventId: input.eventId,
+      lastProviderWebhookEventType: input.eventType,
+      lastProviderWebhookStatus: input.status,
+      providerTransferReference:
+        input.providerTransferReference ?? metadata.providerTransferReference,
+    };
+  }
+
+  private async refreshTransferProviderState(
+    executor: DbExecutor,
+    transfer: Awaited<ReturnType<FundingService['loadTransferForWebhook']>>,
+    input: ProcessProviderFundingWebhookInput,
+  ) {
+    const updatedRows = await executor
+      .update(fundingTransfers)
+      .set({
+        providerTransferReference:
+          input.providerTransferReference ?? transfer.providerTransferReference,
+        metadata: this.mergeWebhookTransferMetadata(transfer.metadata, input),
+        updatedAt: new Date(),
+      })
+      .where(eq(fundingTransfers.id, transfer.id))
+      .returning();
+
+    const nextTransfer = updatedRows[0];
+
+    if (!nextTransfer) {
+      throw new AppError(
+        500,
+        'provider_webhook_apply_failed',
+        'failed to refresh transfer provider state',
+      );
+    }
+
+    return {
+      ...transfer,
+      ...nextTransfer,
+      fundingMethodRail: transfer.fundingMethodRail,
+      fundingMethodDisplayName: transfer.fundingMethodDisplayName,
+      provider: transfer.provider,
+    };
+  }
+
+  private async applyProviderReviewState(
+    executor: DbExecutor,
+    transfer: Awaited<ReturnType<FundingService['loadTransferForWebhook']>>,
+    input: ProcessProviderFundingWebhookInput,
+  ) {
+    if (transfer.type !== 'withdrawal') {
+      throw new AppError(
+        409,
+        'provider_status_not_supported',
+        'in_review webhook status is only supported for withdrawals',
+      );
+    }
+
+    if (transfer.status === 'in_review') {
+      return this.refreshTransferProviderState(executor, transfer, input);
+    }
+
+    if (transfer.status !== 'pending') {
+      throw new AppError(
+        409,
+        'provider_webhook_transition_not_allowed',
+        'transfer is not eligible for provider review status',
+      );
+    }
+
+    const updatedRows = await executor
+      .update(fundingTransfers)
+      .set({
+        status: 'in_review',
+        providerTransferReference:
+          input.providerTransferReference ?? transfer.providerTransferReference,
+        metadata: {
+          ...this.mergeWebhookTransferMetadata(transfer.metadata, input),
+          requiresReview: true,
+          reviewReason: 'provider_review_required',
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(fundingTransfers.id, transfer.id))
+      .returning();
+
+    const nextTransfer = updatedRows[0];
+
+    if (!nextTransfer) {
+      throw new AppError(
+        500,
+        'provider_webhook_apply_failed',
+        'failed to mark transfer in review',
+      );
+    }
+
+    return {
+      ...transfer,
+      ...nextTransfer,
+      fundingMethodRail: transfer.fundingMethodRail,
+      fundingMethodDisplayName: transfer.fundingMethodDisplayName,
+      provider: transfer.provider,
+    };
+  }
+
+  private async applyProviderSettledState(
+    executor: DbExecutor,
+    transfer: Awaited<ReturnType<FundingService['loadTransferForWebhook']>>,
+    input: ProcessProviderFundingWebhookInput,
+  ) {
+    if (transfer.status === 'settled') {
+      return this.refreshTransferProviderState(executor, transfer, input);
+    }
+
+    if (transfer.type === 'deposit') {
+      if (transfer.status !== 'pending') {
+        throw new AppError(
+          409,
+          'provider_webhook_transition_not_allowed',
+          'deposit is not eligible for settlement',
+        );
+      }
+
+      const userWallet = await this.getOrCreateWalletAccount({
+        ownerUserId: transfer.userId,
+        type: 'user_cash',
+        currency: transfer.currency,
+      });
+      const platformClearingWallet = await this.getOrCreateWalletAccount({
+        ownerUserId: null,
+        type: 'platform_clearing',
+        currency: transfer.currency,
+      });
+
+      const transactionRows = await executor
+        .insert(ledgerTransactions)
+        .values({
+          referenceType: 'deposit_settlement',
+          referenceId: transfer.id,
+          metadata: {
+            fundingMethodId: transfer.fundingMethodId,
+            rail: transfer.fundingMethodRail,
+            provider: input.provider,
+            providerTransferReference: input.providerTransferReference ?? null,
+          },
+        })
+        .returning({
+          id: ledgerTransactions.id,
+        });
+
+      const transaction = transactionRows[0];
+
+      if (!transaction) {
+        throw new AppError(
+          500,
+          'ledger_transaction_failed',
+          'failed to create ledger transaction',
+        );
+      }
+
+      await executor.insert(ledgerEntries).values([
+        {
+          transactionId: transaction.id,
+          walletAccountId: userWallet.id,
+          side: 'credit',
+          amountMinor: transfer.amountMinor,
+          currency: transfer.currency,
+        },
+        {
+          transactionId: transaction.id,
+          walletAccountId: platformClearingWallet.id,
+          side: 'debit',
+          amountMinor: transfer.amountMinor,
+          currency: transfer.currency,
+        },
+      ]);
+
+      const updatedRows = await executor
+        .update(fundingTransfers)
+        .set({
+          status: 'settled',
+          settledAt: new Date(),
+          providerTransferReference:
+            input.providerTransferReference ??
+            transfer.providerTransferReference,
+          metadata: this.mergeWebhookTransferMetadata(transfer.metadata, input),
+          updatedAt: new Date(),
+        })
+        .where(eq(fundingTransfers.id, transfer.id))
+        .returning();
+
+      const nextTransfer = updatedRows[0];
+
+      if (!nextTransfer) {
+        throw new AppError(
+          500,
+          'provider_webhook_apply_failed',
+          'failed to settle deposit from provider webhook',
+        );
+      }
+
+      return {
+        ...transfer,
+        ...nextTransfer,
+        fundingMethodRail: transfer.fundingMethodRail,
+        fundingMethodDisplayName: transfer.fundingMethodDisplayName,
+        provider: transfer.provider,
+      };
+    }
+
+    if (transfer.status !== 'pending') {
+      throw new AppError(
+        409,
+        'provider_webhook_transition_not_allowed',
+        'withdrawal is not eligible for settlement',
+      );
+    }
+
+    const withdrawalHoldWallet = await this.getOrCreateWalletAccount({
+      ownerUserId: transfer.userId,
+      type: 'user_withdrawal_hold',
+      currency: transfer.currency,
+    });
+    const platformClearingWallet = await this.getOrCreateWalletAccount({
+      ownerUserId: null,
+      type: 'platform_clearing',
+      currency: transfer.currency,
+    });
+
+    const transactionRows = await executor
+      .insert(ledgerTransactions)
+      .values({
+        referenceType: 'withdrawal_settlement',
+        referenceId: transfer.id,
+        metadata: {
+          fundingMethodId: transfer.fundingMethodId,
+          rail: transfer.fundingMethodRail,
+          provider: input.provider,
+          providerTransferReference: input.providerTransferReference ?? null,
+        },
+      })
+      .returning({
+        id: ledgerTransactions.id,
+      });
+
+    const transaction = transactionRows[0];
+
+    if (!transaction) {
+      throw new AppError(
+        500,
+        'ledger_transaction_failed',
+        'failed to create ledger transaction',
+      );
+    }
+
+    await executor.insert(ledgerEntries).values([
+      {
+        transactionId: transaction.id,
+        walletAccountId: withdrawalHoldWallet.id,
+        side: 'debit',
+        amountMinor: transfer.amountMinor,
+        currency: transfer.currency,
+      },
+      {
+        transactionId: transaction.id,
+        walletAccountId: platformClearingWallet.id,
+        side: 'credit',
+        amountMinor: transfer.amountMinor,
+        currency: transfer.currency,
+      },
+    ]);
+
+    const updatedRows = await executor
+      .update(fundingTransfers)
+      .set({
+        status: 'settled',
+        settledAt: new Date(),
+        providerTransferReference:
+          input.providerTransferReference ?? transfer.providerTransferReference,
+        metadata: this.mergeWebhookTransferMetadata(transfer.metadata, input),
+        updatedAt: new Date(),
+      })
+      .where(eq(fundingTransfers.id, transfer.id))
+      .returning();
+
+    const nextTransfer = updatedRows[0];
+
+    if (!nextTransfer) {
+      throw new AppError(
+        500,
+        'provider_webhook_apply_failed',
+        'failed to settle withdrawal from provider webhook',
+      );
+    }
+
+    return {
+      ...transfer,
+      ...nextTransfer,
+      fundingMethodRail: transfer.fundingMethodRail,
+      fundingMethodDisplayName: transfer.fundingMethodDisplayName,
+      provider: transfer.provider,
+    };
+  }
+
+  private async applyProviderFailedState(
+    executor: DbExecutor,
+    transfer: Awaited<ReturnType<FundingService['loadTransferForWebhook']>>,
+    input: ProcessProviderFundingWebhookInput,
+  ) {
+    if (transfer.status === 'failed') {
+      return this.refreshTransferProviderState(executor, transfer, input);
+    }
+
+    const failureReason = input.failureReason ?? 'provider_webhook_failure';
+
+    if (transfer.type === 'deposit') {
+      if (transfer.status !== 'pending') {
+        throw new AppError(
+          409,
+          'provider_webhook_transition_not_allowed',
+          'deposit is not eligible for failure handling',
+        );
+      }
+
+      const updatedRows = await executor
+        .update(fundingTransfers)
+        .set({
+          status: 'failed',
+          failureReason,
+          failedAt: new Date(),
+          providerTransferReference:
+            input.providerTransferReference ??
+            transfer.providerTransferReference,
+          metadata: this.mergeWebhookTransferMetadata(transfer.metadata, input),
+          updatedAt: new Date(),
+        })
+        .where(eq(fundingTransfers.id, transfer.id))
+        .returning();
+
+      const nextTransfer = updatedRows[0];
+
+      if (!nextTransfer) {
+        throw new AppError(
+          500,
+          'provider_webhook_apply_failed',
+          'failed to fail deposit from provider webhook',
+        );
+      }
+
+      return {
+        ...transfer,
+        ...nextTransfer,
+        fundingMethodRail: transfer.fundingMethodRail,
+        fundingMethodDisplayName: transfer.fundingMethodDisplayName,
+        provider: transfer.provider,
+      };
+    }
+
+    if (transfer.status === 'settled') {
+      throw new AppError(
+        409,
+        'provider_webhook_transition_not_allowed',
+        'settled withdrawal cannot be failed',
+      );
+    }
+
+    const cashWallet = await this.getOrCreateWalletAccount({
+      ownerUserId: transfer.userId,
+      type: 'user_cash',
+      currency: transfer.currency,
+    });
+    const withdrawalHoldWallet = await this.getOrCreateWalletAccount({
+      ownerUserId: transfer.userId,
+      type: 'user_withdrawal_hold',
+      currency: transfer.currency,
+    });
+
+    const transactionRows = await executor
+      .insert(ledgerTransactions)
+      .values({
+        referenceType: 'withdrawal_release',
+        referenceId: transfer.id,
+        metadata: {
+          fundingMethodId: transfer.fundingMethodId,
+          rail: transfer.fundingMethodRail,
+          provider: input.provider,
+          providerTransferReference: input.providerTransferReference ?? null,
+          failureReason,
+        },
+      })
+      .returning({
+        id: ledgerTransactions.id,
+      });
+
+    const transaction = transactionRows[0];
+
+    if (!transaction) {
+      throw new AppError(
+        500,
+        'ledger_transaction_failed',
+        'failed to create ledger transaction',
+      );
+    }
+
+    await executor.insert(ledgerEntries).values([
+      {
+        transactionId: transaction.id,
+        walletAccountId: withdrawalHoldWallet.id,
+        side: 'debit',
+        amountMinor: transfer.amountMinor,
+        currency: transfer.currency,
+      },
+      {
+        transactionId: transaction.id,
+        walletAccountId: cashWallet.id,
+        side: 'credit',
+        amountMinor: transfer.amountMinor,
+        currency: transfer.currency,
+      },
+    ]);
+
+    const updatedRows = await executor
+      .update(fundingTransfers)
+      .set({
+        status: 'failed',
+        failureReason,
+        failedAt: new Date(),
+        providerTransferReference:
+          input.providerTransferReference ?? transfer.providerTransferReference,
+        metadata: this.mergeWebhookTransferMetadata(transfer.metadata, input),
+        updatedAt: new Date(),
+      })
+      .where(eq(fundingTransfers.id, transfer.id))
+      .returning();
+
+    const nextTransfer = updatedRows[0];
+
+    if (!nextTransfer) {
+      throw new AppError(
+        500,
+        'provider_webhook_apply_failed',
+        'failed to fail withdrawal from provider webhook',
+      );
+    }
+
+    return {
+      ...transfer,
+      ...nextTransfer,
+      fundingMethodRail: transfer.fundingMethodRail,
+      fundingMethodDisplayName: transfer.fundingMethodDisplayName,
+      provider: transfer.provider,
+    };
+  }
+
   private async assertUserExists(userId: string) {
     const [user] = await db
       .select({
@@ -1692,6 +2294,30 @@ export class FundingService {
       discrepancyCount: row.discrepancyCount,
       startedAt: row.startedAt.toISOString(),
       completedAt: row.completedAt.toISOString(),
+    };
+  }
+
+  private mapProviderWebhookEvent(row: {
+    id: string;
+    provider: string;
+    eventId: string;
+    eventType: string;
+    transferId: string | null;
+    status: 'applied';
+    payload: Record<string, unknown>;
+    processedAt: Date;
+    createdAt: Date;
+  }) {
+    return {
+      id: row.id,
+      provider: row.provider,
+      eventId: row.eventId,
+      eventType: row.eventType,
+      transferId: row.transferId,
+      status: row.status,
+      payload: row.payload,
+      processedAt: row.processedAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
     };
   }
 

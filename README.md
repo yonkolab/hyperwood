@@ -38,6 +38,8 @@ Hyperwood applies default external API throttles:
 
 Exceeded windows return `429 rate_limit_exceeded` and are available to operators through the internal rate-limit event feed.
 
+Every HTTP response also includes `X-Request-Id`. Clients may send `x-request-id` to preserve their own correlation identifier across API logs and support workflows.
+
 ## Local Docker
 
 1. Copy `.env.example` to `.env`.
@@ -78,7 +80,9 @@ Relevant guides:
 - `docs/guides/authentication.md`
 - `docs/guides/errors.md`
 - `docs/guides/idempotency.md`
+- `docs/guides/observability.md`
 - `docs/guides/rate-limits.md`
+- `docs/guides/webhooks.md`
 
 When adding or changing endpoints:
 
@@ -184,6 +188,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/funding/deposits`
 - `GET /api/v1/funding/withdrawals`
 - `POST /api/v1/funding/withdrawals`
+- `POST /api/v1/webhooks/funding/providers/:provider`
 - `GET /api/v1/wallet/balance`
 - `GET /api/v1/markets`
 - `GET /api/v1/markets/:marketId`
@@ -252,6 +257,13 @@ For order creation requests, send:
 - `idempotency-key`: stable client-generated key for retried submissions
 
 Funding method discovery and wallet or portfolio reads accept an optional `currency` query, for example `GET /api/v1/funding/methods?currency=BRL`.
+
+Funding provider callbacks use:
+
+- `x-webhook-timestamp`
+- `x-webhook-signature`
+
+and are verified with `FUNDING_PROVIDER_WEBHOOK_SECRET`.
 
 The internal link route requires the `x-bootstrap-token` header matching `INTERNAL_BOOTSTRAP_TOKEN`.
 

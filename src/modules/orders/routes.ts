@@ -5,6 +5,7 @@ import type {
 } from 'fastify';
 import { z } from 'zod';
 import { AppError } from '../../lib/errors';
+import { logWorkflowEvent } from '../../lib/observability';
 import { IdentityService } from '../identity/service';
 import { OrdersService } from './service';
 
@@ -104,6 +105,15 @@ async function orderRoutes(
         : {}),
     });
 
+    logWorkflowEvent(request, 'order.create.accepted', {
+      userId: user.id,
+      orderId: result.order.id,
+      marketId: result.order.marketId,
+      orderStatus: result.order.status,
+      idempotentReplay: result.idempotentReplay,
+      marketCommandSequence: result.marketCommand?.sequence ?? null,
+    });
+
     reply.status(result.idempotentReplay ? 200 : 201).send(result);
   });
 
@@ -114,6 +124,14 @@ async function orderRoutes(
     const result = await ordersService.cancelOrder({
       userId: user.id,
       orderId: params.orderId,
+    });
+
+    logWorkflowEvent(request, 'order.cancelled', {
+      userId: user.id,
+      orderId: result.order.id,
+      marketId: result.order.marketId,
+      alreadyCancelled: result.alreadyCancelled,
+      marketCommandSequence: result.marketCommand?.sequence ?? null,
     });
 
     reply.status(200).send(result);
@@ -131,6 +149,14 @@ async function orderRoutes(
       ...(body.limitPriceBps !== undefined
         ? { limitPriceBps: body.limitPriceBps }
         : {}),
+    });
+
+    logWorkflowEvent(request, 'order.amended', {
+      userId: user.id,
+      orderId: result.order.id,
+      marketId: result.order.marketId,
+      alreadyApplied: result.alreadyApplied,
+      marketCommandSequence: result.marketCommand?.sequence ?? null,
     });
 
     reply.status(200).send(result);

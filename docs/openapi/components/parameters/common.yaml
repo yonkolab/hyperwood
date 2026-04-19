@@ -98,6 +98,15 @@ WithdrawalId:
     type: string
     format: uuid
 
+ProviderName:
+  name: provider
+  in: path
+  required: true
+  schema:
+    type: string
+    minLength: 1
+    maxLength: 64
+
 AfterSequence:
   name: afterSequence
   in: query
@@ -219,5 +228,21 @@ ApiSignature:
   in: header
   required: true
   description: Hex HMAC-SHA256 signature over the canonical payload.
+  schema:
+    type: string
+
+WebhookTimestamp:
+  name: x-webhook-timestamp
+  in: header
+  required: true
+  description: Unix timestamp in seconds used to validate provider webhook freshness.
+  schema:
+    type: string
+
+WebhookSignature:
+  name: x-webhook-signature
+  in: header
+  required: true
+  description: Hex HMAC-SHA256 signature over the documented provider webhook canonical payload.
   schema:
     type: string

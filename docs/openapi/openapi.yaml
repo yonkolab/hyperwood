@@ -13,8 +13,9 @@ info:
     - Public read-only endpoints exist for market discovery and health checks.
     - Authenticated endpoints use opaque bearer session tokens unless documented otherwise.
     - Internal endpoints use the `x-bootstrap-token` header.
+    - All HTTP responses include `X-Request-Id`, and callers may supply `x-request-id` to preserve their own correlation identifier.
     - External API routes are rate-limited. Public auth routes use a stricter bucket than general API traffic.
-    - Webhooks and realtime transports are not implemented yet and are documented as future work in `/docs/guides`.
+    - Funding provider webhooks are signed and documented as HTTP callback endpoints. Realtime transports are still future work.
   license:
     name: Proprietary
 servers:
@@ -108,6 +109,8 @@ paths:
     $ref: ./paths/funding.yaml#/reconciliationRuns
   /api/v1/internal/funding/reconciliation/discrepancies:
     $ref: ./paths/funding.yaml#/reconciliationDiscrepancies
+  /api/v1/webhooks/funding/providers/{provider}:
+    $ref: ./paths/funding.yaml#/providerFundingWebhook
   /api/v1/internal/exchange/schedule:
     $ref: ./paths/exchange.yaml#/internalSchedule
   /api/v1/internal/exchange/fees:
@@ -185,6 +188,8 @@ components:
       $ref: ./components/parameters/common.yaml#/DepositId
     WithdrawalId:
       $ref: ./components/parameters/common.yaml#/WithdrawalId
+    ProviderName:
+      $ref: ./components/parameters/common.yaml#/ProviderName
     AfterSequence:
       $ref: ./components/parameters/common.yaml#/AfterSequence
     DeltaLimit:
@@ -211,6 +216,10 @@ components:
       $ref: ./components/parameters/common.yaml#/ApiNonce
     ApiSignature:
       $ref: ./components/parameters/common.yaml#/ApiSignature
+    WebhookTimestamp:
+      $ref: ./components/parameters/common.yaml#/WebhookTimestamp
+    WebhookSignature:
+      $ref: ./components/parameters/common.yaml#/WebhookSignature
   responses:
     BadRequest:
       $ref: ./components/responses/common.yaml#/BadRequest
@@ -339,6 +348,12 @@ components:
       $ref: ./components/schemas/funding.yaml#/ReconciliationRunResponse
     ReconciliationDiscrepancyListResponse:
       $ref: ./components/schemas/funding.yaml#/ReconciliationDiscrepancyListResponse
+    FundingProviderWebhookRequest:
+      $ref: ./components/schemas/funding.yaml#/FundingProviderWebhookRequest
+    FundingProviderWebhookEvent:
+      $ref: ./components/schemas/funding.yaml#/FundingProviderWebhookEvent
+    FundingProviderWebhookResponse:
+      $ref: ./components/schemas/funding.yaml#/FundingProviderWebhookResponse
     CreateEventRequest:
       $ref: ./components/schemas/markets.yaml#/CreateEventRequest
     CreateEventResponse:

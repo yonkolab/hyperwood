@@ -64,6 +64,11 @@ export const fundingDiscrepancySeverityEnum = pgEnum(
   ['warning', 'critical'],
 );
 
+export const providerWebhookEventStatusEnum = pgEnum(
+  'provider_webhook_event_status',
+  ['applied'],
+);
+
 export const walletAccountTypeEnum = pgEnum('wallet_account_type', [
   'user_cash',
   'user_order_reserved',
@@ -218,6 +223,38 @@ export const fundingReconciliationDiscrepancies = pgTable(
     index('funding_reconciliation_discrepancies_resolved_at_idx').on(
       table.resolvedAt,
     ),
+  ],
+);
+
+export const providerWebhookEvents = pgTable(
+  'provider_webhook_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    provider: varchar('provider', { length: 64 }).notNull(),
+    eventId: varchar('event_id', { length: 255 }).notNull(),
+    eventType: varchar('event_type', { length: 128 }).notNull(),
+    transferId: uuid('transfer_id').references(() => fundingTransfers.id, {
+      onDelete: 'set null',
+    }),
+    status: providerWebhookEventStatusEnum('status').notNull(),
+    payload: jsonb('payload')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    processedAt: timestamp('processed_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('provider_webhook_events_provider_event_id_unique').on(
+      table.provider,
+      table.eventId,
+    ),
+    index('provider_webhook_events_transfer_id_idx').on(table.transferId),
+    index('provider_webhook_events_processed_at_idx').on(table.processedAt),
   ],
 );
 

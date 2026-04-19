@@ -6,6 +6,8 @@ import type {
 import { z } from 'zod';
 import { env } from '../../config/env';
 import { AppError } from '../../lib/errors';
+import { logWorkflowEvent } from '../../lib/observability';
+import { verifyFundingWebhookSignature } from '../../lib/webhooks';
 import { IdentityService } from '../identity/service';
 import { FundingService } from './service';
 
@@ -64,6 +66,20 @@ const fundingWithdrawalParamsSchema = z.object({
   withdrawalId: z.string().uuid(),
 });
 
+const fundingWebhookProviderParamsSchema = z.object({
+  provider: z.string().min(1).max(64),
+});
+
+const fundingProviderWebhookBodySchema = z.object({
+  eventId: z.string().min(1).max(255),
+  eventType: z.literal('funding.transfer.updated'),
+  occurredAt: z.string().datetime(),
+  transferId: z.string().uuid(),
+  status: z.enum(['pending', 'in_review', 'settled', 'failed']),
+  providerTransferReference: z.string().min(1).max(255).optional(),
+  failureReason: z.string().min(1).max(4000).optional(),
+});
+
 const reconciliationSnapshotSchema = z.object({
   transferId: z.string().uuid(),
   expectedStatus: z.enum([
@@ -112,6 +128,54 @@ function assertBootstrapToken(request: FastifyRequest) {
   }
 }
 
+function getWebhookTimestampFromRequest(request: FastifyRequest) {
+  const header = request.headers['x-webhook-timestamp'];
+
+  if (typeof header !== 'string' || header.length === 0) {
+    throw new AppError(
+      401,
+      'missing_webhook_timestamp',
+      'missing webhook timestamp',
+    );
+  }
+
+  const timestamp = Number.parseInt(header, 10);
+
+  if (!Number.isInteger(timestamp) || timestamp <= 0) {
+    throw new AppError(
+      401,
+      'invalid_webhook_timestamp',
+      'webhook timestamp is invalid',
+    );
+  }
+
+  const skewSeconds = Math.abs(Date.now() - timestamp * 1000) / 1000;
+
+  if (skewSeconds > env.FUNDING_PROVIDER_WEBHOOK_MAX_SKEW_SECONDS) {
+    throw new AppError(
+      401,
+      'expired_webhook_signature',
+      'webhook timestamp is outside the accepted window',
+    );
+  }
+
+  return timestamp;
+}
+
+function getWebhookSignatureFromRequest(request: FastifyRequest) {
+  const header = request.headers['x-webhook-signature'];
+
+  if (typeof header !== 'string' || header.length === 0) {
+    throw new AppError(
+      401,
+      'missing_webhook_signature',
+      'missing webhook signature',
+    );
+  }
+
+  return header;
+}
+
 async function fundingRoutes(
   app: FastifyInstance,
   _options: FastifyPluginOptions,
@@ -157,6 +221,15 @@ async function fundingRoutes(
       currency: body.currency,
     });
 
+    logWorkflowEvent(request, 'funding.deposit.created', {
+      userId: user.id,
+      transferId: result.deposit.id,
+      amountMinor: result.deposit.amountMinor,
+      currency: result.deposit.currency,
+      rail: result.deposit.fundingMethod.rail,
+      status: result.deposit.status,
+    });
+
     reply.status(201).send(result);
   });
 
@@ -180,6 +253,15 @@ async function fundingRoutes(
       fundingMethodId: body.fundingMethodId,
       amountMinor: body.amountMinor,
       currency: body.currency,
+    });
+
+    logWorkflowEvent(request, 'funding.withdrawal.created', {
+      userId: user.id,
+      transferId: result.withdrawal.id,
+      amountMinor: result.withdrawal.amountMinor,
+      currency: result.withdrawal.currency,
+      rail: result.withdrawal.fundingMethod.rail,
+      status: result.withdrawal.status,
     });
 
     reply.status(201).send(result);
@@ -233,6 +315,13 @@ async function fundingRoutes(
       const params = fundingDepositParamsSchema.parse(request.params);
       const result = await fundingService.settleDeposit(params.depositId);
 
+      logWorkflowEvent(request, 'funding.deposit.settled', {
+        transferId: result.deposit.id,
+        amountMinor: result.deposit.amountMinor,
+        currency: result.deposit.currency,
+        alreadySettled: result.alreadySettled,
+      });
+
       reply.status(200).send(result);
     },
   );
@@ -245,6 +334,13 @@ async function fundingRoutes(
       const result = await fundingService.approveWithdrawalReview(
         params.withdrawalId,
       );
+
+      logWorkflowEvent(request, 'funding.withdrawal.review_approved', {
+        transferId: result.withdrawal.id,
+        amountMinor: result.withdrawal.amountMinor,
+        currency: result.withdrawal.currency,
+        alreadyApproved: result.alreadyApproved,
+      });
 
       reply.status(200).send(result);
     },
@@ -260,6 +356,13 @@ async function fundingRoutes(
         'manual_review_failure',
       );
 
+      logWorkflowEvent(request, 'funding.withdrawal.failed', {
+        transferId: result.withdrawal.id,
+        amountMinor: result.withdrawal.amountMinor,
+        currency: result.withdrawal.currency,
+        alreadyFailed: result.alreadyFailed,
+      });
+
       reply.status(200).send(result);
     },
   );
@@ -270,6 +373,13 @@ async function fundingRoutes(
       assertBootstrapToken(request);
       const params = fundingWithdrawalParamsSchema.parse(request.params);
       const result = await fundingService.settleWithdrawal(params.withdrawalId);
+
+      logWorkflowEvent(request, 'funding.withdrawal.settled', {
+        transferId: result.withdrawal.id,
+        amountMinor: result.withdrawal.amountMinor,
+        currency: result.withdrawal.currency,
+        alreadySettled: result.alreadySettled,
+      });
 
       reply.status(200).send(result);
     },
@@ -283,6 +393,14 @@ async function fundingRoutes(
       snapshots: body.snapshots,
     });
 
+    logWorkflowEvent(request, 'funding.reconciliation.completed', {
+      runId: result.run.id,
+      scope: result.run.scope,
+      status: result.run.status,
+      discrepancyCount: result.discrepancies.length,
+      provider: result.run.provider,
+    });
+
     reply.status(201).send(result);
   });
 
@@ -294,6 +412,71 @@ async function fundingRoutes(
       unresolvedOnly: query.unresolvedOnly,
       limit: query.limit,
     });
+  });
+
+  app.post('/webhooks/funding/providers/:provider', async (request, reply) => {
+    const params = fundingWebhookProviderParamsSchema.parse(request.params);
+    const body = fundingProviderWebhookBodySchema.parse(request.body);
+    const timestamp = getWebhookTimestampFromRequest(request);
+    const signature = getWebhookSignatureFromRequest(request);
+    const signatureValid = verifyFundingWebhookSignature({
+      secret: env.FUNDING_PROVIDER_WEBHOOK_SECRET,
+      signature,
+      timestamp,
+      provider: params.provider,
+      eventId: body.eventId,
+      eventType: body.eventType,
+      transferId: body.transferId,
+      status: body.status,
+      occurredAt: body.occurredAt,
+      ...(body.providerTransferReference
+        ? { providerTransferReference: body.providerTransferReference }
+        : {}),
+      ...(body.failureReason ? { failureReason: body.failureReason } : {}),
+    });
+
+    if (!signatureValid) {
+      request.log.warn(
+        {
+          event: 'funding.provider_webhook.invalid_signature',
+          requestId: request.id,
+          provider: params.provider,
+          eventId: body.eventId,
+          transferId: body.transferId,
+        },
+        'funding.provider_webhook.invalid_signature',
+      );
+
+      throw new AppError(
+        401,
+        'invalid_webhook_signature',
+        'webhook signature is invalid',
+      );
+    }
+
+    const result = await fundingService.processProviderFundingWebhook({
+      provider: params.provider,
+      eventId: body.eventId,
+      eventType: body.eventType,
+      occurredAt: new Date(body.occurredAt),
+      transferId: body.transferId,
+      status: body.status,
+      ...(body.providerTransferReference
+        ? { providerTransferReference: body.providerTransferReference }
+        : {}),
+      ...(body.failureReason ? { failureReason: body.failureReason } : {}),
+      payload: body,
+    });
+
+    logWorkflowEvent(request, 'funding.provider_webhook.applied', {
+      provider: params.provider,
+      eventId: result.webhookEvent.eventId,
+      transferId: result.transfer.id,
+      transferStatus: result.transfer.status,
+      alreadyProcessed: result.alreadyProcessed,
+    });
+
+    reply.status(200).send(result);
   });
 }
 

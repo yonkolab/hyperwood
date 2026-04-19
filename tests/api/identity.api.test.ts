@@ -48,6 +48,7 @@ describe('identity api', () => {
       error: 'missing_session',
       message: 'missing bearer session token',
     });
+    expect(response.headers['x-request-id']).toEqual(expect.any(String));
   });
 
   it('rate limits repeated public auth requests for the same email', async () => {

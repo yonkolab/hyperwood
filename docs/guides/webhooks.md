@@ -1,21 +1,39 @@
 # Webhooks
 
-Webhook endpoints are not implemented in the current codebase.
+Hyperwood currently supports signed funding provider callbacks at:
 
-That means there is currently no documented provider callback surface for:
+- `POST /api/v1/webhooks/funding/providers/:provider`
 
-- funding provider settlement callbacks
-- reconciliation provider notifications
-- market lifecycle events
+Current behavior:
 
-## Current recommendation
+- the caller sends `x-webhook-timestamp` and `x-webhook-signature`
+- Hyperwood rejects missing, expired, or invalid signatures before applying transfer state changes
+- accepted events are deduplicated by provider and event ID
+- the webhook can move funding transfers through supported provider states without using bootstrap-only internal routes
 
-When webhook support is added, document it as a separate section of the OpenAPI or with AsyncAPI-style complementary docs, including:
+Supported event shape:
 
-- signature verification
-- retry semantics
-- idempotency handling
-- event versioning
-- delivery guarantees
+- `eventType`: `funding.transfer.updated`
+- `transferId`: existing Hyperwood funding transfer UUID
+- `status`: `pending`, `in_review`, `settled`, or `failed`
+- `providerTransferReference`: optional provider-side transfer identifier
+- `failureReason`: optional failure detail for failed transfers
 
-Until then, this guide remains a marker that webhook behavior is future work, not current platform behavior.
+Signature contract:
+
+- canonical payload:
+  `timestamp + "\\n" + provider + "\\n" + eventId + "\\n" + eventType + "\\n" + transferId + "\\n" + status + "\\n" + occurredAt + "\\n" + providerTransferReference + "\\n" + failureReason`
+- algorithm: HMAC-SHA256
+- secret: `FUNDING_PROVIDER_WEBHOOK_SECRET`
+- freshness window: `FUNDING_PROVIDER_WEBHOOK_MAX_SKEW_SECONDS`
+
+Operational notes:
+
+- invalid signatures are rejected and logged with request correlation data
+- successful processing writes a durable provider webhook event record for idempotent replay handling
+- callers should record `X-Request-Id` when debugging callback failures
+
+Current limitations:
+
+- reversal handling is not implemented yet
+- realtime outbound event delivery is still future work

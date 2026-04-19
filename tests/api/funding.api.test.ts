@@ -7,6 +7,10 @@ import {
   seedWallet,
   upsertApprovedComplianceProfile,
 } from '../helpers/bootstrap';
+import {
+  buildFundingWebhookPayload,
+  sendFundingWebhook,
+} from '../helpers/webhooks';
 
 describe('funding api', () => {
   let app: FastifyInstance;
@@ -125,5 +129,115 @@ describe('funding api', () => {
 
     expect(response.statusCode).toBe(201);
     expect(response.json().withdrawal.status).toBe('in_review');
+  });
+
+  it('settles a pending deposit from a valid signed provider webhook', async () => {
+    const session = await createVerifiedSession(app);
+    await upsertApprovedComplianceProfile(app, session.body.user.id as string);
+    const fundingMethod = await linkFundingMethod(
+      app,
+      session.body.user.id as string,
+      {
+        rail: 'ach',
+        countryCode: 'US',
+        provider: 'test-bank',
+      },
+    );
+
+    const createDeposit = await app.inject({
+      method: 'POST',
+      url: '/api/v1/funding/deposits',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+      payload: {
+        fundingMethodId: fundingMethod.body.fundingMethod.id,
+        amountMinor: 9_900,
+        currency: 'USD',
+      },
+    });
+
+    expect(createDeposit.statusCode).toBe(201);
+
+    const payload = buildFundingWebhookPayload({
+      transferId: createDeposit.json().deposit.id,
+      status: 'settled',
+      providerTransferReference: 'provider-deposit-123',
+    });
+
+    const response = await sendFundingWebhook(app, {
+      provider: 'test-bank',
+      payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().alreadyProcessed).toBe(false);
+    expect(response.json().transfer.status).toBe('settled');
+    expect(response.json().transfer.providerTransferReference).toBe(
+      'provider-deposit-123',
+    );
+
+    const duplicate = await sendFundingWebhook(app, {
+      provider: 'test-bank',
+      payload,
+    });
+
+    expect(duplicate.statusCode).toBe(200);
+    expect(duplicate.json().alreadyProcessed).toBe(true);
+
+    const wallet = await app.inject({
+      method: 'GET',
+      url: '/api/v1/wallet/balance?currency=USD',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+    });
+
+    expect(wallet.statusCode).toBe(200);
+    expect(wallet.json().availableBalanceMinor).toBe(9_900);
+  });
+
+  it('rejects a funding provider webhook with an invalid signature', async () => {
+    const session = await createVerifiedSession(app);
+    await upsertApprovedComplianceProfile(app, session.body.user.id as string);
+    const fundingMethod = await linkFundingMethod(
+      app,
+      session.body.user.id as string,
+      {
+        rail: 'ach',
+        countryCode: 'US',
+        provider: 'test-bank',
+      },
+    );
+
+    const createDeposit = await app.inject({
+      method: 'POST',
+      url: '/api/v1/funding/deposits',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+      payload: {
+        fundingMethodId: fundingMethod.body.fundingMethod.id,
+        amountMinor: 4_200,
+        currency: 'USD',
+      },
+    });
+
+    expect(createDeposit.statusCode).toBe(201);
+
+    const response = await sendFundingWebhook(app, {
+      provider: 'test-bank',
+      payload: buildFundingWebhookPayload({
+        transferId: createDeposit.json().deposit.id,
+        status: 'settled',
+      }),
+      secret: 'wrong-secret',
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({
+      error: 'invalid_webhook_signature',
+      message: 'webhook signature is invalid',
+    });
   });
 });
