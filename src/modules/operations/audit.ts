@@ -1,8 +1,10 @@
-import { and, desc, eq } from "drizzle-orm";
-import { db } from "../../db/client";
-import { adminAuditEvents } from "../../db/schema";
+import { and, desc, eq } from 'drizzle-orm';
+import { db } from '../../db/client';
+import { adminAuditEvents } from '../../db/schema';
 
-type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbExecutor =
+  | typeof db
+  | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export class AdminAuditService {
   async recordEvent(
@@ -40,8 +42,12 @@ export class AdminAuditService {
       .from(adminAuditEvents)
       .where(
         and(
-          input.targetType ? eq(adminAuditEvents.targetType, input.targetType) : undefined,
-          input.targetId ? eq(adminAuditEvents.targetId, input.targetId) : undefined,
+          input.targetType
+            ? eq(adminAuditEvents.targetType, input.targetType)
+            : undefined,
+          input.targetId
+            ? eq(adminAuditEvents.targetId, input.targetId)
+            : undefined,
           input.action ? eq(adminAuditEvents.action, input.action) : undefined,
         ),
       )
@@ -60,7 +66,7 @@ export class AdminAuditService {
   }
 
   private asRecord(value: unknown): Record<string, unknown> {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
       return value as Record<string, unknown>;
     }
 

@@ -1,5 +1,5 @@
-import { ensureTestDatabase, stopTestDatabase } from "../helpers/database";
-import { applyTestEnv } from "../helpers/env";
+import { ensureTestDatabase, stopTestDatabase } from '../helpers/database';
+import { applyTestEnv } from '../helpers/env';
 
 export default async function setup() {
   applyTestEnv();

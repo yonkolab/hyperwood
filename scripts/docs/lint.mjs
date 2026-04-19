@@ -1,4 +1,4 @@
-import { getOpenApiSourcePath, validateOpenApi } from "./openapi.mjs";
+import { getOpenApiSourcePath, validateOpenApi } from './openapi.mjs';
 
 await validateOpenApi();
 

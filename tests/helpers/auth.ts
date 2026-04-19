@@ -1,5 +1,5 @@
-import type { FastifyInstance } from "fastify";
-import { buildUserCredentials } from "../fixtures/users";
+import type { FastifyInstance } from 'fastify';
+import { buildUserCredentials } from '../fixtures/users';
 
 export async function registerUser(
   app: FastifyInstance,
@@ -11,8 +11,8 @@ export async function registerUser(
   };
 
   const response = await app.inject({
-    method: "POST",
-    url: "/api/v1/auth/register",
+    method: 'POST',
+    url: '/api/v1/auth/register',
     payload: credentials,
   });
 
@@ -25,11 +25,14 @@ export async function registerUser(
 
 export async function loginUser(
   app: FastifyInstance,
-  credentials: Pick<ReturnType<typeof buildUserCredentials>, "email" | "password">,
+  credentials: Pick<
+    ReturnType<typeof buildUserCredentials>,
+    'email' | 'password'
+  >,
 ) {
   const response = await app.inject({
-    method: "POST",
-    url: "/api/v1/auth/login",
+    method: 'POST',
+    url: '/api/v1/auth/login',
     payload: credentials,
   });
 
@@ -43,13 +46,17 @@ export async function createAuthenticatedSession(app: FastifyInstance) {
   const registration = await registerUser(app);
 
   if (registration.response.statusCode !== 201) {
-    throw new Error(`expected registration to succeed, got ${registration.response.statusCode}`);
+    throw new Error(
+      `expected registration to succeed, got ${registration.response.statusCode}`,
+    );
   }
 
   const login = await loginUser(app, registration.credentials);
 
   if (login.response.statusCode !== 200) {
-    throw new Error(`expected login to succeed, got ${login.response.statusCode}`);
+    throw new Error(
+      `expected login to succeed, got ${login.response.statusCode}`,
+    );
   }
 
   return {
@@ -64,8 +71,8 @@ export async function verifyEmail(
   verificationToken: string,
 ) {
   const response = await app.inject({
-    method: "POST",
-    url: "/api/v1/auth/verify-email",
+    method: 'POST',
+    url: '/api/v1/auth/verify-email',
     payload: {
       token: verificationToken,
     },
@@ -81,7 +88,9 @@ export async function createVerifiedSession(app: FastifyInstance) {
   const registration = await registerUser(app);
 
   if (registration.response.statusCode !== 201) {
-    throw new Error(`expected registration to succeed, got ${registration.response.statusCode}`);
+    throw new Error(
+      `expected registration to succeed, got ${registration.response.statusCode}`,
+    );
   }
 
   const verification = await verifyEmail(
@@ -90,13 +99,17 @@ export async function createVerifiedSession(app: FastifyInstance) {
   );
 
   if (verification.response.statusCode !== 200) {
-    throw new Error(`expected email verification to succeed, got ${verification.response.statusCode}`);
+    throw new Error(
+      `expected email verification to succeed, got ${verification.response.statusCode}`,
+    );
   }
 
   const login = await loginUser(app, registration.credentials);
 
   if (login.response.statusCode !== 200) {
-    throw new Error(`expected login to succeed, got ${login.response.statusCode}`);
+    throw new Error(
+      `expected login to succeed, got ${login.response.statusCode}`,
+    );
   }
 
   return {

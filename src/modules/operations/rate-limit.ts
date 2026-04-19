@@ -1,7 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
-import { db } from "../../db/client";
-import { apiRateLimitEvents } from "../../db/schema";
-import type { RateLimitScopeType } from "../../lib/rate-limit";
+import { and, desc, eq } from 'drizzle-orm';
+import { db } from '../../db/client';
+import { apiRateLimitEvents } from '../../db/schema';
+import type { RateLimitScopeType } from '../../lib/rate-limit';
 
 export class RateLimitEventService {
   async recordExceededEvent(input: {
@@ -44,8 +44,12 @@ export class RateLimitEventService {
   }) {
     const conditions = [
       input.bucket ? eq(apiRateLimitEvents.bucket, input.bucket) : undefined,
-      input.scopeType ? eq(apiRateLimitEvents.scopeType, input.scopeType) : undefined,
-      input.scopeKey ? eq(apiRateLimitEvents.scopeKey, input.scopeKey) : undefined,
+      input.scopeType
+        ? eq(apiRateLimitEvents.scopeType, input.scopeType)
+        : undefined,
+      input.scopeKey
+        ? eq(apiRateLimitEvents.scopeKey, input.scopeKey)
+        : undefined,
       input.path ? eq(apiRateLimitEvents.path, input.path) : undefined,
     ].filter((condition) => condition !== undefined);
 

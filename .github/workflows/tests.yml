@@ -23,6 +23,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate lint and format
+        run: npm run check:biome
+
       - name: Run unit and API tests
         run: npm test
 
@@ -44,6 +47,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate lint and format
+        run: npm run check:biome
 
       - name: Run integration tests
         run: npm run test:integration

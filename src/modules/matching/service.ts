@@ -1,20 +1,22 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import { db } from "../../db/client";
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { db } from '../../db/client';
 import {
   ledgerEntries,
   ledgerTransactions,
   marketCommandEvents,
-  marketTrades,
   markets,
+  marketTrades,
+  type orderOutcomeEnum,
+  type orderSideEnum,
   orders,
-  orderOutcomeEnum,
-  orderSideEnum,
   walletAccounts,
-  walletAccountTypeEnum,
-} from "../../db/schema";
-import { AppError } from "../../lib/errors";
+  type walletAccountTypeEnum,
+} from '../../db/schema';
+import { AppError } from '../../lib/errors';
 
-type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbExecutor =
+  | typeof db
+  | Parameters<Parameters<typeof db.transaction>[0]>[0];
 type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
 type OrderSide = (typeof orderSideEnum.enumValues)[number];
 type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
@@ -31,7 +33,7 @@ type MatchableOrder = {
   referencePriceBps: number;
   reservedAmountMinor: number;
   currency: string;
-  status: "queued_for_matching" | "partially_filled";
+  status: 'queued_for_matching' | 'partially_filled';
   createSequence: number;
 };
 
@@ -110,7 +112,11 @@ export class MatchingService {
         const moveSet = collateralMoves[index];
 
         if (!trade || !plannedTrade || !moveSet) {
-          throw new AppError(500, "trade_persistence_failed", "failed to persist matched trade");
+          throw new AppError(
+            500,
+            'trade_persistence_failed',
+            'failed to persist matched trade',
+          );
         }
 
         await this.recordCollateralReclassification(tx, {
@@ -118,7 +124,8 @@ export class MatchingService {
           marketId: plannedTrade.marketId,
           executedAt: plannedTrade.executedAt,
           moves: moveSet.filter(
-            (move) => move.positionCollateralMinor > 0 || move.cashReleaseMinor > 0,
+            (move) =>
+              move.positionCollateralMinor > 0 || move.cashReleaseMinor > 0,
           ),
         });
       }
@@ -135,10 +142,10 @@ export class MatchingService {
         const remainingQuantity = order.quantity - order.nextFilledQuantity;
         const nextStatus =
           remainingQuantity === 0
-            ? "filled"
+            ? 'filled'
             : order.nextFilledQuantity > 0
-              ? "partially_filled"
-              : "queued_for_matching";
+              ? 'partially_filled'
+              : 'queued_for_matching';
 
         const updatedRows = await tx
           .update(orders)
@@ -154,7 +161,11 @@ export class MatchingService {
         const updatedOrder = updatedRows[0];
 
         if (!updatedOrder) {
-          throw new AppError(500, "order_match_update_failed", "failed to update matched order");
+          throw new AppError(
+            500,
+            'order_match_update_failed',
+            'failed to update matched order',
+          );
         }
 
         updatedOrders.push(updatedOrder);
@@ -167,7 +178,11 @@ export class MatchingService {
         const plannedTrade = plannedTrades[index];
 
         if (!trade || !plannedTrade) {
-          throw new AppError(500, "trade_persistence_failed", "failed to persist matched trade");
+          throw new AppError(
+            500,
+            'trade_persistence_failed',
+            'failed to persist matched trade',
+          );
         }
 
         const command = await this.recordMarketCommand(tx, {
@@ -182,7 +197,7 @@ export class MatchingService {
             quantity: plannedTrade.quantity,
             makerRemainingQuantity: plannedTrade.makerRemainingQuantity,
             takerRemainingQuantity: plannedTrade.takerRemainingQuantity,
-            bookEffect: "trade",
+            bookEffect: 'trade',
           },
         });
 
@@ -194,7 +209,8 @@ export class MatchingService {
         summary: {
           matchedTradeCount: insertedTrades.length,
           touchedOrderCount: touchedOrders.length,
-          latestSequence: commandEvents.at(-1)?.sequence ?? market.lastCommandSequence,
+          latestSequence:
+            commandEvents.at(-1)?.sequence ?? market.lastCommandSequence,
         },
         trades: insertedTrades,
         orders: updatedOrders,
@@ -228,7 +244,7 @@ export class MatchingService {
       .limit(1);
 
     if (!market) {
-      throw new AppError(404, "market_not_found", "market was not found");
+      throw new AppError(404, 'market_not_found', 'market was not found');
     }
 
     return market;
@@ -246,11 +262,15 @@ export class MatchingService {
       .limit(1);
 
     if (!market) {
-      throw new AppError(404, "market_not_found", "market was not found");
+      throw new AppError(404, 'market_not_found', 'market was not found');
     }
 
-    if (market.status !== "active") {
-      throw new AppError(409, "market_not_matchable", "market is not active for matching");
+    if (market.status !== 'active') {
+      throw new AppError(
+        409,
+        'market_not_matchable',
+        'market is not active for matching',
+      );
     }
 
     return market;
@@ -258,26 +278,26 @@ export class MatchingService {
 
   private async loadMatchableOrders(executor: DbExecutor, marketId: string) {
     const orderRows = await executor
-        .select({
-          id: orders.id,
-          userId: orders.userId,
-          marketId: orders.marketId,
-          outcome: orders.outcome,
-          side: orders.side,
-          quantity: orders.quantity,
-          filledQuantity: orders.filledQuantity,
-          limitPriceBps: orders.limitPriceBps,
-          referencePriceBps: orders.referencePriceBps,
-          reservedAmountMinor: orders.reservedAmountMinor,
-          currency: orders.currency,
-          status: orders.status,
-        })
+      .select({
+        id: orders.id,
+        userId: orders.userId,
+        marketId: orders.marketId,
+        outcome: orders.outcome,
+        side: orders.side,
+        quantity: orders.quantity,
+        filledQuantity: orders.filledQuantity,
+        limitPriceBps: orders.limitPriceBps,
+        referencePriceBps: orders.referencePriceBps,
+        reservedAmountMinor: orders.reservedAmountMinor,
+        currency: orders.currency,
+        status: orders.status,
+      })
       .from(orders)
       .where(
         and(
           eq(orders.marketId, marketId),
-          inArray(orders.status, ["queued_for_matching", "partially_filled"]),
-          eq(orders.type, "limit"),
+          inArray(orders.status, ['queued_for_matching', 'partially_filled']),
+          eq(orders.type, 'limit'),
         ),
       );
 
@@ -294,7 +314,7 @@ export class MatchingService {
       .where(
         and(
           eq(marketCommandEvents.marketId, marketId),
-          eq(marketCommandEvents.commandType, "order_create"),
+          eq(marketCommandEvents.commandType, 'order_create'),
           inArray(
             marketCommandEvents.orderId,
             orderRows.map((order) => order.id),
@@ -310,20 +330,31 @@ export class MatchingService {
     return orderRows.map((order) => {
       const createSequence = createSequenceByOrderId.get(order.id);
 
-      if (typeof createSequence !== "number") {
+      if (typeof createSequence !== 'number') {
         throw new AppError(
           500,
-          "order_priority_missing",
-          "missing authoritative create sequence for active order",
+          'order_priority_missing',
+          'missing authoritative create sequence for active order',
         );
       }
 
-      if (typeof order.limitPriceBps !== "number") {
-        throw new AppError(500, "invalid_order_state", "limit order is missing limit price");
+      if (typeof order.limitPriceBps !== 'number') {
+        throw new AppError(
+          500,
+          'invalid_order_state',
+          'limit order is missing limit price',
+        );
       }
 
-      if (order.status !== "queued_for_matching" && order.status !== "partially_filled") {
-        throw new AppError(500, "invalid_order_state", "order is not matchable");
+      if (
+        order.status !== 'queued_for_matching' &&
+        order.status !== 'partially_filled'
+      ) {
+        throw new AppError(
+          500,
+          'invalid_order_state',
+          'order is not matchable',
+        );
       }
 
       return {
@@ -368,14 +399,17 @@ export class MatchingService {
         continue;
       }
 
-      let incomingRemaining = incomingState.quantity - incomingState.nextFilledQuantity;
+      let incomingRemaining =
+        incomingState.quantity - incomingState.nextFilledQuantity;
 
       if (incomingRemaining <= 0) {
         continue;
       }
 
       const oppositeBook =
-        restingBooks[incoming.outcome][incoming.side === "buy" ? "sell" : "buy"];
+        restingBooks[incoming.outcome][
+          incoming.side === 'buy' ? 'sell' : 'buy'
+        ];
 
       while (incomingRemaining > 0) {
         const maker = oppositeBook[0];
@@ -391,7 +425,8 @@ export class MatchingService {
           continue;
         }
 
-        const makerRemaining = makerState.quantity - makerState.nextFilledQuantity;
+        const makerRemaining =
+          makerState.quantity - makerState.nextFilledQuantity;
 
         if (makerRemaining <= 0) {
           oppositeBook.shift();
@@ -408,8 +443,10 @@ export class MatchingService {
         incomingState.nextFilledQuantity += tradeQuantity;
         incomingRemaining -= tradeQuantity;
 
-        const makerRemainingAfter = makerState.quantity - makerState.nextFilledQuantity;
-        const takerRemainingAfter = incomingState.quantity - incomingState.nextFilledQuantity;
+        const makerRemainingAfter =
+          makerState.quantity - makerState.nextFilledQuantity;
+        const takerRemainingAfter =
+          incomingState.quantity - incomingState.nextFilledQuantity;
 
         trades.push({
           marketId: incomingState.marketId,
@@ -460,14 +497,26 @@ export class MatchingService {
       const taker = stateByOrderId.get(trade.takerOrderId);
 
       if (!maker || !taker) {
-        throw new AppError(500, "trade_state_failed", "matched trade references missing order");
+        throw new AppError(
+          500,
+          'trade_state_failed',
+          'matched trade references missing order',
+        );
       }
 
       maker.nextFilledQuantity += trade.quantity;
       taker.nextFilledQuantity += trade.quantity;
 
-      const makerMove = this.consumeOrderReserve(maker, trade.quantity, trade.priceBps);
-      const takerMove = this.consumeOrderReserve(taker, trade.quantity, trade.priceBps);
+      const makerMove = this.consumeOrderReserve(
+        maker,
+        trade.quantity,
+        trade.priceBps,
+      );
+      const takerMove = this.consumeOrderReserve(
+        taker,
+        trade.quantity,
+        trade.priceBps,
+      );
 
       collateralMoves.push([makerMove, takerMove]);
     }
@@ -479,14 +528,14 @@ export class MatchingService {
   }
 
   private isCrossed(
-    incoming: Pick<MatchableOrder, "side" | "limitPriceBps">,
-    maker: Pick<MatchableOrder, "side" | "limitPriceBps">,
+    incoming: Pick<MatchableOrder, 'side' | 'limitPriceBps'>,
+    maker: Pick<MatchableOrder, 'side' | 'limitPriceBps'>,
   ) {
     if (incoming.side === maker.side) {
       return false;
     }
 
-    return incoming.side === "buy"
+    return incoming.side === 'buy'
       ? incoming.limitPriceBps >= maker.limitPriceBps
       : incoming.limitPriceBps <= maker.limitPriceBps;
   }
@@ -494,12 +543,18 @@ export class MatchingService {
   private insertRestingOrder(book: MatchableOrder[], order: MatchableOrder) {
     book.push(order);
     book.sort((left, right) => {
-      if (left.side === "buy" && right.side === "buy") {
-        return right.limitPriceBps - left.limitPriceBps || left.createSequence - right.createSequence;
+      if (left.side === 'buy' && right.side === 'buy') {
+        return (
+          right.limitPriceBps - left.limitPriceBps ||
+          left.createSequence - right.createSequence
+        );
       }
 
-      if (left.side === "sell" && right.side === "sell") {
-        return left.limitPriceBps - right.limitPriceBps || left.createSequence - right.createSequence;
+      if (left.side === 'sell' && right.side === 'sell') {
+        return (
+          left.limitPriceBps - right.limitPriceBps ||
+          left.createSequence - right.createSequence
+        );
       }
 
       return left.createSequence - right.createSequence;
@@ -534,7 +589,11 @@ export class MatchingService {
     const updatedMarket = updatedMarketRows[0];
 
     if (!updatedMarket) {
-      throw new AppError(500, "market_sequence_failed", "failed to advance market sequence");
+      throw new AppError(
+        500,
+        'market_sequence_failed',
+        'failed to advance market sequence',
+      );
     }
 
     const commandRows = await executor
@@ -543,7 +602,7 @@ export class MatchingService {
         marketId: input.marketId,
         orderId: input.orderId,
         sequence: updatedMarket.lastCommandSequence,
-        commandType: "match_execution",
+        commandType: 'match_execution',
         metadata: input.metadata,
       })
       .returning();
@@ -551,7 +610,11 @@ export class MatchingService {
     const command = commandRows[0];
 
     if (!command) {
-      throw new AppError(500, "market_command_failed", "failed to record market command");
+      throw new AppError(
+        500,
+        'market_command_failed',
+        'failed to record market command',
+      );
     }
 
     return command;
@@ -562,7 +625,8 @@ export class MatchingService {
     tradeQuantity: number,
     executionPriceBps: number,
   ): TradeCollateralMove {
-    const currentRemainingQuantity = order.quantity - order.nextFilledQuantity + tradeQuantity;
+    const currentRemainingQuantity =
+      order.quantity - order.nextFilledQuantity + tradeQuantity;
     const remainingQuantityAfter = order.quantity - order.nextFilledQuantity;
     const nextRemainingReserve = this.calculateReserveAmountMinor({
       side: order.side,
@@ -573,12 +637,15 @@ export class MatchingService {
       0,
       order.nextReservedAmountMinor - nextRemainingReserve,
     );
-    const theoreticalPositionCollateralMinor = this.calculateReserveAmountMinor({
-      side: order.side,
-      quantity: tradeQuantity,
-      priceBps: order.side === "buy" ? executionPriceBps : 10000 - executionPriceBps,
-      useDirectExposureBps: true,
-    });
+    const theoreticalPositionCollateralMinor = this.calculateReserveAmountMinor(
+      {
+        side: order.side,
+        quantity: tradeQuantity,
+        priceBps:
+          order.side === 'buy' ? executionPriceBps : 10000 - executionPriceBps,
+        useDirectExposureBps: true,
+      },
+    );
     const positionCollateralMinor = Math.min(
       reserveConsumedMinor,
       theoreticalPositionCollateralMinor,
@@ -586,7 +653,11 @@ export class MatchingService {
     const cashReleaseMinor = reserveConsumedMinor - positionCollateralMinor;
 
     if (currentRemainingQuantity <= 0) {
-      throw new AppError(500, "invalid_match_state", "order has no remaining quantity to match");
+      throw new AppError(
+        500,
+        'invalid_match_state',
+        'order has no remaining quantity to match',
+      );
     }
 
     order.nextReservedAmountMinor = nextRemainingReserve;
@@ -613,7 +684,7 @@ export class MatchingService {
 
     const exposureBps = input.useDirectExposureBps
       ? input.priceBps
-      : input.side === "buy"
+      : input.side === 'buy'
         ? input.priceBps
         : 10000 - input.priceBps;
 
@@ -636,7 +707,7 @@ export class MatchingService {
     const transactionRows = await executor
       .insert(ledgerTransactions)
       .values({
-        referenceType: "trade_collateral_reclassify",
+        referenceType: 'trade_collateral_reclassify',
         referenceId: input.tradeId,
         metadata: {
           marketId: input.marketId,
@@ -650,7 +721,11 @@ export class MatchingService {
     const transaction = transactionRows[0];
 
     if (!transaction) {
-      throw new AppError(500, "ledger_transaction_failed", "failed to create ledger transaction");
+      throw new AppError(
+        500,
+        'ledger_transaction_failed',
+        'failed to create ledger transaction',
+      );
     }
 
     const entries = [];
@@ -658,19 +733,19 @@ export class MatchingService {
     for (const move of input.moves) {
       const reservedWallet = await this.getOrCreateWalletAccount(executor, {
         ownerUserId: move.userId,
-        type: "user_order_reserved",
+        type: 'user_order_reserved',
         currency: move.currency,
       });
       const positionWallet = await this.getOrCreateWalletAccount(executor, {
         ownerUserId: move.userId,
-        type: "user_position_collateral",
+        type: 'user_position_collateral',
         currency: move.currency,
       });
 
       entries.push({
         transactionId: transaction.id,
         walletAccountId: reservedWallet.id,
-        side: "debit" as const,
+        side: 'debit' as const,
         amountMinor: move.reserveConsumedMinor,
         currency: move.currency,
       });
@@ -679,7 +754,7 @@ export class MatchingService {
         entries.push({
           transactionId: transaction.id,
           walletAccountId: positionWallet.id,
-          side: "credit" as const,
+          side: 'credit' as const,
           amountMinor: move.positionCollateralMinor,
           currency: move.currency,
         });
@@ -688,14 +763,14 @@ export class MatchingService {
       if (move.cashReleaseMinor > 0) {
         const cashWallet = await this.getOrCreateWalletAccount(executor, {
           ownerUserId: move.userId,
-          type: "user_cash",
+          type: 'user_cash',
           currency: move.currency,
         });
 
         entries.push({
           transactionId: transaction.id,
           walletAccountId: cashWallet.id,
-          side: "credit" as const,
+          side: 'credit' as const,
           amountMinor: move.cashReleaseMinor,
           currency: move.currency,
         });
@@ -754,7 +829,11 @@ export class MatchingService {
     const inserted = insertedRows[0];
 
     if (!inserted) {
-      throw new AppError(500, "wallet_account_creation_failed", "failed to create wallet account");
+      throw new AppError(
+        500,
+        'wallet_account_creation_failed',
+        'failed to create wallet account',
+      );
     }
 
     return inserted;

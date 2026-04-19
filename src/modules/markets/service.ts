@@ -1,38 +1,41 @@
-import { and, asc, desc, eq, gt, inArray, ilike, or, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
-import { db } from "../../db/client";
+import { and, asc, desc, eq, gt, ilike, inArray, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { db } from '../../db/client';
 import {
   ledgerEntries,
   ledgerTransactions,
   marketCommandEvents,
-  marketCurrencyEnum,
+  type marketCurrencyEnum,
   marketEvents,
-  marketResolutionOutcomeEnum,
+  type marketResolutionOutcomeEnum,
   marketResolutions,
   marketSettlementPayouts,
   marketSettlements,
+  type marketStatusEnum,
   marketStatusTransitions,
-  marketTrades,
   markets,
-  marketStatusEnum,
-  orders,
+  marketTrades,
   orderOutcomeEnum,
   orderSideEnum,
+  orders,
   orderTypeEnum,
   walletAccounts,
-  walletAccountTypeEnum,
-} from "../../db/schema";
-import { AppError } from "../../lib/errors";
-import { AdminAuditService } from "../operations/audit";
+  type walletAccountTypeEnum,
+} from '../../db/schema';
+import { AppError } from '../../lib/errors';
+import { AdminAuditService } from '../operations/audit';
 
 type MarketStatus = (typeof marketStatusEnum.enumValues)[number];
 type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
-type MarketResolutionOutcome = (typeof marketResolutionOutcomeEnum.enumValues)[number];
+type MarketResolutionOutcome =
+  (typeof marketResolutionOutcomeEnum.enumValues)[number];
 type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
 type OrderSide = (typeof orderSideEnum.enumValues)[number];
 type OrderType = (typeof orderTypeEnum.enumValues)[number];
 type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
-type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbExecutor =
+  | typeof db
+  | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 type CreateMarketEventInput = {
   slug: string;
@@ -66,7 +69,7 @@ type ListMarketsInput = {
   status?: MarketStatus;
   tag?: string;
   search?: string;
-  sort?: "newest" | "closing_soon" | "highest_volume";
+  sort?: 'newest' | 'closing_soon' | 'highest_volume';
   limit: number;
 };
 
@@ -101,7 +104,7 @@ type MarketRecord = {
 type NormalizedPosition = {
   userId: string;
   marketId: string;
-  outcome: "yes" | "no";
+  outcome: 'yes' | 'no';
   quantity: number;
   costBasisMinor: number;
 };
@@ -160,15 +163,19 @@ export class MarketsService {
       const market = insertedRows[0];
 
       if (!market) {
-        throw new AppError(500, "market_creation_failed", "failed to create market");
+        throw new AppError(
+          500,
+          'market_creation_failed',
+          'failed to create market',
+        );
       }
 
       await tx.insert(marketStatusTransitions).values({
         marketId: market.id,
         fromStatus: null,
         toStatus: market.status,
-        reason: "market_created",
-        changedBy: "system",
+        reason: 'market_created',
+        changedBy: 'system',
       });
 
       return {
@@ -208,7 +215,9 @@ export class MarketsService {
       .innerJoin(marketEvents, eq(marketEvents.id, markets.eventId))
       .where(
         and(
-          input.category ? eq(marketEvents.category, input.category) : undefined,
+          input.category
+            ? eq(marketEvents.category, input.category)
+            : undefined,
           input.status ? eq(markets.status, input.status) : undefined,
           input.search
             ? or(
@@ -228,24 +237,36 @@ export class MarketsService {
       .filter((market) => (input.tag ? market.tags.includes(input.tag) : true));
 
     const eventGroups = Array.from(
-      records.reduce((groups, market) => {
-        const existing = groups.get(market.event.id);
+      records.reduce(
+        (groups, market) => {
+          const existing = groups.get(market.event.id);
 
-        if (existing) {
-          existing.marketIds.push(market.id);
+          if (existing) {
+            existing.marketIds.push(market.id);
+            return groups;
+          }
+
+          groups.set(market.event.id, {
+            eventId: market.event.id,
+            eventSlug: market.event.slug,
+            eventTitle: market.event.title,
+            category: market.event.category,
+            marketIds: [market.id],
+          });
+
           return groups;
-        }
-
-        groups.set(market.event.id, {
-          eventId: market.event.id,
-          eventSlug: market.event.slug,
-          eventTitle: market.event.title,
-          category: market.event.category,
-          marketIds: [market.id],
-        });
-
-        return groups;
-      }, new Map<string, { eventId: string; eventSlug: string; eventTitle: string; category: string; marketIds: string[] }>()),
+        },
+        new Map<
+          string,
+          {
+            eventId: string;
+            eventSlug: string;
+            eventTitle: string;
+            category: string;
+            marketIds: string[];
+          }
+        >(),
+      ),
     ).map(([, group]) => group);
 
     return {
@@ -254,9 +275,11 @@ export class MarketsService {
         status: input.status ?? null,
         tag: input.tag ?? null,
         search: input.search ?? null,
-        sort: input.sort ?? "newest",
+        sort: input.sort ?? 'newest',
       },
-      categories: Array.from(new Set(records.map((market) => market.event.category))),
+      categories: Array.from(
+        new Set(records.map((market) => market.event.category)),
+      ),
       eventGroups,
       markets: records,
     };
@@ -300,7 +323,7 @@ export class MarketsService {
     const market = rows[0];
 
     if (!market) {
-      throw new AppError(404, "market_not_found", "market was not found");
+      throw new AppError(404, 'market_not_found', 'market was not found');
     }
 
     const [resolution, settlement, statusTransitions] = await Promise.all([
@@ -333,12 +356,8 @@ export class MarketsService {
           this.mapStatusTransition(transition),
         ),
         lastCommandSequence: market.lastCommandSequence,
-        resolution: resolution[0]
-          ? this.mapResolution(resolution[0])
-          : null,
-        settlement: settlement[0]
-          ? this.mapSettlement(settlement[0])
-          : null,
+        resolution: resolution[0] ? this.mapResolution(resolution[0]) : null,
+        settlement: settlement[0] ? this.mapSettlement(settlement[0]) : null,
       },
     };
   }
@@ -368,8 +387,8 @@ export class MarketsService {
       if (existingResolution) {
         throw new AppError(
           409,
-          "market_already_resolved",
-          "market already has a recorded resolution",
+          'market_already_resolved',
+          'market already has a recorded resolution',
         );
       }
 
@@ -384,8 +403,8 @@ export class MarketsService {
       if (existingSettlementRows[0]) {
         throw new AppError(
           409,
-          "market_already_settled",
-          "market has already been settled",
+          'market_already_settled',
+          'market has already been settled',
         );
       }
 
@@ -393,7 +412,7 @@ export class MarketsService {
       const updatedMarketRows = await tx
         .update(markets)
         .set({
-          status: "awaiting_resolution",
+          status: 'awaiting_resolution',
           statusChangedAt: now,
           updatedAt: now,
         })
@@ -403,7 +422,11 @@ export class MarketsService {
       const updatedMarket = updatedMarketRows[0];
 
       if (!updatedMarket) {
-        throw new AppError(500, "market_resolution_failed", "failed to update market status");
+        throw new AppError(
+          500,
+          'market_resolution_failed',
+          'failed to update market status',
+        );
       }
 
       const insertedResolutionRows = await tx
@@ -422,21 +445,28 @@ export class MarketsService {
       const resolution = insertedResolutionRows[0];
 
       if (!resolution) {
-        throw new AppError(500, "market_resolution_failed", "failed to persist market resolution");
+        throw new AppError(
+          500,
+          'market_resolution_failed',
+          'failed to persist market resolution',
+        );
       }
 
-      await this.adminAuditService.recordEvent({
-        action: "market.resolved",
-        actor: input.approvedBy ?? "bootstrap",
-        targetType: "market",
-        targetId: market.id,
-        payload: {
-          resolutionId: resolution.id,
-          outcome: resolution.outcome,
-          evidenceSummary: resolution.evidenceSummary,
-          evidenceSources: resolution.evidenceSources,
+      await this.adminAuditService.recordEvent(
+        {
+          action: 'market.resolved',
+          actor: input.approvedBy ?? 'bootstrap',
+          targetType: 'market',
+          targetId: market.id,
+          payload: {
+            resolutionId: resolution.id,
+            outcome: resolution.outcome,
+            evidenceSummary: resolution.evidenceSummary,
+            evidenceSources: resolution.evidenceSources,
+          },
         },
-      }, tx);
+        tx,
+      );
 
       return {
         market: updatedMarket,
@@ -461,7 +491,7 @@ export class MarketsService {
         .limit(1);
 
       if (!market) {
-        throw new AppError(404, "market_not_found", "market was not found");
+        throw new AppError(404, 'market_not_found', 'market was not found');
       }
 
       await this.acquireMarketWriteLock(tx, market.id);
@@ -491,8 +521,8 @@ export class MarketsService {
       if (!updatedMarket) {
         throw new AppError(
           500,
-          "market_status_transition_failed",
-          "failed to update market status",
+          'market_status_transition_failed',
+          'failed to update market status',
         );
       }
 
@@ -512,22 +542,25 @@ export class MarketsService {
       if (!transition) {
         throw new AppError(
           500,
-          "market_status_transition_failed",
-          "failed to persist market status transition",
+          'market_status_transition_failed',
+          'failed to persist market status transition',
         );
       }
 
-      await this.adminAuditService.recordEvent({
-        action: "market.status_updated",
-        actor: input.changedBy ?? "bootstrap",
-        targetType: "market",
-        targetId: market.id,
-        payload: {
-          fromStatus: market.status,
-          toStatus: input.status,
-          reason: input.reason,
+      await this.adminAuditService.recordEvent(
+        {
+          action: 'market.status_updated',
+          actor: input.changedBy ?? 'bootstrap',
+          targetType: 'market',
+          targetId: market.id,
+          payload: {
+            fromStatus: market.status,
+            toStatus: input.status,
+            reason: input.reason,
+          },
         },
-      }, tx);
+        tx,
+      );
 
       return {
         market: updatedMarket,
@@ -554,8 +587,8 @@ export class MarketsService {
       if (!resolution) {
         throw new AppError(
           409,
-          "market_resolution_missing",
-          "market must be resolved before settlement",
+          'market_resolution_missing',
+          'market must be resolved before settlement',
         );
       }
 
@@ -573,14 +606,18 @@ export class MarketsService {
           alreadySettled: true,
           resolution: this.mapResolution(resolution),
           settlement: this.mapSettlement(existingSettlement),
-          payouts: await this.listSettlementPayouts(tx, existingSettlement.id, market.currency),
+          payouts: await this.listSettlementPayouts(
+            tx,
+            existingSettlement.id,
+            market.currency,
+          ),
         };
       }
 
       const positions = await this.loadNormalizedPositions(tx, market.id);
       const payouts = positions.map((position) => {
         const payoutMinor =
-          resolution.outcome === "void"
+          resolution.outcome === 'void'
             ? position.costBasisMinor
             : position.outcome === resolution.outcome
               ? position.quantity * 100
@@ -597,13 +634,13 @@ export class MarketsService {
       });
 
       const settlementStatus: MarketStatus =
-        resolution.outcome === "void" ? "voided" : "settled";
+        resolution.outcome === 'void' ? 'voided' : 'settled';
       const settledAt = new Date();
 
       const transactionRows = await tx
         .insert(ledgerTransactions)
         .values({
-          referenceType: "market_settlement",
+          referenceType: 'market_settlement',
           referenceId: market.id,
           metadata: {
             marketId: market.id,
@@ -621,8 +658,8 @@ export class MarketsService {
       if (!transaction) {
         throw new AppError(
           500,
-          "ledger_transaction_failed",
-          "failed to create settlement ledger transaction",
+          'ledger_transaction_failed',
+          'failed to create settlement ledger transaction',
         );
       }
 
@@ -631,7 +668,7 @@ export class MarketsService {
       for (const payout of payouts) {
         const positionWallet = await this.getOrCreateWalletAccount(tx, {
           ownerUserId: payout.userId,
-          type: "user_position_collateral",
+          type: 'user_position_collateral',
           currency: market.currency,
         });
 
@@ -639,7 +676,7 @@ export class MarketsService {
           ledgerEntriesToInsert.push({
             transactionId: transaction.id,
             walletAccountId: positionWallet.id,
-            side: "debit" as const,
+            side: 'debit' as const,
             amountMinor: payout.costBasisMinor,
             currency: market.currency,
           });
@@ -648,14 +685,14 @@ export class MarketsService {
         if (payout.payoutMinor > 0) {
           const cashWallet = await this.getOrCreateWalletAccount(tx, {
             ownerUserId: payout.userId,
-            type: "user_cash",
+            type: 'user_cash',
             currency: market.currency,
           });
 
           ledgerEntriesToInsert.push({
             transactionId: transaction.id,
             walletAccountId: cashWallet.id,
-            side: "credit" as const,
+            side: 'credit' as const,
             amountMinor: payout.payoutMinor,
             currency: market.currency,
           });
@@ -673,7 +710,10 @@ export class MarketsService {
           resolutionId: resolution.id,
           outcome: resolution.outcome,
           settledAt,
-          totalPayoutMinor: payouts.reduce((total, payout) => total + payout.payoutMinor, 0),
+          totalPayoutMinor: payouts.reduce(
+            (total, payout) => total + payout.payoutMinor,
+            0,
+          ),
           affectedUserCount: payouts.length,
           metadata: {
             currency: market.currency,
@@ -687,8 +727,8 @@ export class MarketsService {
       if (!settlement) {
         throw new AppError(
           500,
-          "market_settlement_failed",
-          "failed to persist market settlement",
+          'market_settlement_failed',
+          'failed to persist market settlement',
         );
       }
 
@@ -706,7 +746,9 @@ export class MarketsService {
         );
       }
 
-      const nextPriceSnapshot = this.getSettlementPriceSnapshot(resolution.outcome);
+      const nextPriceSnapshot = this.getSettlementPriceSnapshot(
+        resolution.outcome,
+      );
 
       const updatedMarketRows = await tx
         .update(markets)
@@ -725,24 +767,27 @@ export class MarketsService {
       if (!updatedMarket) {
         throw new AppError(
           500,
-          "market_settlement_failed",
-          "failed to update settled market state",
+          'market_settlement_failed',
+          'failed to update settled market state',
         );
       }
 
-      await this.adminAuditService.recordEvent({
-        action: "market.settled",
-        actor: "bootstrap",
-        targetType: "market",
-        targetId: market.id,
-        payload: {
-          resolutionId: resolution.id,
-          settlementId: settlement.id,
-          outcome: resolution.outcome,
-          totalPayoutMinor: settlement.totalPayoutMinor,
-          affectedUserCount: settlement.affectedUserCount,
+      await this.adminAuditService.recordEvent(
+        {
+          action: 'market.settled',
+          actor: 'bootstrap',
+          targetType: 'market',
+          targetId: market.id,
+          payload: {
+            resolutionId: resolution.id,
+            settlementId: settlement.id,
+            outcome: resolution.outcome,
+            totalPayoutMinor: settlement.totalPayoutMinor,
+            affectedUserCount: settlement.affectedUserCount,
+          },
         },
-      }, tx);
+        tx,
+      );
 
       return {
         marketId: market.id,
@@ -776,10 +821,10 @@ export class MarketsService {
         and(
           eq(orders.marketId, marketId),
           or(
-            eq(orders.status, "queued_for_matching"),
-            eq(orders.status, "partially_filled"),
+            eq(orders.status, 'queued_for_matching'),
+            eq(orders.status, 'partially_filled'),
           ),
-          eq(orders.type, "limit"),
+          eq(orders.type, 'limit'),
         ),
       )
       .groupBy(orders.outcome, orders.side, orders.limitPriceBps);
@@ -787,7 +832,7 @@ export class MarketsService {
     const priceLevels = rows
       .filter(
         (row): row is typeof row & { priceBps: number } =>
-          typeof row.priceBps === "number",
+          typeof row.priceBps === 'number',
       )
       .map((row) => ({
         outcome: row.outcome,
@@ -800,10 +845,10 @@ export class MarketsService {
 
     const books = {
       yes: this.buildOutcomeBook(
-        priceLevels.filter((level) => level.outcome === "yes"),
+        priceLevels.filter((level) => level.outcome === 'yes'),
       ),
       no: this.buildOutcomeBook(
-        priceLevels.filter((level) => level.outcome === "no"),
+        priceLevels.filter((level) => level.outcome === 'no'),
       ),
     };
 
@@ -900,28 +945,32 @@ export class MarketsService {
           metadata.reservedAmountMinor,
           row.reservedAmountMinor,
         );
-        const trade = row.commandType === "match_execution"
-          ? {
-              tradeId: this.pickString(metadata.tradeId, ""),
-              makerOrderId: this.pickString(metadata.makerOrderId, ""),
-              takerOrderId: this.pickString(metadata.takerOrderId, row.orderId),
-              outcome: this.pickEnumValue<OrderOutcome>(
-                metadata.outcome,
-                outcome,
-                orderOutcomeEnum.enumValues,
-              ),
-              priceBps: this.pickNumber(metadata.priceBps, referencePriceBps),
-              quantity: this.pickNumber(metadata.quantity, quantity),
-            }
-          : null;
+        const trade =
+          row.commandType === 'match_execution'
+            ? {
+                tradeId: this.pickString(metadata.tradeId, ''),
+                makerOrderId: this.pickString(metadata.makerOrderId, ''),
+                takerOrderId: this.pickString(
+                  metadata.takerOrderId,
+                  row.orderId,
+                ),
+                outcome: this.pickEnumValue<OrderOutcome>(
+                  metadata.outcome,
+                  outcome,
+                  orderOutcomeEnum.enumValues,
+                ),
+                priceBps: this.pickNumber(metadata.priceBps, referencePriceBps),
+                quantity: this.pickNumber(metadata.quantity, quantity),
+              }
+            : null;
         const bookEffect =
-          row.commandType === "match_execution"
-            ? this.pickString(metadata.bookEffect, "trade")
-            : orderType !== "limit"
-              ? "none"
-              : row.commandType === "order_create"
-                ? "resting_add"
-                : "resting_remove";
+          row.commandType === 'match_execution'
+            ? this.pickString(metadata.bookEffect, 'trade')
+            : orderType !== 'limit'
+              ? 'none'
+              : row.commandType === 'order_create'
+                ? 'resting_add'
+                : 'resting_remove';
 
         return {
           id: row.id,
@@ -929,7 +978,7 @@ export class MarketsService {
           occurredAt: row.createdAt.toISOString(),
           commandType: row.commandType,
           bookEffect,
-          affectsBook: bookEffect !== "none",
+          affectsBook: bookEffect !== 'none',
           order: {
             id: row.orderId,
             type: orderType,
@@ -941,13 +990,13 @@ export class MarketsService {
             reservedAmountMinor,
             currency: this.pickString(metadata.currency, row.currency),
             stateAtSequence:
-              row.commandType === "order_create"
-                ? "queued_for_matching"
-                : row.commandType === "order_cancel"
-                  ? "cancelled"
+              row.commandType === 'order_create'
+                ? 'queued_for_matching'
+                : row.commandType === 'order_cancel'
+                  ? 'cancelled'
                   : this.pickNumber(metadata.takerRemainingQuantity, 0) === 0
-                    ? "filled"
-                    : "partially_filled",
+                    ? 'filled'
+                    : 'partially_filled',
           },
           ...(trade ? { trade } : {}),
           metadata,
@@ -966,7 +1015,7 @@ export class MarketsService {
       .limit(1);
 
     if (!event) {
-      throw new AppError(404, "event_not_found", "event was not found");
+      throw new AppError(404, 'event_not_found', 'event was not found');
     }
   }
 
@@ -982,13 +1031,16 @@ export class MarketsService {
       .limit(1);
 
     if (!market) {
-      throw new AppError(404, "market_not_found", "market was not found");
+      throw new AppError(404, 'market_not_found', 'market was not found');
     }
 
     return market;
   }
 
-  private async loadMarketForResolution(executor: DbExecutor, marketId: string) {
+  private async loadMarketForResolution(
+    executor: DbExecutor,
+    marketId: string,
+  ) {
     const [market] = await executor
       .select({
         id: markets.id,
@@ -1000,17 +1052,17 @@ export class MarketsService {
       .limit(1);
 
     if (!market) {
-      throw new AppError(404, "market_not_found", "market was not found");
+      throw new AppError(404, 'market_not_found', 'market was not found');
     }
 
     if (
-      market.status === "settled" ||
-      market.status === "voided" ||
-      market.status === "cancelled"
+      market.status === 'settled' ||
+      market.status === 'voided' ||
+      market.status === 'cancelled'
     ) {
       throw new AppError(
         409,
-        "market_not_resolvable",
+        'market_not_resolvable',
         `market status ${market.status} is not eligible for resolution`,
       );
     }
@@ -1018,7 +1070,10 @@ export class MarketsService {
     return market;
   }
 
-  private async loadMarketForSettlement(executor: DbExecutor, marketId: string) {
+  private async loadMarketForSettlement(
+    executor: DbExecutor,
+    marketId: string,
+  ) {
     const [market] = await executor
       .select({
         id: markets.id,
@@ -1030,17 +1085,17 @@ export class MarketsService {
       .limit(1);
 
     if (!market) {
-      throw new AppError(404, "market_not_found", "market was not found");
+      throw new AppError(404, 'market_not_found', 'market was not found');
     }
 
     if (
-      market.status !== "awaiting_resolution" &&
-      market.status !== "trading_closed" &&
-      market.status !== "active"
+      market.status !== 'awaiting_resolution' &&
+      market.status !== 'trading_closed' &&
+      market.status !== 'active'
     ) {
       throw new AppError(
         409,
-        "market_not_settleable",
+        'market_not_settleable',
         `market status ${market.status} is not eligible for settlement`,
       );
     }
@@ -1048,24 +1103,27 @@ export class MarketsService {
     return market;
   }
 
-  private assertAllowedMarketStatusTransition(fromStatus: MarketStatus, toStatus: MarketStatus) {
+  private assertAllowedMarketStatusTransition(
+    fromStatus: MarketStatus,
+    toStatus: MarketStatus,
+  ) {
     const allowedTransitions: Record<MarketStatus, MarketStatus[]> = {
-      draft: ["scheduled", "cancelled"],
-      scheduled: ["active", "halted", "cancelled"],
-      active: ["halted", "trading_closed", "disputed", "cancelled"],
-      halted: ["active", "trading_closed", "disputed", "cancelled"],
-      trading_closed: ["awaiting_resolution", "disputed", "cancelled"],
-      awaiting_resolution: ["disputed", "trading_closed"],
+      draft: ['scheduled', 'cancelled'],
+      scheduled: ['active', 'halted', 'cancelled'],
+      active: ['halted', 'trading_closed', 'disputed', 'cancelled'],
+      halted: ['active', 'trading_closed', 'disputed', 'cancelled'],
+      trading_closed: ['awaiting_resolution', 'disputed', 'cancelled'],
+      awaiting_resolution: ['disputed', 'trading_closed'],
       settled: [],
       cancelled: [],
-      disputed: ["awaiting_resolution", "trading_closed", "cancelled"],
+      disputed: ['awaiting_resolution', 'trading_closed', 'cancelled'],
       voided: [],
     };
 
     if (!allowedTransitions[fromStatus].includes(toStatus)) {
       throw new AppError(
         409,
-        "invalid_market_status_transition",
+        'invalid_market_status_transition',
         `cannot transition market from ${fromStatus} to ${toStatus}`,
       );
     }
@@ -1080,7 +1138,7 @@ export class MarketsService {
       .where(
         and(
           eq(orders.marketId, marketId),
-          inArray(orders.status, ["queued_for_matching", "partially_filled"]),
+          inArray(orders.status, ['queued_for_matching', 'partially_filled']),
         ),
       )
       .limit(1);
@@ -1088,14 +1146,17 @@ export class MarketsService {
     if (openOrder) {
       throw new AppError(
         409,
-        "market_has_open_orders",
-        "market still has open orders that must be cleared before resolution",
+        'market_has_open_orders',
+        'market still has open orders that must be cleared before resolution',
       );
     }
   }
 
-  private async loadNormalizedPositions(executor: DbExecutor, marketId: string) {
-    const takerOrders = alias(orders, "taker_orders");
+  private async loadNormalizedPositions(
+    executor: DbExecutor,
+    marketId: string,
+  ) {
+    const takerOrders = alias(orders, 'taker_orders');
     const rows = await executor
       .select({
         tradeId: marketTrades.id,
@@ -1135,16 +1196,18 @@ export class MarketsService {
         },
       ]) {
         const normalizedOutcome =
-          fill.side === "buy"
+          fill.side === 'buy'
             ? fill.outcome
-            : fill.outcome === "yes"
-              ? "no"
-              : "yes";
+            : fill.outcome === 'yes'
+              ? 'no'
+              : 'yes';
         const normalizedPriceBps =
-          fill.side === "buy" ? fill.priceBps : 10000 - fill.priceBps;
+          fill.side === 'buy' ? fill.priceBps : 10000 - fill.priceBps;
         const key = `${fill.userId}:${normalizedOutcome}`;
         const existing = positions.get(key);
-        const costBasisMinor = Math.ceil((fill.quantity * normalizedPriceBps) / 100);
+        const costBasisMinor = Math.ceil(
+          (fill.quantity * normalizedPriceBps) / 100,
+        );
 
         positions.set(key, {
           userId: fill.userId,
@@ -1160,14 +1223,14 @@ export class MarketsService {
   }
 
   private getSettlementPriceSnapshot(outcome: MarketResolutionOutcome) {
-    if (outcome === "yes") {
+    if (outcome === 'yes') {
       return {
         yesPriceBps: 10000,
         noPriceBps: 0,
       };
     }
 
-    if (outcome === "no") {
+    if (outcome === 'no') {
       return {
         yesPriceBps: 0,
         noPriceBps: 10000,
@@ -1217,19 +1280,18 @@ export class MarketsService {
     ) {
       throw new AppError(
         400,
-        "invalid_price_snapshot",
-        "yes and no prices must be integer basis points summing to 10000",
+        'invalid_price_snapshot',
+        'yes and no prices must be integer basis points summing to 10000',
       );
     }
   }
 
-  private getOrderByClause(sort: ListMarketsInput["sort"]) {
+  private getOrderByClause(sort: ListMarketsInput['sort']) {
     switch (sort) {
-      case "closing_soon":
+      case 'closing_soon':
         return [asc(markets.closesAt), desc(markets.createdAt)];
-      case "highest_volume":
+      case 'highest_volume':
         return [desc(markets.volumeUsdMinor), desc(markets.createdAt)];
-      case "newest":
       default:
         return [desc(markets.createdAt)];
     }
@@ -1317,7 +1379,9 @@ export class MarketsService {
     };
   }
 
-  private mapStatusTransition(row: typeof marketStatusTransitions.$inferSelect) {
+  private mapStatusTransition(
+    row: typeof marketStatusTransitions.$inferSelect,
+  ) {
     return {
       id: row.id,
       marketId: row.marketId,
@@ -1329,38 +1393,41 @@ export class MarketsService {
     };
   }
 
-  private buildStatusTimeline(row: {
-    createdAt: Date;
-    opensAt: Date | null;
-    closesAt: Date | null;
-    resolvesAt: Date | null;
-    status: MarketStatus;
-    statusChangedAt: Date;
-  }, transitions: Array<typeof marketStatusTransitions.$inferSelect>) {
+  private buildStatusTimeline(
+    row: {
+      createdAt: Date;
+      opensAt: Date | null;
+      closesAt: Date | null;
+      resolvesAt: Date | null;
+      status: MarketStatus;
+      statusChangedAt: Date;
+    },
+    transitions: Array<typeof marketStatusTransitions.$inferSelect>,
+  ) {
     const timeline = [
       {
-        milestone: "created",
+        milestone: 'created',
         at: row.createdAt,
       },
     ];
 
     if (row.opensAt) {
       timeline.push({
-        milestone: "opens",
+        milestone: 'opens',
         at: row.opensAt,
       });
     }
 
     if (row.closesAt) {
       timeline.push({
-        milestone: "closes",
+        milestone: 'closes',
         at: row.closesAt,
       });
     }
 
     if (row.resolvesAt) {
       timeline.push({
-        milestone: "resolves",
+        milestone: 'resolves',
         at: row.resolvesAt,
       });
     }
@@ -1393,7 +1460,7 @@ export class MarketsService {
     }>,
   ) {
     const bids = levels
-      .filter((level) => level.side === "buy")
+      .filter((level) => level.side === 'buy')
       .sort((left, right) => right.priceBps - left.priceBps)
       .map((level) => ({
         priceBps: level.priceBps,
@@ -1401,7 +1468,7 @@ export class MarketsService {
         orderCount: level.orderCount,
       }));
     const asks = levels
-      .filter((level) => level.side === "sell")
+      .filter((level) => level.side === 'sell')
       .sort((left, right) => left.priceBps - right.priceBps)
       .map((level) => ({
         priceBps: level.priceBps,
@@ -1418,7 +1485,7 @@ export class MarketsService {
   }
 
   private asRecord(value: unknown) {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       return {};
     }
 
@@ -1430,7 +1497,7 @@ export class MarketsService {
     fallback: T,
     values: readonly T[],
   ) {
-    if (typeof candidate === "string" && values.includes(candidate as T)) {
+    if (typeof candidate === 'string' && values.includes(candidate as T)) {
       return candidate as T;
     }
 
@@ -1438,7 +1505,7 @@ export class MarketsService {
   }
 
   private pickNumber(candidate: unknown, fallback: number) {
-    return typeof candidate === "number" && Number.isFinite(candidate)
+    return typeof candidate === 'number' && Number.isFinite(candidate)
       ? candidate
       : fallback;
   }
@@ -1448,7 +1515,7 @@ export class MarketsService {
       return null;
     }
 
-    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
       return candidate;
     }
 
@@ -1456,7 +1523,7 @@ export class MarketsService {
   }
 
   private pickString(candidate: unknown, fallback: string) {
-    return typeof candidate === "string" ? candidate : fallback;
+    return typeof candidate === 'string' ? candidate : fallback;
   }
 
   private async acquireMarketWriteLock(executor: DbExecutor, marketId: string) {
@@ -1514,7 +1581,11 @@ export class MarketsService {
     const inserted = insertedRows[0];
 
     if (!inserted) {
-      throw new AppError(500, "wallet_account_creation_failed", "failed to create wallet account");
+      throw new AppError(
+        500,
+        'wallet_account_creation_failed',
+        'failed to create wallet account',
+      );
     }
 
     return inserted;

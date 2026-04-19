@@ -1,26 +1,28 @@
-import { and, eq, sql } from "drizzle-orm";
-import { db } from "../../db/client";
+import { and, eq, sql } from 'drizzle-orm';
+import { db } from '../../db/client';
 import {
   ledgerEntries,
   ledgerTransactions,
   marketCommandEvents,
-  marketCommandTypeEnum,
-  marketCurrencyEnum,
+  type marketCommandTypeEnum,
+  type marketCurrencyEnum,
+  type marketStatusEnum,
   markets,
+  type orderOutcomeEnum,
+  type orderSideEnum,
   orders,
+  type orderTypeEnum,
+  type selfTradePreventionEnum,
   walletAccounts,
-  marketStatusEnum,
-  orderOutcomeEnum,
-  orderSideEnum,
-  orderTypeEnum,
-  selfTradePreventionEnum,
-  walletAccountTypeEnum,
-} from "../../db/schema";
-import { sha256Hex } from "../../lib/crypto";
-import { AppError } from "../../lib/errors";
-import { ComplianceService } from "../compliance/service";
+  type walletAccountTypeEnum,
+} from '../../db/schema';
+import { sha256Hex } from '../../lib/crypto';
+import { AppError } from '../../lib/errors';
+import { ComplianceService } from '../compliance/service';
 
-type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbExecutor =
+  | typeof db
+  | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 type OrderType = (typeof orderTypeEnum.enumValues)[number];
 type OrderSide = (typeof orderSideEnum.enumValues)[number];
@@ -50,13 +52,14 @@ export class OrdersService {
   private readonly complianceService = new ComplianceService();
 
   async createOrder(input: CreateOrderInput) {
-    const capabilityEvaluation = await this.complianceService.getCapabilityEvaluation(input.userId);
+    const capabilityEvaluation =
+      await this.complianceService.getCapabilityEvaluation(input.userId);
 
     if (!capabilityEvaluation.capabilities.trading.allowed) {
       throw new AppError(
         403,
-        "trading_not_allowed",
-        `trading not allowed: ${capabilityEvaluation.capabilities.trading.reasons.join(", ")}`,
+        'trading_not_allowed',
+        `trading not allowed: ${capabilityEvaluation.capabilities.trading.reasons.join(', ')}`,
       );
     }
 
@@ -88,7 +91,7 @@ export class OrdersService {
       const market = marketRows[0];
 
       if (!market) {
-        throw new AppError(404, "market_not_found", "market was not found");
+        throw new AppError(404, 'market_not_found', 'market was not found');
       }
 
       await this.acquireMarketWriteLock(tx, market.id);
@@ -109,15 +112,15 @@ export class OrdersService {
         if (existingOrder.requestHash !== requestHash) {
           throw new AppError(
             409,
-            "idempotency_key_conflict",
-            "idempotency key was already used with a different payload",
+            'idempotency_key_conflict',
+            'idempotency key was already used with a different payload',
           );
         }
 
         const existingCommand = await this.findExistingMarketCommand(
           tx,
           existingOrder.id,
-          "order_create",
+          'order_create',
         );
 
         return {
@@ -131,7 +134,7 @@ export class OrdersService {
       this.assertMarketTradable(market.status);
 
       const referencePriceBps =
-        input.type === "market"
+        input.type === 'market'
           ? this.getMarketPriceBps(market, input.outcome)
           : this.assertLimitPrice(input.limitPriceBps);
 
@@ -144,30 +147,33 @@ export class OrdersService {
       if (reservedAmountMinor > MAX_ORDER_RESERVE_MINOR) {
         throw new AppError(
           400,
-          "order_exposure_limit_exceeded",
-          "order exceeds the maximum supported exposure",
+          'order_exposure_limit_exceeded',
+          'order exceeds the maximum supported exposure',
         );
       }
 
       const orderCurrency: MarketCurrency = market.currency;
       const availableWallet = await this.getOrCreateWalletAccount(tx, {
         ownerUserId: input.userId,
-        type: "user_cash",
+        type: 'user_cash',
         currency: orderCurrency,
       });
       const reservedWallet = await this.getOrCreateWalletAccount(tx, {
         ownerUserId: input.userId,
-        type: "user_order_reserved",
+        type: 'user_order_reserved',
         currency: orderCurrency,
       });
 
-      const availableBalanceMinor = await this.getWalletAccountBalance(tx, availableWallet.id);
+      const availableBalanceMinor = await this.getWalletAccountBalance(
+        tx,
+        availableWallet.id,
+      );
 
       if (availableBalanceMinor < reservedAmountMinor) {
         throw new AppError(
           409,
-          "insufficient_available_balance",
-          "insufficient available balance for order collateral",
+          'insufficient_available_balance',
+          'insufficient available balance for order collateral',
         );
       }
 
@@ -181,7 +187,7 @@ export class OrdersService {
           type: input.type,
           side: input.side,
           outcome: input.outcome,
-          status: "queued_for_matching",
+          status: 'queued_for_matching',
           quantity: input.quantity,
           limitPriceBps: input.limitPriceBps,
           referencePriceBps,
@@ -195,13 +201,17 @@ export class OrdersService {
       const order = insertedRows[0];
 
       if (!order) {
-        throw new AppError(500, "order_creation_failed", "failed to create order");
+        throw new AppError(
+          500,
+          'order_creation_failed',
+          'failed to create order',
+        );
       }
 
       const transactionRows = await tx
         .insert(ledgerTransactions)
         .values({
-          referenceType: "order_reservation",
+          referenceType: 'order_reservation',
           referenceId: order.id,
           metadata: {
             marketId: order.marketId,
@@ -219,8 +229,8 @@ export class OrdersService {
       if (!transaction) {
         throw new AppError(
           500,
-          "ledger_transaction_failed",
-          "failed to create ledger transaction",
+          'ledger_transaction_failed',
+          'failed to create ledger transaction',
         );
       }
 
@@ -228,14 +238,14 @@ export class OrdersService {
         {
           transactionId: transaction.id,
           walletAccountId: availableWallet.id,
-          side: "debit",
+          side: 'debit',
           amountMinor: reservedAmountMinor,
           currency: orderCurrency,
         },
         {
           transactionId: transaction.id,
           walletAccountId: reservedWallet.id,
-          side: "credit",
+          side: 'credit',
           amountMinor: reservedAmountMinor,
           currency: orderCurrency,
         },
@@ -244,7 +254,7 @@ export class OrdersService {
       const command = await this.recordMarketCommand(tx, {
         marketId: market.id,
         orderId: order.id,
-        commandType: "order_create",
+        commandType: 'order_create',
         metadata: {
           orderType: order.type,
           side: order.side,
@@ -274,13 +284,15 @@ export class OrdersService {
           marketId: orders.marketId,
         })
         .from(orders)
-        .where(and(eq(orders.id, input.orderId), eq(orders.userId, input.userId)))
+        .where(
+          and(eq(orders.id, input.orderId), eq(orders.userId, input.userId)),
+        )
         .limit(1);
 
       const orderReference = orderRows[0];
 
       if (!orderReference) {
-        throw new AppError(404, "order_not_found", "order was not found");
+        throw new AppError(404, 'order_not_found', 'order was not found');
       }
 
       await this.acquireMarketWriteLock(tx, orderReference.marketId);
@@ -288,20 +300,22 @@ export class OrdersService {
       const currentOrderRows = await tx
         .select()
         .from(orders)
-        .where(and(eq(orders.id, input.orderId), eq(orders.userId, input.userId)))
+        .where(
+          and(eq(orders.id, input.orderId), eq(orders.userId, input.userId)),
+        )
         .limit(1);
 
       const order = currentOrderRows[0];
 
       if (!order) {
-        throw new AppError(404, "order_not_found", "order was not found");
+        throw new AppError(404, 'order_not_found', 'order was not found');
       }
 
-      if (order.status === "cancelled") {
+      if (order.status === 'cancelled') {
         const existingCommand = await this.findExistingMarketCommand(
           tx,
           order.id,
-          "order_cancel",
+          'order_cancel',
         );
 
         return {
@@ -312,13 +326,13 @@ export class OrdersService {
       }
 
       if (
-        order.status !== "queued_for_matching" &&
-        order.status !== "partially_filled"
+        order.status !== 'queued_for_matching' &&
+        order.status !== 'partially_filled'
       ) {
         throw new AppError(
           409,
-          "order_not_cancellable",
-          "order is not eligible for cancellation",
+          'order_not_cancellable',
+          'order is not eligible for cancellation',
         );
       }
 
@@ -326,19 +340,19 @@ export class OrdersService {
 
       const availableWallet = await this.getOrCreateWalletAccount(tx, {
         ownerUserId: input.userId,
-        type: "user_cash",
+        type: 'user_cash',
         currency: order.currency,
       });
       const reservedWallet = await this.getOrCreateWalletAccount(tx, {
         ownerUserId: input.userId,
-        type: "user_order_reserved",
+        type: 'user_order_reserved',
         currency: order.currency,
       });
 
       const updatedRows = await tx
         .update(orders)
         .set({
-          status: "cancelled",
+          status: 'cancelled',
           reservedAmountMinor: 0,
           cancelledAt: new Date(),
           updatedAt: new Date(),
@@ -349,17 +363,21 @@ export class OrdersService {
       const cancelledOrder = updatedRows[0];
 
       if (!cancelledOrder) {
-        throw new AppError(500, "order_cancellation_failed", "failed to cancel order");
+        throw new AppError(
+          500,
+          'order_cancellation_failed',
+          'failed to cancel order',
+        );
       }
 
       const transactionRows = await tx
         .insert(ledgerTransactions)
         .values({
-          referenceType: "order_release",
+          referenceType: 'order_release',
           referenceId: cancelledOrder.id,
           metadata: {
             marketId: cancelledOrder.marketId,
-            reason: "user_cancelled_order",
+            reason: 'user_cancelled_order',
           },
         })
         .returning({
@@ -371,8 +389,8 @@ export class OrdersService {
       if (!transaction) {
         throw new AppError(
           500,
-          "ledger_transaction_failed",
-          "failed to create ledger transaction",
+          'ledger_transaction_failed',
+          'failed to create ledger transaction',
         );
       }
 
@@ -380,14 +398,14 @@ export class OrdersService {
         {
           transactionId: transaction.id,
           walletAccountId: reservedWallet.id,
-          side: "debit",
+          side: 'debit',
           amountMinor: releaseAmountMinor,
           currency: cancelledOrder.currency,
         },
         {
           transactionId: transaction.id,
           walletAccountId: availableWallet.id,
-          side: "credit",
+          side: 'credit',
           amountMinor: releaseAmountMinor,
           currency: cancelledOrder.currency,
         },
@@ -396,7 +414,7 @@ export class OrdersService {
       const command = await this.recordMarketCommand(tx, {
         marketId: cancelledOrder.marketId,
         orderId: cancelledOrder.id,
-        commandType: "order_cancel",
+        commandType: 'order_cancel',
         metadata: {
           orderType: cancelledOrder.type,
           side: cancelledOrder.side,
@@ -406,7 +424,7 @@ export class OrdersService {
           referencePriceBps: cancelledOrder.referencePriceBps,
           reservedAmountMinor: releaseAmountMinor,
           currency: cancelledOrder.currency,
-          reason: "user_cancelled_order",
+          reason: 'user_cancelled_order',
         },
       });
 
@@ -420,31 +438,47 @@ export class OrdersService {
 
   private assertOrderQuantity(quantity: number) {
     if (!Number.isInteger(quantity) || quantity <= 0) {
-      throw new AppError(400, "invalid_quantity", "quantity must be a positive integer");
+      throw new AppError(
+        400,
+        'invalid_quantity',
+        'quantity must be a positive integer',
+      );
     }
 
     if (quantity > MAX_ORDER_QUANTITY) {
       throw new AppError(
         400,
-        "order_quantity_limit_exceeded",
-        "quantity exceeds the maximum supported order size",
+        'order_quantity_limit_exceeded',
+        'quantity exceeds the maximum supported order size',
       );
     }
   }
 
   private assertMarketTradable(status: MarketStatus) {
-    if (status !== "active") {
-      throw new AppError(409, "market_not_tradable", "market is not active for trading");
+    if (status !== 'active') {
+      throw new AppError(
+        409,
+        'market_not_tradable',
+        'market is not active for trading',
+      );
     }
   }
 
   private assertLimitPrice(limitPriceBps: number | undefined) {
     if (!Number.isInteger(limitPriceBps) || !limitPriceBps) {
-      throw new AppError(400, "invalid_limit_price", "limit price is required for limit orders");
+      throw new AppError(
+        400,
+        'invalid_limit_price',
+        'limit price is required for limit orders',
+      );
     }
 
     if (limitPriceBps <= 0 || limitPriceBps >= 10000) {
-      throw new AppError(400, "invalid_limit_price", "limit price must be between 1 and 9999");
+      throw new AppError(
+        400,
+        'invalid_limit_price',
+        'limit price must be between 1 and 9999',
+      );
     }
 
     return limitPriceBps;
@@ -457,13 +491,13 @@ export class OrdersService {
     },
     outcome: OrderOutcome,
   ) {
-    const priceBps = outcome === "yes" ? market.yesPriceBps : market.noPriceBps;
+    const priceBps = outcome === 'yes' ? market.yesPriceBps : market.noPriceBps;
 
     if (priceBps <= 0 || priceBps >= 10000) {
       throw new AppError(
         409,
-        "market_price_unavailable",
-        "market order price is unavailable for this market",
+        'market_price_unavailable',
+        'market order price is unavailable for this market',
       );
     }
 
@@ -476,16 +510,21 @@ export class OrdersService {
     referencePriceBps: number;
   }) {
     const exposureBps =
-      input.side === "buy" ? input.referencePriceBps : 10000 - input.referencePriceBps;
+      input.side === 'buy'
+        ? input.referencePriceBps
+        : 10000 - input.referencePriceBps;
 
     if (exposureBps <= 0 || exposureBps >= 10000) {
-      throw new AppError(400, "invalid_exposure", "order exposure is invalid");
+      throw new AppError(400, 'invalid_exposure', 'order exposure is invalid');
     }
 
     return Math.ceil((input.quantity * exposureBps) / 100);
   }
 
-  private async getWalletAccountBalance(executor: DbExecutor, walletAccountId: string) {
+  private async getWalletAccountBalance(
+    executor: DbExecutor,
+    walletAccountId: string,
+  ) {
     const balanceRows = await executor
       .select({
         balanceMinor: sql<string>`coalesce(sum(case when ${ledgerEntries.side} = 'credit' then ${ledgerEntries.amountMinor} else -${ledgerEntries.amountMinor} end), 0)`,
@@ -525,7 +564,11 @@ export class OrdersService {
     const updatedMarket = updatedMarketRows[0];
 
     if (!updatedMarket) {
-      throw new AppError(500, "market_sequence_failed", "failed to advance market sequence");
+      throw new AppError(
+        500,
+        'market_sequence_failed',
+        'failed to advance market sequence',
+      );
     }
 
     const commandRows = await executor
@@ -542,7 +585,11 @@ export class OrdersService {
     const command = commandRows[0];
 
     if (!command) {
-      throw new AppError(500, "market_command_failed", "failed to record market command");
+      throw new AppError(
+        500,
+        'market_command_failed',
+        'failed to record market command',
+      );
     }
 
     return command;
@@ -623,16 +670,20 @@ export class OrdersService {
       const inserted = insertedRows[0];
 
       if (!inserted) {
-        throw new AppError(500, "wallet_account_creation_failed", "failed to create wallet account");
+        throw new AppError(
+          500,
+          'wallet_account_creation_failed',
+          'failed to create wallet account',
+        );
       }
 
       return inserted;
     } catch (error) {
       if (
-        typeof error === "object" &&
+        typeof error === 'object' &&
         error !== null &&
-        "code" in error &&
-        error.code === "23505"
+        'code' in error &&
+        error.code === '23505'
       ) {
         const retryRows = await executor
           .select({

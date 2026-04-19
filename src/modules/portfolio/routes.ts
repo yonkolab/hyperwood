@@ -1,38 +1,45 @@
-import type { FastifyInstance, FastifyPluginOptions, FastifyRequest } from "fastify";
-import { z } from "zod";
-import { AppError } from "../../lib/errors";
-import { IdentityService } from "../identity/service";
-import { PortfolioService } from "./service";
+import type {
+  FastifyInstance,
+  FastifyPluginOptions,
+  FastifyRequest,
+} from 'fastify';
+import { z } from 'zod';
+import { AppError } from '../../lib/errors';
+import { IdentityService } from '../identity/service';
+import { PortfolioService } from './service';
 
 const fillsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(50),
-  currency: z.enum(["USD", "BRL"]).default("USD"),
+  currency: z.enum(['USD', 'BRL']).default('USD'),
 });
 
 const settlementsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(50),
-  currency: z.enum(["USD", "BRL"]).default("USD"),
+  currency: z.enum(['USD', 'BRL']).default('USD'),
 });
 
 const portfolioQuerySchema = z.object({
-  currency: z.enum(["USD", "BRL"]).default("USD"),
+  currency: z.enum(['USD', 'BRL']).default('USD'),
 });
 
 function getSessionTokenFromRequest(request: FastifyRequest) {
   const header = request.headers.authorization;
 
-  if (!header || !header.startsWith("Bearer ")) {
-    throw new AppError(401, "missing_session", "missing bearer session token");
+  if (!header?.startsWith('Bearer ')) {
+    throw new AppError(401, 'missing_session', 'missing bearer session token');
   }
 
-  return header.slice("Bearer ".length);
+  return header.slice('Bearer '.length);
 }
 
-async function portfolioRoutes(app: FastifyInstance, _options: FastifyPluginOptions) {
+async function portfolioRoutes(
+  app: FastifyInstance,
+  _options: FastifyPluginOptions,
+) {
   const identityService = new IdentityService();
   const portfolioService = new PortfolioService();
 
-  app.get("/portfolio", async (request) => {
+  app.get('/portfolio', async (request) => {
     const sessionToken = getSessionTokenFromRequest(request);
     const query = portfolioQuerySchema.parse(request.query);
     const user = await identityService.getUserFromSessionToken(sessionToken);
@@ -40,7 +47,7 @@ async function portfolioRoutes(app: FastifyInstance, _options: FastifyPluginOpti
     return portfolioService.getPortfolioSummary(user.id, query.currency);
   });
 
-  app.get("/portfolio/fills", async (request) => {
+  app.get('/portfolio/fills', async (request) => {
     const sessionToken = getSessionTokenFromRequest(request);
     const query = fillsQuerySchema.parse(request.query);
     const user = await identityService.getUserFromSessionToken(sessionToken);
@@ -48,12 +55,16 @@ async function portfolioRoutes(app: FastifyInstance, _options: FastifyPluginOpti
     return portfolioService.listFills(user.id, query.limit, query.currency);
   });
 
-  app.get("/portfolio/settlements", async (request) => {
+  app.get('/portfolio/settlements', async (request) => {
     const sessionToken = getSessionTokenFromRequest(request);
     const query = settlementsQuerySchema.parse(request.query);
     const user = await identityService.getUserFromSessionToken(sessionToken);
 
-    return portfolioService.listSettlements(user.id, query.limit, query.currency);
+    return portfolioService.listSettlements(
+      user.id,
+      query.limit,
+      query.currency,
+    );
   });
 }
 

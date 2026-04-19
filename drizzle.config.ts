@@ -1,11 +1,12 @@
-import { defineConfig } from "drizzle-kit";
+import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
-  schema: "./src/db/schema/index.ts",
-  out: "./drizzle/migrations",
-  dialect: "postgresql",
+  schema: './src/db/schema/index.ts',
+  out: './drizzle/migrations',
+  dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/hyperwood",
+    url:
+      process.env.DATABASE_URL ??
+      'postgres://postgres:postgres@localhost:5432/hyperwood',
   },
 });
-

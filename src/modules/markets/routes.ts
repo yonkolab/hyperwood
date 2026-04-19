@@ -1,9 +1,13 @@
-import type { FastifyInstance, FastifyPluginOptions, FastifyRequest } from "fastify";
-import { z } from "zod";
-import { env } from "../../config/env";
-import { AppError } from "../../lib/errors";
-import { MatchingService } from "../matching/service";
-import { MarketsService } from "./service";
+import type {
+  FastifyInstance,
+  FastifyPluginOptions,
+  FastifyRequest,
+} from 'fastify';
+import { z } from 'zod';
+import { env } from '../../config/env';
+import { AppError } from '../../lib/errors';
+import { MatchingService } from '../matching/service';
+import { MarketsService } from './service';
 
 const createEventBodySchema = z.object({
   slug: z.string().min(3).max(128),
@@ -19,18 +23,18 @@ const createMarketBodySchema = z.object({
   slug: z.string().min(3).max(128),
   title: z.string().min(3).max(160),
   summary: z.string().min(3).max(2000).optional(),
-  currency: z.enum(["USD", "BRL"]).default("USD"),
+  currency: z.enum(['USD', 'BRL']).default('USD'),
   status: z.enum([
-    "draft",
-    "scheduled",
-    "active",
-    "halted",
-    "trading_closed",
-    "awaiting_resolution",
-    "settled",
-    "cancelled",
-    "disputed",
-    "voided",
+    'draft',
+    'scheduled',
+    'active',
+    'halted',
+    'trading_closed',
+    'awaiting_resolution',
+    'settled',
+    'cancelled',
+    'disputed',
+    'voided',
   ]),
   tags: z.array(z.string().min(1).max(64)).max(16).optional(),
   resolutionRules: z.string().min(3).max(4000),
@@ -47,21 +51,21 @@ const listMarketsQuerySchema = z.object({
   category: z.string().min(2).max(64).optional(),
   status: z
     .enum([
-      "draft",
-      "scheduled",
-      "active",
-      "halted",
-      "trading_closed",
-      "awaiting_resolution",
-      "settled",
-      "cancelled",
-      "disputed",
-      "voided",
+      'draft',
+      'scheduled',
+      'active',
+      'halted',
+      'trading_closed',
+      'awaiting_resolution',
+      'settled',
+      'cancelled',
+      'disputed',
+      'voided',
     ])
     .optional(),
   tag: z.string().min(1).max(64).optional(),
   search: z.string().min(1).max(160).optional(),
-  sort: z.enum(["newest", "closing_soon", "highest_volume"]).optional(),
+  sort: z.enum(['newest', 'closing_soon', 'highest_volume']).optional(),
   limit: z.coerce.number().int().positive().max(100).default(25),
 });
 
@@ -71,23 +75,23 @@ const marketParamsSchema = z.object({
 
 const updateMarketStatusBodySchema = z.object({
   status: z.enum([
-    "draft",
-    "scheduled",
-    "active",
-    "halted",
-    "trading_closed",
-    "awaiting_resolution",
-    "settled",
-    "cancelled",
-    "disputed",
-    "voided",
+    'draft',
+    'scheduled',
+    'active',
+    'halted',
+    'trading_closed',
+    'awaiting_resolution',
+    'settled',
+    'cancelled',
+    'disputed',
+    'voided',
   ]),
   reason: z.string().min(3).max(4000),
   changedBy: z.string().min(3).max(128).optional(),
 });
 
 const resolveMarketBodySchema = z.object({
-  outcome: z.enum(["yes", "no", "void"]),
+  outcome: z.enum(['yes', 'no', 'void']),
   evidenceSummary: z.string().min(3).max(4000),
   evidenceSources: z.array(z.string().url()).max(16).optional(),
   approvedBy: z.string().min(3).max(128).optional(),
@@ -103,18 +107,25 @@ const recentTradesQuerySchema = z.object({
 });
 
 function assertBootstrapToken(request: FastifyRequest) {
-  const bootstrapToken = request.headers["x-bootstrap-token"];
+  const bootstrapToken = request.headers['x-bootstrap-token'];
 
   if (bootstrapToken !== env.INTERNAL_BOOTSTRAP_TOKEN) {
-    throw new AppError(401, "invalid_bootstrap_token", "invalid bootstrap token");
+    throw new AppError(
+      401,
+      'invalid_bootstrap_token',
+      'invalid bootstrap token',
+    );
   }
 }
 
-async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions) {
+async function marketRoutes(
+  app: FastifyInstance,
+  _options: FastifyPluginOptions,
+) {
   const marketsService = new MarketsService();
   const matchingService = new MatchingService();
 
-  app.get("/markets", async (request) => {
+  app.get('/markets', async (request) => {
     const query = listMarketsQuerySchema.parse(request.query);
 
     return marketsService.listMarkets({
@@ -127,19 +138,19 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
     });
   });
 
-  app.get("/markets/:marketId", async (request) => {
+  app.get('/markets/:marketId', async (request) => {
     const params = marketParamsSchema.parse(request.params);
 
     return marketsService.getMarketDetail(params.marketId);
   });
 
-  app.get("/markets/:marketId/order-book", async (request) => {
+  app.get('/markets/:marketId/order-book', async (request) => {
     const params = marketParamsSchema.parse(request.params);
 
     return marketsService.getOrderBookSnapshot(params.marketId);
   });
 
-  app.get("/markets/:marketId/order-book/deltas", async (request) => {
+  app.get('/markets/:marketId/order-book/deltas', async (request) => {
     const params = marketParamsSchema.parse(request.params);
     const query = orderBookDeltasQuerySchema.parse(request.query);
 
@@ -149,14 +160,14 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
     });
   });
 
-  app.get("/markets/:marketId/trades", async (request) => {
+  app.get('/markets/:marketId/trades', async (request) => {
     const params = marketParamsSchema.parse(request.params);
     const query = recentTradesQuerySchema.parse(request.query);
 
     return matchingService.listRecentTrades(params.marketId, query.limit);
   });
 
-  app.post("/internal/markets/events", async (request, reply) => {
+  app.post('/internal/markets/events', async (request, reply) => {
     assertBootstrapToken(request);
     const body = createEventBodySchema.parse(request.body);
     const result = await marketsService.createEvent({
@@ -171,7 +182,7 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
     reply.status(201).send(result);
   });
 
-  app.post("/internal/markets", async (request, reply) => {
+  app.post('/internal/markets', async (request, reply) => {
     assertBootstrapToken(request);
     const body = createMarketBodySchema.parse(request.body);
     const result = await marketsService.createMarket({
@@ -185,8 +196,12 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
       noPriceBps: body.noPriceBps,
       ...(body.summary ? { summary: body.summary } : {}),
       ...(body.tags ? { tags: body.tags } : {}),
-      ...(body.resolutionSources ? { resolutionSources: body.resolutionSources } : {}),
-      ...(body.volumeUsdMinor !== undefined ? { volumeUsdMinor: body.volumeUsdMinor } : {}),
+      ...(body.resolutionSources
+        ? { resolutionSources: body.resolutionSources }
+        : {}),
+      ...(body.volumeUsdMinor !== undefined
+        ? { volumeUsdMinor: body.volumeUsdMinor }
+        : {}),
       ...(body.opensAt ? { opensAt: new Date(body.opensAt) } : {}),
       ...(body.closesAt ? { closesAt: new Date(body.closesAt) } : {}),
       ...(body.resolvesAt ? { resolvesAt: new Date(body.resolvesAt) } : {}),
@@ -195,14 +210,14 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
     reply.status(201).send(result);
   });
 
-  app.post("/internal/markets/:marketId/match", async (request) => {
+  app.post('/internal/markets/:marketId/match', async (request) => {
     assertBootstrapToken(request);
     const params = marketParamsSchema.parse(request.params);
 
     return matchingService.runLimitOrderMatching(params.marketId);
   });
 
-  app.post("/internal/markets/:marketId/status", async (request, reply) => {
+  app.post('/internal/markets/:marketId/status', async (request, reply) => {
     assertBootstrapToken(request);
     const params = marketParamsSchema.parse(request.params);
     const body = updateMarketStatusBodySchema.parse(request.body);
@@ -215,21 +230,23 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
     reply.status(200).send(result);
   });
 
-  app.post("/internal/markets/:marketId/resolve", async (request, reply) => {
+  app.post('/internal/markets/:marketId/resolve', async (request, reply) => {
     assertBootstrapToken(request);
     const params = marketParamsSchema.parse(request.params);
     const body = resolveMarketBodySchema.parse(request.body);
     const result = await marketsService.resolveMarket(params.marketId, {
       outcome: body.outcome,
       evidenceSummary: body.evidenceSummary,
-      ...(body.evidenceSources ? { evidenceSources: body.evidenceSources } : {}),
+      ...(body.evidenceSources
+        ? { evidenceSources: body.evidenceSources }
+        : {}),
       ...(body.approvedBy ? { approvedBy: body.approvedBy } : {}),
     });
 
     reply.status(200).send(result);
   });
 
-  app.post("/internal/markets/:marketId/settle", async (request, reply) => {
+  app.post('/internal/markets/:marketId/settle', async (request, reply) => {
     assertBootstrapToken(request);
     const params = marketParamsSchema.parse(request.params);
     const result = await marketsService.settleMarket(params.marketId);

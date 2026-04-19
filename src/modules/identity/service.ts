@@ -1,8 +1,9 @@
-import { and, count, eq, gt, gte, isNotNull, isNull, or } from "drizzle-orm";
-import { db } from "../../db/client";
+import { and, count, eq, gt, gte, isNotNull, isNull, or } from 'drizzle-orm';
+import { env } from '../../config/env';
+import { db } from '../../db/client';
 import {
-  apiKeys,
   apiKeyRequestNonces,
+  apiKeys,
   emailVerificationTokens,
   loginEvents,
   mfaActionAuthorizations,
@@ -11,8 +12,7 @@ import {
   userMfaFactors,
   userSessions,
   users,
-} from "../../db/schema";
-import { env } from "../../config/env";
+} from '../../db/schema';
 import {
   createOpaqueToken,
   hashPassword,
@@ -21,18 +21,22 @@ import {
   safeEqualString,
   sha256Hex,
   verifyPassword,
-} from "../../lib/crypto";
-import { AppError } from "../../lib/errors";
-import { decryptString, encryptString } from "../../lib/secrets";
-import { buildTotpOtpAuthUri, generateTotpSecret, verifyTotpCode } from "../../lib/totp";
+} from '../../lib/crypto';
+import { AppError } from '../../lib/errors';
+import { decryptString, encryptString } from '../../lib/secrets';
+import {
+  buildTotpOtpAuthUri,
+  generateTotpSecret,
+  verifyTotpCode,
+} from '../../lib/totp';
 
-export type SensitiveAction = "api_keys_manage";
+export type SensitiveAction = 'api_keys_manage';
 type LoginEventOutcome =
-  | "success"
-  | "invalid_credentials"
-  | "mfa_challenge"
-  | "mfa_success"
-  | "blocked_suspicious";
+  | 'success'
+  | 'invalid_credentials'
+  | 'mfa_challenge'
+  | 'mfa_success'
+  | 'blocked_suspicious';
 
 type RegisterInput = {
   email: string;
@@ -130,12 +134,16 @@ export class IdentityService {
         const created = createdRows[0];
 
         if (!created) {
-          throw new AppError(500, "user_creation_failed", "failed to create user");
+          throw new AppError(
+            500,
+            'user_creation_failed',
+            'failed to create user',
+          );
         }
 
         await tx.insert(userIdentities).values({
           userId: created.id,
-          provider: "password",
+          provider: 'password',
           providerSubject: email,
           email,
           passwordHash,
@@ -155,9 +163,15 @@ export class IdentityService {
         };
       });
 
-      return this.formatVerificationResponse(result.user, result.verificationChallenge);
+      return this.formatVerificationResponse(
+        result.user,
+        result.verificationChallenge,
+      );
     } catch (error) {
-      this.rethrowConstraint(error, "user already exists for this email or username");
+      this.rethrowConstraint(
+        error,
+        'user already exists for this email or username',
+      );
       throw error;
     }
   }
@@ -175,15 +189,15 @@ export class IdentityService {
         email,
         ipAddress: input.ipAddress,
         userAgent: input.userAgent,
-        outcome: "blocked_suspicious",
+        outcome: 'blocked_suspicious',
         suspicious: true,
-        reason: "repeated_failed_login_threshold",
+        reason: 'repeated_failed_login_threshold',
       });
 
       throw new AppError(
         429,
-        "login_temporarily_restricted",
-        "login temporarily restricted due to suspicious activity",
+        'login_temporarily_restricted',
+        'login temporarily restricted due to suspicious activity',
       );
     }
 
@@ -197,7 +211,7 @@ export class IdentityService {
       .innerJoin(users, eq(users.id, userIdentities.userId))
       .where(
         and(
-          eq(userIdentities.provider, "password"),
+          eq(userIdentities.provider, 'password'),
           eq(userIdentities.providerSubject, email),
         ),
       )
@@ -205,11 +219,13 @@ export class IdentityService {
 
     const identity = rows[0];
 
-    if (!identity?.passwordHash || !verifyPassword(input.password, identity.passwordHash)) {
+    if (
+      !identity?.passwordHash ||
+      !verifyPassword(input.password, identity.passwordHash)
+    ) {
       const failedAttemptCounts = {
         emailFailures: recentFailureCounts.emailFailures + 1,
-        ipFailures:
-          recentFailureCounts.ipFailures + (input.ipAddress ? 1 : 0),
+        ipFailures: recentFailureCounts.ipFailures + (input.ipAddress ? 1 : 0),
       };
       const suspicious = this.exceedsLoginFailureThreshold(failedAttemptCounts);
 
@@ -218,20 +234,24 @@ export class IdentityService {
         email,
         ipAddress: input.ipAddress,
         userAgent: input.userAgent,
-        outcome: "invalid_credentials",
+        outcome: 'invalid_credentials',
         suspicious,
-        reason: suspicious ? "repeated_failed_login_threshold" : undefined,
+        reason: suspicious ? 'repeated_failed_login_threshold' : undefined,
       });
 
       if (suspicious) {
         throw new AppError(
           429,
-          "login_temporarily_restricted",
-          "login temporarily restricted due to suspicious activity",
+          'login_temporarily_restricted',
+          'login temporarily restricted due to suspicious activity',
         );
       }
 
-      throw new AppError(401, "invalid_credentials", "invalid email or password");
+      throw new AppError(
+        401,
+        'invalid_credentials',
+        'invalid email or password',
+      );
     }
 
     const activeTotpFactorRows = await db
@@ -242,7 +262,7 @@ export class IdentityService {
       .where(
         and(
           eq(userMfaFactors.userId, identity.userId),
-          eq(userMfaFactors.type, "totp"),
+          eq(userMfaFactors.type, 'totp'),
           isNull(userMfaFactors.disabledAt),
           isNotNull(userMfaFactors.verifiedAt),
         ),
@@ -265,7 +285,7 @@ export class IdentityService {
         email,
         ipAddress: input.ipAddress,
         userAgent: input.userAgent,
-        outcome: "mfa_challenge",
+        outcome: 'mfa_challenge',
         suspicious: false,
         reason: undefined,
       });
@@ -288,7 +308,7 @@ export class IdentityService {
       email,
       ipAddress: input.ipAddress,
       userAgent: input.userAgent,
-      outcome: "success",
+      outcome: 'success',
       suspicious: false,
       reason: undefined,
     });
@@ -322,7 +342,11 @@ export class IdentityService {
     const session = rows[0];
 
     if (!session) {
-      throw new AppError(401, "invalid_session", "session is invalid or expired");
+      throw new AppError(
+        401,
+        'invalid_session',
+        'session is invalid or expired',
+      );
     }
 
     return session.user;
@@ -339,14 +363,14 @@ export class IdentityService {
     const user = userRows[0];
 
     if (!user) {
-      throw new AppError(404, "user_not_found", "user was not found");
+      throw new AppError(404, 'user_not_found', 'user was not found');
     }
 
-    if (user.status === "active") {
+    if (user.status === 'active') {
       throw new AppError(
         409,
-        "email_already_verified",
-        "email is already verified for this user",
+        'email_already_verified',
+        'email is already verified for this user',
       );
     }
 
@@ -379,7 +403,7 @@ export class IdentityService {
         userIdentities,
         and(
           eq(userIdentities.userId, emailVerificationTokens.userId),
-          eq(userIdentities.provider, "password"),
+          eq(userIdentities.provider, 'password'),
         ),
       )
       .where(eq(emailVerificationTokens.tokenHash, tokenHash))
@@ -388,15 +412,27 @@ export class IdentityService {
     const verification = rows[0];
 
     if (!verification) {
-      throw new AppError(404, "verification_not_found", "verification token was not found");
+      throw new AppError(
+        404,
+        'verification_not_found',
+        'verification token was not found',
+      );
     }
 
     if (verification.consumedAt) {
-      throw new AppError(409, "verification_consumed", "verification token was already used");
+      throw new AppError(
+        409,
+        'verification_consumed',
+        'verification token was already used',
+      );
     }
 
     if (verification.expiresAt <= new Date()) {
-      throw new AppError(410, "verification_expired", "verification token has expired");
+      throw new AppError(
+        410,
+        'verification_expired',
+        'verification token has expired',
+      );
     }
 
     await db.transaction(async (tx) => {
@@ -405,12 +441,14 @@ export class IdentityService {
         .set({
           consumedAt: new Date(),
         })
-        .where(eq(emailVerificationTokens.id, verification.verificationTokenId));
+        .where(
+          eq(emailVerificationTokens.id, verification.verificationTokenId),
+        );
 
       await tx
         .update(users)
         .set({
-          status: "active",
+          status: 'active',
           updatedAt: new Date(),
         })
         .where(eq(users.id, verification.tokenUserId));
@@ -428,7 +466,7 @@ export class IdentityService {
     return {
       user: {
         ...verification.user,
-        status: "active" as const,
+        status: 'active' as const,
       },
       verified: true,
     };
@@ -446,14 +484,14 @@ export class IdentityService {
       .limit(1);
 
     if (!user) {
-      throw new AppError(404, "user_not_found", "user was not found");
+      throw new AppError(404, 'user_not_found', 'user was not found');
     }
 
-    if (user.status !== "active") {
+    if (user.status !== 'active') {
       throw new AppError(
         403,
-        "account_not_verified",
-        "account must be active before setting up MFA",
+        'account_not_verified',
+        'account must be active before setting up MFA',
       );
     }
 
@@ -463,7 +501,7 @@ export class IdentityService {
       .insert(userMfaFactors)
       .values({
         userId: user.id,
-        type: "totp",
+        type: 'totp',
         secretEncrypted: encryptedSecret,
       })
       .returning({
@@ -473,7 +511,11 @@ export class IdentityService {
     const factor = factorRows[0];
 
     if (!factor) {
-      throw new AppError(500, "mfa_setup_failed", "failed to create mfa factor");
+      throw new AppError(
+        500,
+        'mfa_setup_failed',
+        'failed to create mfa factor',
+      );
     }
 
     return {
@@ -501,7 +543,7 @@ export class IdentityService {
         and(
           eq(userMfaFactors.id, input.factorId),
           eq(userMfaFactors.userId, input.userId),
-          eq(userMfaFactors.type, "totp"),
+          eq(userMfaFactors.type, 'totp'),
         ),
       )
       .limit(1);
@@ -509,21 +551,32 @@ export class IdentityService {
     const factor = rows[0];
 
     if (!factor) {
-      throw new AppError(404, "mfa_factor_not_found", "mfa factor was not found");
+      throw new AppError(
+        404,
+        'mfa_factor_not_found',
+        'mfa factor was not found',
+      );
     }
 
     if (factor.disabledAt) {
-      throw new AppError(409, "mfa_factor_disabled", "mfa factor is disabled");
+      throw new AppError(409, 'mfa_factor_disabled', 'mfa factor is disabled');
     }
 
     if (factor.verifiedAt) {
-      throw new AppError(409, "mfa_already_enabled", "mfa factor is already verified");
+      throw new AppError(
+        409,
+        'mfa_already_enabled',
+        'mfa factor is already verified',
+      );
     }
 
-    const secret = decryptString(factor.secretEncrypted, env.TOTP_ENCRYPTION_KEY);
+    const secret = decryptString(
+      factor.secretEncrypted,
+      env.TOTP_ENCRYPTION_KEY,
+    );
 
     if (!verifyTotpCode({ secret, code: input.code })) {
-      throw new AppError(401, "invalid_totp_code", "invalid totp code");
+      throw new AppError(401, 'invalid_totp_code', 'invalid totp code');
     }
 
     await db
@@ -557,18 +610,32 @@ export class IdentityService {
     const challenge = challengeRows[0];
 
     if (!challenge) {
-      throw new AppError(404, "mfa_challenge_not_found", "mfa challenge was not found");
+      throw new AppError(
+        404,
+        'mfa_challenge_not_found',
+        'mfa challenge was not found',
+      );
     }
 
     if (challenge.consumedAt) {
-      throw new AppError(409, "mfa_challenge_consumed", "mfa challenge was already used");
+      throw new AppError(
+        409,
+        'mfa_challenge_consumed',
+        'mfa challenge was already used',
+      );
     }
 
     if (challenge.expiresAt <= new Date()) {
-      throw new AppError(410, "mfa_challenge_expired", "mfa challenge has expired");
+      throw new AppError(
+        410,
+        'mfa_challenge_expired',
+        'mfa challenge has expired',
+      );
     }
 
-    const factorSecrets = await this.getActiveTotpFactorSecrets(challenge.userId);
+    const factorSecrets = await this.getActiveTotpFactorSecrets(
+      challenge.userId,
+    );
 
     const matchingFactor = factorSecrets.find((secret) =>
       verifyTotpCode({
@@ -578,7 +645,7 @@ export class IdentityService {
     );
 
     if (!matchingFactor) {
-      throw new AppError(401, "invalid_totp_code", "invalid totp code");
+      throw new AppError(401, 'invalid_totp_code', 'invalid totp code');
     }
 
     await db
@@ -599,7 +666,7 @@ export class IdentityService {
       email: normalizeEmail(challenge.user.email),
       ipAddress: input.ipAddress,
       userAgent: input.userAgent,
-      outcome: "mfa_success",
+      outcome: 'mfa_success',
       suspicious: false,
       reason: undefined,
     });
@@ -611,14 +678,16 @@ export class IdentityService {
     };
   }
 
-  async authorizeSensitiveActionWithTotp(input: AuthorizeSensitiveActionWithTotpInput) {
+  async authorizeSensitiveActionWithTotp(
+    input: AuthorizeSensitiveActionWithTotpInput,
+  ) {
     const factorSecrets = await this.getActiveTotpFactorSecrets(input.userId);
 
     if (factorSecrets.length === 0) {
       throw new AppError(
         409,
-        "mfa_not_enabled",
-        "user must enable MFA before requesting sensitive action authorization",
+        'mfa_not_enabled',
+        'user must enable MFA before requesting sensitive action authorization',
       );
     }
 
@@ -630,7 +699,7 @@ export class IdentityService {
     );
 
     if (!hasMatchingFactor) {
-      throw new AppError(401, "invalid_totp_code", "invalid totp code");
+      throw new AppError(401, 'invalid_totp_code', 'invalid totp code');
     }
 
     const authorizationToken = createOpaqueToken(32);
@@ -663,14 +732,14 @@ export class IdentityService {
     const existingUser = existingUserRows[0];
 
     if (!existingUser) {
-      throw new AppError(404, "user_not_found", "existing user was not found");
+      throw new AppError(404, 'user_not_found', 'existing user was not found');
     }
 
     if (normalizeEmail(existingUser.email) !== email) {
       throw new AppError(
         409,
-        "email_mismatch",
-        "existing user email must match the linked password identity email",
+        'email_mismatch',
+        'existing user email must match the linked password identity email',
       );
     }
 
@@ -681,7 +750,7 @@ export class IdentityService {
       .from(userIdentities)
       .where(
         and(
-          eq(userIdentities.provider, "password"),
+          eq(userIdentities.provider, 'password'),
           eq(userIdentities.providerSubject, email),
         ),
       )
@@ -692,8 +761,8 @@ export class IdentityService {
     if (existingIdentity) {
       throw new AppError(
         409,
-        "identity_exists",
-        "a password identity already exists for this email",
+        'identity_exists',
+        'a password identity already exists for this email',
       );
     }
 
@@ -701,7 +770,7 @@ export class IdentityService {
 
     await db.insert(userIdentities).values({
       userId: existingUser.id,
-      provider: "password",
+      provider: 'password',
       providerSubject: email,
       email,
       emailVerifiedAt: input.emailVerified ? new Date() : null,
@@ -725,20 +794,20 @@ export class IdentityService {
       .limit(1);
 
     if (!user) {
-      throw new AppError(404, "user_not_found", "user was not found");
+      throw new AppError(404, 'user_not_found', 'user was not found');
     }
 
-    if (user.status !== "active") {
+    if (user.status !== 'active') {
       throw new AppError(
         403,
-        "account_not_verified",
-        "account must be active before creating API keys",
+        'account_not_verified',
+        'account must be active before creating API keys',
       );
     }
 
     await this.requireSensitiveActionAuthorization({
       userId: input.userId,
-      action: "api_keys_manage",
+      action: 'api_keys_manage',
       authorizationToken: input.mfaAuthorizationToken,
     });
 
@@ -783,7 +852,7 @@ export class IdentityService {
   async revokeApiKey(input: RevokeApiKeyInput) {
     await this.requireSensitiveActionAuthorization({
       userId: input.userId,
-      action: "api_keys_manage",
+      action: 'api_keys_manage',
       authorizationToken: input.mfaAuthorizationToken,
     });
 
@@ -797,13 +866,15 @@ export class IdentityService {
         createdAt: apiKeys.createdAt,
       })
       .from(apiKeys)
-      .where(and(eq(apiKeys.id, input.apiKeyId), eq(apiKeys.userId, input.userId)))
+      .where(
+        and(eq(apiKeys.id, input.apiKeyId), eq(apiKeys.userId, input.userId)),
+      )
       .limit(1);
 
     const apiKey = rows[0];
 
     if (!apiKey) {
-      throw new AppError(404, "api_key_not_found", "api key was not found");
+      throw new AppError(404, 'api_key_not_found', 'api key was not found');
     }
 
     if (!apiKey.revokedAt) {
@@ -833,13 +904,23 @@ export class IdentityService {
     const timestampSeconds = Number(input.timestamp);
 
     if (!Number.isFinite(timestampSeconds)) {
-      throw new AppError(401, "invalid_api_signature", "invalid api signature timestamp");
+      throw new AppError(
+        401,
+        'invalid_api_signature',
+        'invalid api signature timestamp',
+      );
     }
 
     const nowSeconds = Math.floor(Date.now() / 1000);
 
-    if (Math.abs(nowSeconds - timestampSeconds) > env.API_HMAC_MAX_SKEW_SECONDS) {
-      throw new AppError(401, "expired_api_signature", "api signature timestamp is outside the accepted window");
+    if (
+      Math.abs(nowSeconds - timestampSeconds) > env.API_HMAC_MAX_SKEW_SECONDS
+    ) {
+      throw new AppError(
+        401,
+        'expired_api_signature',
+        'api signature timestamp is outside the accepted window',
+      );
     }
 
     const apiKey = await this.getApiKeyByPrefix(input.keyPrefix);
@@ -847,12 +928,15 @@ export class IdentityService {
     if (!apiKey.secretEncrypted) {
       throw new AppError(
         401,
-        "legacy_api_key_not_supported",
-        "api key must be rotated before it can be used with hmac signing",
+        'legacy_api_key_not_supported',
+        'api key must be rotated before it can be used with hmac signing',
       );
     }
 
-    const secret = decryptString(apiKey.secretEncrypted, env.API_KEY_ENCRYPTION_KEY);
+    const secret = decryptString(
+      apiKey.secretEncrypted,
+      env.API_KEY_ENCRYPTION_KEY,
+    );
     const expectedSignature = hmacSha256Hex(
       secret,
       this.buildApiHmacPayload({
@@ -864,7 +948,11 @@ export class IdentityService {
     );
 
     if (!safeEqualString(expectedSignature, input.signature)) {
-      throw new AppError(401, "invalid_api_signature", "api signature is invalid");
+      throw new AppError(
+        401,
+        'invalid_api_signature',
+        'api signature is invalid',
+      );
     }
 
     await this.persistApiKeyNonce({
@@ -877,12 +965,12 @@ export class IdentityService {
 
   private rethrowConstraint(error: unknown, fallbackMessage: string): never {
     if (
-      typeof error === "object" &&
+      typeof error === 'object' &&
       error !== null &&
-      "code" in error &&
-      error.code === "23505"
+      'code' in error &&
+      error.code === '23505'
     ) {
-      throw new AppError(409, "conflict", fallbackMessage);
+      throw new AppError(409, 'conflict', fallbackMessage);
     }
 
     throw error;
@@ -895,7 +983,9 @@ export class IdentityService {
   }) {
     const sessionToken = createOpaqueToken(48);
     const tokenHash = sha256Hex(sessionToken);
-    const expiresAt = new Date(Date.now() + env.SESSION_TTL_HOURS * 60 * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + env.SESSION_TTL_HOURS * 60 * 60 * 1000,
+    );
 
     await db.insert(userSessions).values({
       userId: input.userId,
@@ -934,7 +1024,7 @@ export class IdentityService {
       user,
       verificationChallenge: {
         expiresAt: verificationChallenge.expiresAt,
-        ...(env.NODE_ENV !== "production"
+        ...(env.NODE_ENV !== 'production'
           ? { token: verificationChallenge.token }
           : {}),
       },
@@ -960,7 +1050,7 @@ export class IdentityService {
     const apiKey = rows[0];
 
     if (!apiKey) {
-      throw new AppError(401, "invalid_api_key", "api key is invalid");
+      throw new AppError(401, 'invalid_api_key', 'api key is invalid');
     }
 
     return apiKey;
@@ -985,7 +1075,7 @@ export class IdentityService {
     const apiKey = rows[0];
 
     if (!apiKey) {
-      throw new AppError(401, "invalid_api_key", "api key is invalid");
+      throw new AppError(401, 'invalid_api_key', 'api key is invalid');
     }
 
     return apiKey;
@@ -1003,14 +1093,14 @@ export class IdentityService {
     requiredScopes?: string[],
   ) {
     if (apiKey.revokedAt) {
-      throw new AppError(401, "revoked_api_key", "api key has been revoked");
+      throw new AppError(401, 'revoked_api_key', 'api key has been revoked');
     }
 
-    if (apiKey.user.status !== "active") {
+    if (apiKey.user.status !== 'active') {
       throw new AppError(
         403,
-        "account_not_active",
-        "api key owner account is not active",
+        'account_not_active',
+        'api key owner account is not active',
       );
     }
 
@@ -1019,8 +1109,8 @@ export class IdentityService {
     if (!scopes.every((scope) => apiKey.scopes.includes(scope))) {
       throw new AppError(
         403,
-        "insufficient_api_key_scope",
-        "api key does not satisfy required scopes",
+        'insufficient_api_key_scope',
+        'api key does not satisfy required scopes',
       );
     }
 
@@ -1058,18 +1148,20 @@ export class IdentityService {
       await db.insert(apiKeyRequestNonces).values({
         apiKeyId: input.apiKeyId,
         nonceHash,
-        expiresAt: new Date(
-          Date.now() + env.API_HMAC_NONCE_TTL_SECONDS * 1000,
-        ),
+        expiresAt: new Date(Date.now() + env.API_HMAC_NONCE_TTL_SECONDS * 1000),
       });
     } catch (error) {
       if (
-        typeof error === "object" &&
+        typeof error === 'object' &&
         error !== null &&
-        "code" in error &&
-        error.code === "23505"
+        'code' in error &&
+        error.code === '23505'
       ) {
-        throw new AppError(401, "replayed_api_request", "api request nonce was already used");
+        throw new AppError(
+          401,
+          'replayed_api_request',
+          'api request nonce was already used',
+        );
       }
 
       throw error;
@@ -1085,8 +1177,8 @@ export class IdentityService {
     );
 
     const failedOutcomes = or(
-      eq(loginEvents.outcome, "invalid_credentials"),
-      eq(loginEvents.outcome, "blocked_suspicious"),
+      eq(loginEvents.outcome, 'invalid_credentials'),
+      eq(loginEvents.outcome, 'blocked_suspicious'),
     );
 
     const emailRows = await db
@@ -1167,7 +1259,7 @@ export class IdentityService {
       .where(
         and(
           eq(userMfaFactors.userId, userId),
-          eq(userMfaFactors.type, "totp"),
+          eq(userMfaFactors.type, 'totp'),
           isNull(userMfaFactors.disabledAt),
           isNotNull(userMfaFactors.verifiedAt),
         ),
@@ -1192,8 +1284,8 @@ export class IdentityService {
     if (!input.authorizationToken) {
       throw new AppError(
         403,
-        "mfa_authorization_required",
-        "mfa authorization is required for this action",
+        'mfa_authorization_required',
+        'mfa authorization is required for this action',
       );
     }
 
@@ -1208,7 +1300,10 @@ export class IdentityService {
         and(
           eq(mfaActionAuthorizations.userId, input.userId),
           eq(mfaActionAuthorizations.action, input.action),
-          eq(mfaActionAuthorizations.tokenHash, sha256Hex(input.authorizationToken)),
+          eq(
+            mfaActionAuthorizations.tokenHash,
+            sha256Hex(input.authorizationToken),
+          ),
         ),
       )
       .limit(1);
@@ -1218,24 +1313,24 @@ export class IdentityService {
     if (!authorization) {
       throw new AppError(
         401,
-        "invalid_mfa_authorization",
-        "mfa authorization is invalid for this action",
+        'invalid_mfa_authorization',
+        'mfa authorization is invalid for this action',
       );
     }
 
     if (authorization.consumedAt) {
       throw new AppError(
         409,
-        "mfa_authorization_consumed",
-        "mfa authorization was already used",
+        'mfa_authorization_consumed',
+        'mfa authorization was already used',
       );
     }
 
     if (authorization.expiresAt <= new Date()) {
       throw new AppError(
         410,
-        "mfa_authorization_expired",
-        "mfa authorization has expired",
+        'mfa_authorization_expired',
+        'mfa authorization has expired',
       );
     }
 
@@ -1257,8 +1352,8 @@ export class IdentityService {
     if (!consumedRows[0]) {
       throw new AppError(
         409,
-        "mfa_authorization_consumed",
-        "mfa authorization was already used",
+        'mfa_authorization_consumed',
+        'mfa authorization was already used',
       );
     }
   }

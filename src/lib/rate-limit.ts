@@ -1,4 +1,4 @@
-export type RateLimitScopeType = "api_key" | "email" | "ip";
+export type RateLimitScopeType = 'api_key' | 'email' | 'ip';
 
 type RateLimitBucketState = {
   count: number;

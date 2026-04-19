@@ -1,18 +1,18 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
-import { validateOpenApi, writeBundledOpenApi } from "./openapi.mjs";
+import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
+import { validateOpenApi, writeBundledOpenApi } from './openapi.mjs';
 
 const require = createRequire(import.meta.url);
-const referenceDir = resolve(process.cwd(), "docs/reference");
-const bundledSpecPath = resolve(referenceDir, "openapi.json");
-const htmlPath = resolve(referenceDir, "index.html");
-const scalarScriptPath = resolve(referenceDir, "scalar.js");
+const referenceDir = resolve(process.cwd(), 'docs/reference');
+const bundledSpecPath = resolve(referenceDir, 'openapi.json');
+const htmlPath = resolve(referenceDir, 'index.html');
+const scalarScriptPath = resolve(referenceDir, 'scalar.js');
 
-const scalarPackageEntrypoint = require.resolve("@scalar/api-reference");
+const scalarPackageEntrypoint = require.resolve('@scalar/api-reference');
 const scalarStandalonePath = resolve(
   dirname(dirname(scalarPackageEntrypoint)),
-  "dist/browser/standalone.js",
+  'dist/browser/standalone.js',
 );
 
 await validateOpenApi();
@@ -47,6 +47,6 @@ const html = `<!doctype html>
 </html>
 `;
 
-await writeFile(htmlPath, html, "utf8");
+await writeFile(htmlPath, html, 'utf8');
 
 console.log(`Scalar reference written to ${htmlPath}`);

@@ -1,14 +1,14 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
-import { db } from "../../db/client";
+import { and, desc, eq, isNull } from 'drizzle-orm';
+import { db } from '../../db/client';
 import {
   fundingMethods,
   fundingReconciliationDiscrepancies,
   fundingReconciliationRuns,
   fundingTransfers,
   users,
-} from "../../db/schema";
-import { AdminAuditService } from "./audit";
-import { RateLimitEventService } from "./rate-limit";
+} from '../../db/schema';
+import { AdminAuditService } from './audit';
+import { RateLimitEventService } from './rate-limit';
 
 export class OperationsService {
   private readonly adminAuditService = new AdminAuditService();
@@ -36,12 +36,15 @@ export class OperationsService {
           userKycStatus: users.kycStatus,
         })
         .from(fundingTransfers)
-        .innerJoin(fundingMethods, eq(fundingMethods.id, fundingTransfers.fundingMethodId))
+        .innerJoin(
+          fundingMethods,
+          eq(fundingMethods.id, fundingTransfers.fundingMethodId),
+        )
         .innerJoin(users, eq(users.id, fundingTransfers.userId))
         .where(
           and(
-            eq(fundingTransfers.type, "withdrawal"),
-            eq(fundingTransfers.status, "in_review"),
+            eq(fundingTransfers.type, 'withdrawal'),
+            eq(fundingTransfers.status, 'in_review'),
           ),
         )
         .orderBy(desc(fundingTransfers.requestedAt))
@@ -77,10 +80,22 @@ export class OperationsService {
         .from(fundingReconciliationDiscrepancies)
         .innerJoin(
           fundingReconciliationRuns,
-          eq(fundingReconciliationRuns.id, fundingReconciliationDiscrepancies.runId),
+          eq(
+            fundingReconciliationRuns.id,
+            fundingReconciliationDiscrepancies.runId,
+          ),
         )
-        .leftJoin(fundingTransfers, eq(fundingTransfers.id, fundingReconciliationDiscrepancies.transferId))
-        .leftJoin(fundingMethods, eq(fundingMethods.id, fundingTransfers.fundingMethodId))
+        .leftJoin(
+          fundingTransfers,
+          eq(
+            fundingTransfers.id,
+            fundingReconciliationDiscrepancies.transferId,
+          ),
+        )
+        .leftJoin(
+          fundingMethods,
+          eq(fundingMethods.id, fundingTransfers.fundingMethodId),
+        )
         .leftJoin(users, eq(users.id, fundingTransfers.userId))
         .where(isNull(fundingReconciliationDiscrepancies.resolvedAt))
         .orderBy(desc(fundingReconciliationDiscrepancies.createdAt))
@@ -92,13 +107,13 @@ export class OperationsService {
       withdrawalReviews: withdrawalRows.map((row) => {
         const metadata = this.asRecord(row.metadata);
         const reviewReason =
-          typeof metadata.reviewReason === "string"
+          typeof metadata.reviewReason === 'string'
             ? metadata.reviewReason
             : metadata.requiresReview === true
-              ? "manual_review_or_policy"
-              : "unspecified";
+              ? 'manual_review_or_policy'
+              : 'unspecified';
         const thresholdMinor =
-          typeof metadata.reviewThresholdMinor === "number"
+          typeof metadata.reviewThresholdMinor === 'number'
             ? metadata.reviewThresholdMinor
             : null;
 
@@ -143,7 +158,10 @@ export class OperationsService {
           completedAt: row.runCompletedAt.toISOString(),
         },
         transfer:
-          row.transferId && row.transferType && row.transferStatus && row.transferRequestedAt
+          row.transferId &&
+          row.transferType &&
+          row.transferStatus &&
+          row.transferRequestedAt
             ? {
                 id: row.transferId,
                 type: row.transferType,
@@ -161,7 +179,9 @@ export class OperationsService {
                       }
                     : null,
                 fundingMethod:
-                  row.fundingMethodId && row.fundingMethodRail && row.fundingMethodDisplayName
+                  row.fundingMethodId &&
+                  row.fundingMethodRail &&
+                  row.fundingMethodDisplayName
                     ? {
                         id: row.fundingMethodId,
                         rail: row.fundingMethodRail,
@@ -175,7 +195,7 @@ export class OperationsService {
   }
 
   private asRecord(value: unknown): Record<string, unknown> {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
       return value as Record<string, unknown>;
     }
 

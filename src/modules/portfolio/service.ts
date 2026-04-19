@@ -1,32 +1,32 @@
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
-import { db } from "../../db/client";
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { db } from '../../db/client';
 import {
   ledgerEntries,
   ledgerTransactions,
-  marketCurrencyEnum,
+  type marketCurrencyEnum,
   marketSettlementPayouts,
   marketSettlements,
-  marketTrades,
   markets,
+  marketTrades,
   orders,
   users,
   walletAccounts,
-} from "../../db/schema";
-import { AppError } from "../../lib/errors";
+} from '../../db/schema';
+import { AppError } from '../../lib/errors';
 
-type FillRole = "maker" | "taker";
+type FillRole = 'maker' | 'taker';
 type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
 type WalletAccountType =
-  | "user_cash"
-  | "user_order_reserved"
-  | "user_position_collateral"
-  | "user_withdrawal_hold";
+  | 'user_cash'
+  | 'user_order_reserved'
+  | 'user_position_collateral'
+  | 'user_withdrawal_hold';
 type PositionRecord = {
   marketId: string;
   marketSlug: string;
   marketTitle: string;
-  outcome: "yes" | "no";
+  outcome: 'yes' | 'no';
   quantity: number;
   averageEntryPriceBps: number;
   costBasisMinor: number;
@@ -36,10 +36,14 @@ const DEFAULT_RECENT_FILL_LIMIT = 20;
 const DEFAULT_RECENT_ACTIVITY_LIMIT = 20;
 
 export class PortfolioService {
-  async getPortfolioSummary(userId: string, currency: MarketCurrency = "USD") {
+  async getPortfolioSummary(userId: string, currency: MarketCurrency = 'USD') {
     const cash = await this.getCashSummary(userId, currency);
     const positions = await this.getDerivedPositions(userId, currency);
-    const recentFills = await this.listFills(userId, DEFAULT_RECENT_FILL_LIMIT, currency);
+    const recentFills = await this.listFills(
+      userId,
+      DEFAULT_RECENT_FILL_LIMIT,
+      currency,
+    );
     const recentLedgerActivity = await this.listLedgerActivity(
       userId,
       DEFAULT_RECENT_ACTIVITY_LIMIT,
@@ -57,12 +61,18 @@ export class PortfolioService {
     };
   }
 
-  async listFills(userId: string, limit: number, currency: MarketCurrency = "USD") {
+  async listFills(
+    userId: string,
+    limit: number,
+    currency: MarketCurrency = 'USD',
+  ) {
     await this.assertUserExists(userId);
 
     const rows = await this.loadUserFillRows(userId, currency);
     const fills = rows
-      .sort((left, right) => right.executedAt.getTime() - left.executedAt.getTime())
+      .sort(
+        (left, right) => right.executedAt.getTime() - left.executedAt.getTime(),
+      )
       .slice(0, Math.min(limit, 100))
       .map((row) => this.mapFill(row));
 
@@ -72,7 +82,11 @@ export class PortfolioService {
     };
   }
 
-  async listSettlements(userId: string, limit: number, currency: MarketCurrency = "USD") {
+  async listSettlements(
+    userId: string,
+    limit: number,
+    currency: MarketCurrency = 'USD',
+  ) {
     await this.assertUserExists(userId);
 
     const rows = await db
@@ -99,7 +113,10 @@ export class PortfolioService {
           eq(markets.currency, currency),
         ),
       )
-      .orderBy(desc(marketSettlements.settledAt), desc(marketSettlementPayouts.createdAt))
+      .orderBy(
+        desc(marketSettlements.settledAt),
+        desc(marketSettlementPayouts.createdAt),
+      )
       .limit(Math.min(limit, 100));
 
     return {
@@ -122,13 +139,21 @@ export class PortfolioService {
   private async getCashSummary(userId: string, currency: MarketCurrency) {
     await this.assertUserExists(userId);
 
-    const [cashWallet, reservedWallet, positionCollateralWallet, withdrawalHoldWallet] =
-      await Promise.all([
-        this.getOrCreateWalletAccount(userId, "user_cash", currency),
-        this.getOrCreateWalletAccount(userId, "user_order_reserved", currency),
-        this.getOrCreateWalletAccount(userId, "user_position_collateral", currency),
-        this.getOrCreateWalletAccount(userId, "user_withdrawal_hold", currency),
-      ]);
+    const [
+      cashWallet,
+      reservedWallet,
+      positionCollateralWallet,
+      withdrawalHoldWallet,
+    ] = await Promise.all([
+      this.getOrCreateWalletAccount(userId, 'user_cash', currency),
+      this.getOrCreateWalletAccount(userId, 'user_order_reserved', currency),
+      this.getOrCreateWalletAccount(
+        userId,
+        'user_position_collateral',
+        currency,
+      ),
+      this.getOrCreateWalletAccount(userId, 'user_withdrawal_hold', currency),
+    ]);
 
     const [
       availableBalanceMinor,
@@ -137,12 +162,12 @@ export class PortfolioService {
       withdrawalHoldMinor,
       restingOrderValueMinor,
     ] = await Promise.all([
-        this.getWalletAccountBalance(cashWallet.id),
-        this.getWalletAccountBalance(reservedWallet.id),
-        this.getWalletAccountBalance(positionCollateralWallet.id),
-        this.getWalletAccountBalance(withdrawalHoldWallet.id),
-        this.getRestingOrderValueMinor(userId, currency),
-      ]);
+      this.getWalletAccountBalance(cashWallet.id),
+      this.getWalletAccountBalance(reservedWallet.id),
+      this.getWalletAccountBalance(positionCollateralWallet.id),
+      this.getWalletAccountBalance(withdrawalHoldWallet.id),
+      this.getRestingOrderValueMinor(userId, currency),
+    ]);
 
     return {
       currency,
@@ -168,7 +193,7 @@ export class PortfolioService {
     const grouped = fills.reduce<
       Map<string, PositionRecord & { totalWeightedPriceBpsQuantity: number }>
     >((positions, fill) => {
-      if (fill.marketStatus === "settled" || fill.marketStatus === "voided") {
+      if (fill.marketStatus === 'settled' || fill.marketStatus === 'voided') {
         return positions;
       }
 
@@ -179,21 +204,29 @@ export class PortfolioService {
         (existing?.totalWeightedPriceBpsQuantity ?? 0) +
         normalized.averageEntryPriceBps * normalized.quantity;
       const quantity = (existing?.quantity ?? 0) + normalized.quantity;
-      const costBasisMinor = (existing?.costBasisMinor ?? 0) + normalized.costBasisMinor;
+      const costBasisMinor =
+        (existing?.costBasisMinor ?? 0) + normalized.costBasisMinor;
 
       positions.set(key, {
         ...normalized,
         quantity,
         costBasisMinor,
         totalWeightedPriceBpsQuantity,
-        averageEntryPriceBps: Math.round(totalWeightedPriceBpsQuantity / quantity),
+        averageEntryPriceBps: Math.round(
+          totalWeightedPriceBpsQuantity / quantity,
+        ),
       });
 
       return positions;
-    }, new Map<string, PositionRecord & { totalWeightedPriceBpsQuantity: number }>());
+    }, new Map<
+      string,
+      PositionRecord & { totalWeightedPriceBpsQuantity: number }
+    >());
 
     return Array.from(grouped.values())
-      .map(({ totalWeightedPriceBpsQuantity: _ignored, ...position }) => position)
+      .map(
+        ({ totalWeightedPriceBpsQuantity: _ignored, ...position }) => position,
+      )
       .sort((left, right) => left.marketTitle.localeCompare(right.marketTitle));
   }
 
@@ -216,21 +249,30 @@ export class PortfolioService {
         walletAccountId: walletAccounts.id,
       })
       .from(ledgerTransactions)
-      .innerJoin(ledgerEntries, eq(ledgerEntries.transactionId, ledgerTransactions.id))
-      .innerJoin(walletAccounts, eq(walletAccounts.id, ledgerEntries.walletAccountId))
+      .innerJoin(
+        ledgerEntries,
+        eq(ledgerEntries.transactionId, ledgerTransactions.id),
+      )
+      .innerJoin(
+        walletAccounts,
+        eq(walletAccounts.id, ledgerEntries.walletAccountId),
+      )
       .where(
         and(
           eq(walletAccounts.ownerUserId, userId),
           eq(walletAccounts.currency, currency),
           inArray(walletAccounts.type, [
-            "user_cash",
-            "user_order_reserved",
-            "user_position_collateral",
-            "user_withdrawal_hold",
+            'user_cash',
+            'user_order_reserved',
+            'user_position_collateral',
+            'user_withdrawal_hold',
           ]),
         ),
       )
-      .orderBy(desc(ledgerTransactions.createdAt), desc(ledgerEntries.createdAt))
+      .orderBy(
+        desc(ledgerTransactions.createdAt),
+        desc(ledgerEntries.createdAt),
+      )
       .limit(Math.min(limit * 4, 200));
 
     const grouped = new Map<
@@ -256,7 +298,8 @@ export class PortfolioService {
         walletAccountId: row.walletAccountId,
         walletAccountType: row.walletAccountType,
         currency: row.currency,
-        amountMinor: row.entrySide === "credit" ? row.amountMinor : -row.amountMinor,
+        amountMinor:
+          row.entrySide === 'credit' ? row.amountMinor : -row.amountMinor,
       };
 
       if (existing) {
@@ -277,7 +320,10 @@ export class PortfolioService {
     return Array.from(grouped.values()).slice(0, limit);
   }
 
-  private async getRestingOrderValueMinor(userId: string, currency: MarketCurrency) {
+  private async getRestingOrderValueMinor(
+    userId: string,
+    currency: MarketCurrency,
+  ) {
     const rows = await db
       .select({
         side: orders.side,
@@ -291,16 +337,19 @@ export class PortfolioService {
           eq(orders.userId, userId),
           eq(orders.currency, currency),
           or(
-            eq(orders.status, "queued_for_matching"),
-            eq(orders.status, "partially_filled"),
+            eq(orders.status, 'queued_for_matching'),
+            eq(orders.status, 'partially_filled'),
           ),
         ),
       );
 
     return rows.reduce((total, order) => {
-      const remainingQuantity = Math.max(0, order.quantity - order.filledQuantity);
+      const remainingQuantity = Math.max(
+        0,
+        order.quantity - order.filledQuantity,
+      );
       const exposureBps =
-        order.side === "buy"
+        order.side === 'buy'
           ? order.referencePriceBps
           : 10000 - order.referencePriceBps;
 
@@ -309,9 +358,9 @@ export class PortfolioService {
   }
 
   private async loadUserFillRows(userId: string, currency: MarketCurrency) {
-    const makerOrders = alias(orders, "maker_orders");
-    const takerOrders = alias(orders, "taker_orders");
-    const marketTable = alias(markets, "portfolio_markets");
+    const makerOrders = alias(orders, 'maker_orders');
+    const takerOrders = alias(orders, 'taker_orders');
+    const marketTable = alias(markets, 'portfolio_markets');
 
     const rows = await db
       .select({
@@ -355,7 +404,7 @@ export class PortfolioService {
           marketTitle: row.marketTitle,
           marketStatus: row.marketStatus,
           orderId: row.makerOrderId,
-          role: "maker" as FillRole,
+          role: 'maker' as FillRole,
           side: row.makerSide,
           outcome: row.makerOutcome,
           priceBps: row.priceBps,
@@ -372,7 +421,7 @@ export class PortfolioService {
           marketTitle: row.marketTitle,
           marketStatus: row.marketStatus,
           orderId: row.takerOrderId,
-          role: "taker" as FillRole,
+          role: 'taker' as FillRole,
           side: row.takerSide,
           outcome: row.takerOutcome,
           priceBps: row.priceBps,
@@ -385,7 +434,9 @@ export class PortfolioService {
     });
   }
 
-  private mapFill(fill: Awaited<ReturnType<PortfolioService["loadUserFillRows"]>>[number]) {
+  private mapFill(
+    fill: Awaited<ReturnType<PortfolioService['loadUserFillRows']>>[number],
+  ) {
     const normalized = this.normalizeExposure(fill);
 
     return {
@@ -409,19 +460,19 @@ export class PortfolioService {
     marketId: string;
     marketSlug: string;
     marketTitle: string;
-    side: "buy" | "sell";
-    outcome: "yes" | "no";
+    side: 'buy' | 'sell';
+    outcome: 'yes' | 'no';
     priceBps: number;
     quantity: number;
   }): PositionRecord {
     const normalizedOutcome =
-      fill.side === "buy"
+      fill.side === 'buy'
         ? fill.outcome
-        : fill.outcome === "yes"
-          ? "no"
-          : "yes";
+        : fill.outcome === 'yes'
+          ? 'no'
+          : 'yes';
     const normalizedPriceBps =
-      fill.side === "buy" ? fill.priceBps : 10000 - fill.priceBps;
+      fill.side === 'buy' ? fill.priceBps : 10000 - fill.priceBps;
 
     return {
       marketId: fill.marketId,
@@ -444,7 +495,7 @@ export class PortfolioService {
       .limit(1);
 
     if (!user) {
-      throw new AppError(404, "user_not_found", "user was not found");
+      throw new AppError(404, 'user_not_found', 'user was not found');
     }
   }
 
@@ -498,14 +549,18 @@ export class PortfolioService {
     const inserted = insertedRows[0];
 
     if (!inserted) {
-      throw new AppError(500, "wallet_account_creation_failed", "failed to create wallet account");
+      throw new AppError(
+        500,
+        'wallet_account_creation_failed',
+        'failed to create wallet account',
+      );
     }
 
     return inserted;
   }
 
   private asRecord(value: unknown) {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       return {};
     }
 

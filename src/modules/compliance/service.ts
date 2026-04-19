@@ -1,22 +1,22 @@
-import { and, eq, gt, isNull, or } from "drizzle-orm";
-import { db } from "../../db/client";
+import { and, eq, gt, isNull, or } from 'drizzle-orm';
+import { db } from '../../db/client';
 import {
   accountRestrictions,
   complianceProfiles,
-  users,
   type fundingRailEnum,
   type kycStatusEnum,
-  type sanctionsStatusEnum,
   type restrictionSourceEnum,
-} from "../../db/schema";
-import { AppError } from "../../lib/errors";
-import { getAllowedFundingRailsForCountry } from "../funding/policy";
-import { AdminAuditService } from "../operations/audit";
+  type sanctionsStatusEnum,
+  users,
+} from '../../db/schema';
+import { AppError } from '../../lib/errors';
+import { getAllowedFundingRailsForCountry } from '../funding/policy';
+import { AdminAuditService } from '../operations/audit';
 
 type KycStatus = (typeof kycStatusEnum.enumValues)[number];
 type SanctionsStatus = (typeof sanctionsStatusEnum.enumValues)[number];
 type RestrictionSource = (typeof restrictionSourceEnum.enumValues)[number];
-type CapabilityName = "trading" | "funding" | "withdrawal";
+type CapabilityName = 'trading' | 'funding' | 'withdrawal';
 type FundingRail = (typeof fundingRailEnum.enumValues)[number];
 
 type UpsertComplianceProfileInput = {
@@ -34,13 +34,13 @@ type UpsertComplianceProfileInput = {
 
 type ApplyAccountRestrictionInput = {
   userId: string;
-  scope: "all" | CapabilityName;
+  scope: 'all' | CapabilityName;
   reason: string;
   source: RestrictionSource;
   expiresAt?: Date;
 };
 
-const RESTRICTED_JURISDICTIONS = new Set(["CU", "IR", "KP", "SY"]);
+const RESTRICTED_JURISDICTIONS = new Set(['CU', 'IR', 'KP', 'SY']);
 
 type CapabilityEvaluation = {
   allowed: boolean;
@@ -60,7 +60,7 @@ export class ComplianceService {
       .limit(1);
 
     if (!user) {
-      throw new AppError(404, "user_not_found", "user was not found");
+      throw new AppError(404, 'user_not_found', 'user was not found');
     }
 
     const now = new Date();
@@ -106,9 +106,9 @@ export class ComplianceService {
       .where(eq(users.id, input.userId));
 
     await this.adminAuditService.recordEvent({
-      action: "compliance.profile_upserted",
-      actor: "bootstrap",
-      targetType: "user",
+      action: 'compliance.profile_upserted',
+      actor: 'bootstrap',
+      targetType: 'user',
       targetId: input.userId,
       payload: {
         countryCode: input.countryCode.toUpperCase(),
@@ -133,7 +133,7 @@ export class ComplianceService {
       .limit(1);
 
     if (!user) {
-      throw new AppError(404, "user_not_found", "user was not found");
+      throw new AppError(404, 'user_not_found', 'user was not found');
     }
 
     const insertedRows = await db
@@ -148,9 +148,9 @@ export class ComplianceService {
       .returning();
 
     await this.adminAuditService.recordEvent({
-      action: "compliance.restriction_applied",
-      actor: "bootstrap",
-      targetType: "user",
+      action: 'compliance.restriction_applied',
+      actor: 'bootstrap',
+      targetType: 'user',
       targetId: input.userId,
       payload: {
         scope: input.scope,
@@ -173,7 +173,7 @@ export class ComplianceService {
       .limit(1);
 
     if (!user) {
-      throw new AppError(404, "user_not_found", "user was not found");
+      throw new AppError(404, 'user_not_found', 'user was not found');
     }
 
     const [profile] = await db
@@ -197,19 +197,19 @@ export class ComplianceService {
       );
 
     const trading = this.evaluateCapability({
-      capability: "trading",
+      capability: 'trading',
       userStatus: user.status,
       profile,
       restrictions,
     });
     const funding = this.evaluateCapability({
-      capability: "funding",
+      capability: 'funding',
       userStatus: user.status,
       profile,
       restrictions,
     });
     const withdrawal = this.evaluateCapability({
-      capability: "withdrawal",
+      capability: 'withdrawal',
       userStatus: user.status,
       profile,
       restrictions,
@@ -225,7 +225,9 @@ export class ComplianceService {
         withdrawal,
       },
       fundingMethods:
-        funding.allowed && profile ? this.getFundingMethods(profile.countryCode) : [],
+        funding.allowed && profile
+          ? this.getFundingMethods(profile.countryCode)
+          : [],
     };
   }
 
@@ -237,32 +239,35 @@ export class ComplianceService {
   }): CapabilityEvaluation {
     const reasons: string[] = [];
 
-    if (input.userStatus !== "active") {
-      reasons.push("account_not_active");
+    if (input.userStatus !== 'active') {
+      reasons.push('account_not_active');
     }
 
     if (!input.profile) {
-      reasons.push("missing_compliance_profile");
+      reasons.push('missing_compliance_profile');
     } else {
       if (RESTRICTED_JURISDICTIONS.has(input.profile.jurisdictionCode)) {
-        reasons.push("restricted_jurisdiction");
+        reasons.push('restricted_jurisdiction');
       }
 
-      if (input.profile.kycStatus !== "approved") {
+      if (input.profile.kycStatus !== 'approved') {
         reasons.push(`kyc_${input.profile.kycStatus}`);
       }
 
-      if (input.profile.sanctionsStatus !== "clear") {
+      if (input.profile.sanctionsStatus !== 'clear') {
         reasons.push(`sanctions_${input.profile.sanctionsStatus}`);
       }
 
       if (!input.profile.ageVerifiedAt) {
-        reasons.push("age_not_verified");
+        reasons.push('age_not_verified');
       }
     }
 
     for (const restriction of input.restrictions) {
-      if (restriction.scope === "all" || restriction.scope === input.capability) {
+      if (
+        restriction.scope === 'all' ||
+        restriction.scope === input.capability
+      ) {
         reasons.push(`restriction_${restriction.scope}`);
       }
     }

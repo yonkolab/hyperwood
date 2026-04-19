@@ -60,6 +60,11 @@ The interactive reference is rendered with Scalar.
 
 Useful commands:
 
+- `npm run lint`
+- `npm run lint:fix`
+- `npm run format`
+- `npm run format:check`
+- `npm run check:biome`
 - `npm run docs:lint`
 - `npm run docs:build`
 - `npm run docs:preview`
@@ -81,7 +86,26 @@ When adding or changing endpoints:
 2. update the matching OpenAPI path and component files
 3. add or update API and integration coverage for the new behavior
 4. update or add guides if the behavior affects client integration
-5. run `npm run docs:lint`, `npm run test:api`, and the relevant integration tests
+5. run `npm run check:biome`, `npm run docs:lint`, `npm run test:api`, and the relevant integration tests
+
+## Linting and Formatting
+
+Hyperwood uses Biome for formatting and linting.
+
+Current repository policy:
+
+- 2-space indentation
+- single quotes in JavaScript and TypeScript
+- no unused imports
+- no unused variables
+
+Useful commands:
+
+- `npm run lint`
+- `npm run lint:fix`
+- `npm run format`
+- `npm run format:check`
+- `npm run check:biome`
 
 ## Testing
 
@@ -114,6 +138,11 @@ Notes:
 
 - `npm run dev`
 - `npm run build`
+- `npm run lint`
+- `npm run lint:fix`
+- `npm run format`
+- `npm run format:check`
+- `npm run check:biome`
 - `npm run check`
 - `npm test`
 - `npm run test:unit`

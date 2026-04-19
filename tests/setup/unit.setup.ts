@@ -1,3 +1,3 @@
-import { applyTestEnv } from "../helpers/env";
+import { applyTestEnv } from '../helpers/env';
 
 applyTestEnv();

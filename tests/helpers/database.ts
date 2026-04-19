@@ -1,13 +1,13 @@
-import { resolve } from "node:path";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { Pool } from "pg";
+import { resolve } from 'node:path';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
-import * as schema from "../../src/db/schema";
-import { applyTestEnv } from "./env";
+} from '@testcontainers/postgresql';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { Pool } from 'pg';
+import * as schema from '../../src/db/schema';
+import { applyTestEnv } from './env';
 
 type TestDatabaseState = {
   container: StartedPostgreSqlContainer;
@@ -20,10 +20,10 @@ let statePromise: Promise<TestDatabaseState> | undefined;
 async function startDatabase(): Promise<TestDatabaseState> {
   applyTestEnv();
 
-  const container = await new PostgreSqlContainer("postgres:17-alpine")
-    .withDatabase("hyperwood_test")
-    .withUsername("postgres")
-    .withPassword("postgres")
+  const container = await new PostgreSqlContainer('postgres:17-alpine')
+    .withDatabase('hyperwood_test')
+    .withUsername('postgres')
+    .withPassword('postgres')
     .start();
 
   process.env.DATABASE_URL = container.getConnectionUri();
@@ -37,7 +37,7 @@ async function startDatabase(): Promise<TestDatabaseState> {
   });
 
   await migrate(db, {
-    migrationsFolder: resolve(process.cwd(), "drizzle/migrations"),
+    migrationsFolder: resolve(process.cwd(), 'drizzle/migrations'),
   });
 
   return {
@@ -80,7 +80,7 @@ export async function resetTestDatabase() {
 
   const tableNames = result.rows
     .map((row) => `"${row.schemaname}"."${row.tablename}"`)
-    .join(", ");
+    .join(', ');
 
   await pool.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE`);
 }
@@ -94,7 +94,7 @@ export async function stopTestDatabase() {
   statePromise = undefined;
 
   try {
-    const { closeDatabaseConnections } = await import("../../src/db/client.js");
+    const { closeDatabaseConnections } = await import('../../src/db/client.js');
     await closeDatabaseConnections();
   } catch {
     // The app DB client is only imported in DB-backed tests.

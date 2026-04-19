@@ -1,5 +1,5 @@
-import { sql } from "drizzle-orm";
-import { relations } from "drizzle-orm/_relations";
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import {
   boolean,
   index,
@@ -11,77 +11,83 @@ import {
   uniqueIndex,
   uuid,
   varchar,
-} from "drizzle-orm/pg-core";
+} from 'drizzle-orm/pg-core';
 
-export const userStatusEnum = pgEnum("user_status", [
-  "pending_email_verification",
-  "active",
-  "disabled",
+export const userStatusEnum = pgEnum('user_status', [
+  'pending_email_verification',
+  'active',
+  'disabled',
 ]);
 
-export const kycStatusEnum = pgEnum("kyc_status", [
-  "pending",
-  "approved",
-  "rejected",
-  "restricted",
+export const kycStatusEnum = pgEnum('kyc_status', [
+  'pending',
+  'approved',
+  'rejected',
+  'restricted',
 ]);
 
-export const identityProviderEnum = pgEnum("identity_provider", [
-  "password",
-  "oidc",
+export const identityProviderEnum = pgEnum('identity_provider', [
+  'password',
+  'oidc',
 ]);
 
-export const mfaFactorTypeEnum = pgEnum("mfa_factor_type", ["totp"]);
+export const mfaFactorTypeEnum = pgEnum('mfa_factor_type', ['totp']);
 
-export const loginEventOutcomeEnum = pgEnum("login_event_outcome", [
-  "success",
-  "invalid_credentials",
-  "mfa_challenge",
-  "mfa_success",
-  "blocked_suspicious",
+export const loginEventOutcomeEnum = pgEnum('login_event_outcome', [
+  'success',
+  'invalid_credentials',
+  'mfa_challenge',
+  'mfa_success',
+  'blocked_suspicious',
 ]);
 
 export const users = pgTable(
-  "users",
+  'users',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    email: varchar("email", { length: 255 }).notNull(),
-    username: varchar("username", { length: 64 }),
-    status: userStatusEnum("status").notNull().default("pending_email_verification"),
-    region: varchar("region", { length: 64 }),
-    kycStatus: kycStatusEnum("kyc_status").notNull().default("pending"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: varchar('email', { length: 255 }).notNull(),
+    username: varchar('username', { length: 64 }),
+    status: userStatusEnum('status')
+      .notNull()
+      .default('pending_email_verification'),
+    region: varchar('region', { length: 64 }),
+    kycStatus: kycStatusEnum('kyc_status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("users_email_unique").on(table.email),
-    uniqueIndex("users_username_unique").on(table.username),
+    uniqueIndex('users_email_unique').on(table.email),
+    uniqueIndex('users_username_unique').on(table.username),
   ],
 );
 
 export const userIdentities = pgTable(
-  "user_identities",
+  'user_identities',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    provider: identityProviderEnum("provider").notNull(),
-    providerSubject: varchar("provider_subject", { length: 255 }).notNull(),
-    email: varchar("email", { length: 255 }),
-    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
-    passwordHash: text("password_hash"),
-    metadata: jsonb("metadata")
+      .references(() => users.id, { onDelete: 'cascade' }),
+    provider: identityProviderEnum('provider').notNull(),
+    providerSubject: varchar('provider_subject', { length: 255 }).notNull(),
+    email: varchar('email', { length: 255 }),
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+    passwordHash: text('password_hash'),
+    metadata: jsonb('metadata')
       .$type<Record<string, unknown>>()
       .notNull()
       .default(sql`'{}'::jsonb`),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    index("user_identities_user_id_idx").on(table.userId),
-    uniqueIndex("user_identities_provider_subject_unique").on(
+    index('user_identities_user_id_idx').on(table.userId),
+    uniqueIndex('user_identities_provider_subject_unique').on(
       table.provider,
       table.providerSubject,
     ),
@@ -89,132 +95,160 @@ export const userIdentities = pgTable(
 );
 
 export const userSessions = pgTable(
-  "user_sessions",
+  'user_sessions',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    ipAddress: varchar("ip_address", { length: 64 }),
-    userAgent: text("user_agent"),
-    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
-    revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    ipAddress: varchar('ip_address', { length: 64 }),
+    userAgent: text('user_agent'),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    index("user_sessions_user_id_idx").on(table.userId),
-    uniqueIndex("user_sessions_token_hash_unique").on(table.tokenHash),
+    index('user_sessions_user_id_idx').on(table.userId),
+    uniqueIndex('user_sessions_token_hash_unique').on(table.tokenHash),
   ],
 );
 
 export const userMfaFactors = pgTable(
-  "user_mfa_factors",
+  'user_mfa_factors',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    type: mfaFactorTypeEnum("type").notNull(),
-    secretEncrypted: text("secret_encrypted").notNull(),
-    verifiedAt: timestamp("verified_at", { withTimezone: true }),
-    disabledAt: timestamp("disabled_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: mfaFactorTypeEnum('type').notNull(),
+    secretEncrypted: text('secret_encrypted').notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
-  (table) => [index("user_mfa_factors_user_id_idx").on(table.userId)],
+  (table) => [index('user_mfa_factors_user_id_idx').on(table.userId)],
 );
 
 export const emailVerificationTokens = pgTable(
-  "email_verification_tokens",
+  'email_verification_tokens',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    consumedAt: timestamp("consumed_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    index("email_verification_tokens_user_id_idx").on(table.userId),
-    uniqueIndex("email_verification_tokens_token_hash_unique").on(table.tokenHash),
+    index('email_verification_tokens_user_id_idx').on(table.userId),
+    uniqueIndex('email_verification_tokens_token_hash_unique').on(
+      table.tokenHash,
+    ),
   ],
 );
 
 export const mfaLoginChallenges = pgTable(
-  "mfa_login_challenges",
+  'mfa_login_challenges',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    consumedAt: timestamp("consumed_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    index("mfa_login_challenges_user_id_idx").on(table.userId),
-    uniqueIndex("mfa_login_challenges_token_hash_unique").on(table.tokenHash),
+    index('mfa_login_challenges_user_id_idx').on(table.userId),
+    uniqueIndex('mfa_login_challenges_token_hash_unique').on(table.tokenHash),
   ],
 );
 
 export const mfaActionAuthorizations = pgTable(
-  "mfa_action_authorizations",
+  'mfa_action_authorizations',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    action: varchar("action", { length: 64 }).notNull(),
-    tokenHash: text("token_hash").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    consumedAt: timestamp("consumed_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+      .references(() => users.id, { onDelete: 'cascade' }),
+    action: varchar('action', { length: 64 }).notNull(),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    index("mfa_action_authorizations_user_id_idx").on(table.userId),
-    index("mfa_action_authorizations_user_action_idx").on(table.userId, table.action),
-    uniqueIndex("mfa_action_authorizations_token_hash_unique").on(table.tokenHash),
+    index('mfa_action_authorizations_user_id_idx').on(table.userId),
+    index('mfa_action_authorizations_user_action_idx').on(
+      table.userId,
+      table.action,
+    ),
+    uniqueIndex('mfa_action_authorizations_token_hash_unique').on(
+      table.tokenHash,
+    ),
   ],
 );
 
 export const loginEvents = pgTable(
-  "login_events",
+  'login_events',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
-    email: varchar("email", { length: 255 }).notNull(),
-    ipAddress: varchar("ip_address", { length: 64 }),
-    userAgent: text("user_agent"),
-    outcome: loginEventOutcomeEnum("outcome").notNull(),
-    suspicious: boolean("suspicious").notNull().default(false),
-    reason: varchar("reason", { length: 128 }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    email: varchar('email', { length: 255 }).notNull(),
+    ipAddress: varchar('ip_address', { length: 64 }),
+    userAgent: text('user_agent'),
+    outcome: loginEventOutcomeEnum('outcome').notNull(),
+    suspicious: boolean('suspicious').notNull().default(false),
+    reason: varchar('reason', { length: 128 }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    index("login_events_user_id_idx").on(table.userId),
-    index("login_events_email_created_at_idx").on(table.email, table.createdAt),
-    index("login_events_ip_created_at_idx").on(table.ipAddress, table.createdAt),
+    index('login_events_user_id_idx').on(table.userId),
+    index('login_events_email_created_at_idx').on(table.email, table.createdAt),
+    index('login_events_ip_created_at_idx').on(
+      table.ipAddress,
+      table.createdAt,
+    ),
   ],
 );
 
 export const apiKeyRequestNonces = pgTable(
-  "api_key_request_nonces",
+  'api_key_request_nonces',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    apiKeyId: uuid("api_key_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    apiKeyId: uuid('api_key_id')
       .notNull()
-      .references(() => apiKeys.id, { onDelete: "cascade" }),
-    nonceHash: text("nonce_hash").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+      .references(() => apiKeys.id, { onDelete: 'cascade' }),
+    nonceHash: text('nonce_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    index("api_key_request_nonces_api_key_id_idx").on(table.apiKeyId),
-    uniqueIndex("api_key_request_nonces_api_key_nonce_unique").on(
+    index('api_key_request_nonces_api_key_id_idx').on(table.apiKeyId),
+    uniqueIndex('api_key_request_nonces_api_key_nonce_unique').on(
       table.apiKeyId,
       table.nonceHash,
     ),
@@ -222,24 +256,29 @@ export const apiKeyRequestNonces = pgTable(
 );
 
 export const apiKeys = pgTable(
-  "api_keys",
+  'api_keys',
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    keyPrefix: varchar("key_prefix", { length: 32 }).notNull(),
-    secretHash: text("secret_hash").notNull(),
-    secretEncrypted: text("secret_encrypted"),
-    scopes: jsonb("scopes").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
-    revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+      .references(() => users.id, { onDelete: 'cascade' }),
+    keyPrefix: varchar('key_prefix', { length: 32 }).notNull(),
+    secretHash: text('secret_hash').notNull(),
+    secretEncrypted: text('secret_encrypted'),
+    scopes: jsonb('scopes')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    index("api_keys_user_id_idx").on(table.userId),
-    uniqueIndex("api_keys_key_prefix_unique").on(table.keyPrefix),
-    uniqueIndex("api_keys_secret_hash_unique").on(table.secretHash),
+    index('api_keys_user_id_idx').on(table.userId),
+    uniqueIndex('api_keys_key_prefix_unique').on(table.keyPrefix),
+    uniqueIndex('api_keys_secret_hash_unique').on(table.secretHash),
   ],
 );
 

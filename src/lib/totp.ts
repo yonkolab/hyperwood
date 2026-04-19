@@ -1,13 +1,13 @@
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from 'node:crypto';
 
-const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const TOTP_STEP_SECONDS = 30;
 const TOTP_DIGITS = 6;
 
 function encodeBase32(buffer: Buffer) {
   let bits = 0;
   let value = 0;
-  let output = "";
+  let output = '';
 
   for (const byte of buffer) {
     value = (value << 8) | byte;
@@ -27,7 +27,7 @@ function encodeBase32(buffer: Buffer) {
 }
 
 function decodeBase32(value: string) {
-  const normalized = value.toUpperCase().replace(/=+$/g, "");
+  const normalized = value.toUpperCase().replace(/=+$/g, '');
   let bits = 0;
   let current = 0;
   const output: number[] = [];
@@ -36,7 +36,7 @@ function decodeBase32(value: string) {
     const index = BASE32_ALPHABET.indexOf(char);
 
     if (index === -1) {
-      throw new Error("invalid base32 secret");
+      throw new Error('invalid base32 secret');
     }
 
     current = (current << 5) | index;
@@ -55,11 +55,11 @@ function generateHotp(secret: Buffer, counter: number) {
   const counterBuffer = Buffer.alloc(8);
   counterBuffer.writeBigUInt64BE(BigInt(counter));
 
-  const digest = createHmac("sha1", secret).update(counterBuffer).digest();
+  const digest = createHmac('sha1', secret).update(counterBuffer).digest();
   const offset = digest.readUInt8(digest.length - 1) & 0x0f;
   const binary = digest.readUInt32BE(offset) & 0x7fffffff;
 
-  return String(binary % 10 ** TOTP_DIGITS).padStart(TOTP_DIGITS, "0");
+  return String(binary % 10 ** TOTP_DIGITS).padStart(TOTP_DIGITS, '0');
 }
 
 export function generateTotpSecret() {
