@@ -67,11 +67,44 @@ When adding or changing endpoints:
 3. update or add guides if the behavior affects client integration
 4. run `npm run docs:lint` and `npm run docs:build`
 
+## Testing
+
+The test suite is split by intent:
+
+- `tests/unit/`: pure logic with no infrastructure dependency
+- `tests/api/`: Fastify `inject()` tests against the real app instance
+- `tests/integration/`: PostgreSQL-backed service tests using Testcontainers and real Drizzle migrations
+- `tests/helpers/`: small reusable bootstrapping helpers
+- `tests/fixtures/`: deterministic payload builders and test data shapes
+- `tests/setup/`: shared Vitest setup and DB lifecycle hooks
+
+Useful commands:
+
+- `npm test`
+- `npm run test:unit`
+- `npm run test:api`
+- `npm run test:integration`
+- `npm run test:coverage`
+- `npm run test:openapi`
+
+Notes:
+
+- `npm test` runs the fast unit and API layers.
+- `npm run test:integration` requires Docker because it starts PostgreSQL with Testcontainers.
+- DB-backed tests apply the real migrations from `drizzle/migrations` and reset state between tests.
+- The OpenAPI spec remains under `docs/openapi/` and is validated with `npm run docs:lint` or `npm run test:openapi`.
+
 ## Scripts
 
 - `npm run dev`
 - `npm run build`
 - `npm run check`
+- `npm test`
+- `npm run test:unit`
+- `npm run test:api`
+- `npm run test:integration`
+- `npm run test:coverage`
+- `npm run test:openapi`
 - `npm run db:generate`
 - `npm run db:migrate`
 - `npm run docker:local:up`

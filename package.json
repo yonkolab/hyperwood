@@ -7,6 +7,12 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --project unit --project api",
+    "test:unit": "vitest run --project unit",
+    "test:api": "vitest run --project api",
+    "test:integration": "vitest run --project integration",
+    "test:coverage": "vitest run --coverage --project unit --project api",
+    "test:openapi": "npm run docs:lint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "docs:lint": "node scripts/docs/lint.mjs",
@@ -27,10 +33,14 @@
     "@fastify/cors": "^11.2.0",
     "@scalar/api-reference": "^1.52.3",
     "@scalar/fastify-api-reference": "^1.52.3",
+    "@testcontainers/postgresql": "^11.14.0",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.20.0",
+    "@vitest/coverage-v8": "^4.1.4",
     "drizzle-kit": "1.0.0-beta.21",
+    "testcontainers": "^11.14.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.4"
   }
 }

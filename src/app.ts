@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import { ZodError } from "zod";
 import { env } from "./config/env";
 import { registerComplianceRoutes } from "./modules/compliance/routes";
 import { registerFundingRoutes } from "./modules/funding/routes";
@@ -143,6 +144,15 @@ export async function buildApp() {
 
   app.setErrorHandler((error: Error, _request, reply) => {
     app.log.error(error);
+
+    if (error instanceof ZodError) {
+      reply.status(400).send({
+        error: "invalid_request",
+        message: error.issues.map((issue) => issue.message).join("; "),
+      });
+      return;
+    }
+
     const structuredError = error as Error & {
       statusCode?: unknown;
       code?: unknown;
