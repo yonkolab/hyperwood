@@ -10,6 +10,11 @@ The system SHALL provide admin workflows for creating and managing events and ma
 - **THEN** the system transitions the market back to an allowed tradable state
 - **AND** the state change is preserved as an administrative market transition record
 
+#### Scenario: Admin publishes a market announcement
+- **WHEN** an authorized administrator publishes a market-specific announcement
+- **THEN** the system stores the announcement with publisher and timestamp metadata
+- **AND** public market clients can retrieve the published announcement history for that market
+
 ### Requirement: Review queues for sensitive operations
 The system MUST provide operational review workflows for KYC cases, flagged accounts, withdrawal reviews, reconciliation investigations, and settlement retries.
 
