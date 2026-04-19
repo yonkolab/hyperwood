@@ -22,6 +22,10 @@ describe("FundingService integration", () => {
       password: "supersecure123",
     });
 
+    await identityService.verifyEmail({
+      token: registration.verificationChallenge.token,
+    });
+
     await complianceService.upsertComplianceProfile({
       userId: registration.user.id,
       countryCode: "US",

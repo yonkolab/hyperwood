@@ -86,7 +86,7 @@ export async function createVerifiedSession(app: FastifyInstance) {
 
   const verification = await verifyEmail(
     app,
-    registration.body.emailVerificationChallenge.token as string,
+    registration.body.verificationChallenge.token as string,
   );
 
   if (verification.response.statusCode !== 200) {

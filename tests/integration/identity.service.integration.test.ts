@@ -1,13 +1,14 @@
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { emailVerificationTokens, userIdentities, users } from "../../src/db/schema";
-import { getTestDb } from "../helpers/database";
 
 describe("IdentityService integration", () => {
   let IdentityService: typeof import("../../src/modules/identity/service").IdentityService;
+  let db: typeof import("../../src/db/client").db;
 
   beforeAll(async () => {
     ({ IdentityService } = await import("../../src/modules/identity/service.js"));
+    ({ db } = await import("../../src/db/client.js"));
   });
 
   it("registers a user, password identity, and verification token in postgres", async () => {
@@ -18,7 +19,6 @@ describe("IdentityService integration", () => {
       password: "supersecure123",
     });
 
-    const db = await getTestDb();
     const [user] = await db
       .select()
       .from(users)

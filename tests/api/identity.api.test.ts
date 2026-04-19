@@ -20,7 +20,7 @@ describe("identity api", () => {
     expect(result.response.statusCode).toBe(201);
     expect(result.body.user.email).toBe(result.credentials.email);
     expect(result.body.user.username).toBe(result.credentials.username);
-    expect(result.body.emailVerificationChallenge.token).toEqual(expect.any(String));
+    expect(result.body.verificationChallenge.token).toEqual(expect.any(String));
   });
 
   it("logs in with the newly created password identity", async () => {

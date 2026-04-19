@@ -109,6 +109,38 @@ export async function buildApp() {
     },
   });
 
+  app.setErrorHandler((error: Error, _request, reply) => {
+    app.log.error(error);
+
+    if (error instanceof ZodError) {
+      reply.status(400).send({
+        error: "invalid_request",
+        message: error.issues.map((issue) => issue.message).join("; "),
+      });
+      return;
+    }
+
+    const structuredError = error as Error & {
+      statusCode?: unknown;
+      code?: unknown;
+    };
+
+    const statusCode =
+      typeof structuredError.statusCode === "number"
+        ? structuredError.statusCode
+        : 500;
+
+    const code =
+      typeof structuredError.code === "string"
+        ? structuredError.code
+        : "internal_error";
+
+    reply.status(statusCode).send({
+      error: code,
+      message: error.message,
+    });
+  });
+
   app.get("/health", async () => ({
     status: "ok",
     service: "hyperwood",
@@ -140,38 +172,6 @@ export async function buildApp() {
 
   await app.register(registerPortfolioRoutes, {
     prefix: "/api/v1",
-  });
-
-  app.setErrorHandler((error: Error, _request, reply) => {
-    app.log.error(error);
-
-    if (error instanceof ZodError) {
-      reply.status(400).send({
-        error: "invalid_request",
-        message: error.issues.map((issue) => issue.message).join("; "),
-      });
-      return;
-    }
-
-    const structuredError = error as Error & {
-      statusCode?: unknown;
-      code?: unknown;
-    };
-
-    const statusCode =
-      typeof structuredError.statusCode === "number"
-        ? structuredError.statusCode
-        : 500;
-
-    const code =
-      typeof structuredError.code === "string"
-        ? structuredError.code
-        : "internal_error";
-
-    reply.status(statusCode).send({
-      error: code,
-      message: error.message,
-    });
   });
 
   return app;
