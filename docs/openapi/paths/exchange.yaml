@@ -1,0 +1,44 @@
+schedule:
+  get:
+    operationId: getExchangeSchedule
+    tags: [Exchange]
+    summary: Get the active exchange schedule
+    security: []
+    responses:
+      '200':
+        description: Active exchange schedule.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/exchange.yaml#/ExchangeScheduleResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+internalSchedule:
+  post:
+    operationId: upsertExchangeSchedule
+    tags: [Exchange, Internal]
+    summary: Create or update the active exchange schedule
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/exchange.yaml#/UpsertExchangeScheduleRequest
+    responses:
+      '200':
+        description: Active exchange schedule updated.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/exchange.yaml#/UpsertExchangeScheduleResponse
+      '201':
+        description: Active exchange schedule created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/exchange.yaml#/UpsertExchangeScheduleResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized

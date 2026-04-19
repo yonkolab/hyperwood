@@ -177,6 +177,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/auth/me`
 - `GET /api/v1/compliance/me/capabilities`
 - `GET /api/v1/funding/methods`
+- `GET /api/v1/exchange/schedule`
 - `GET /api/v1/funding/deposits`
 - `POST /api/v1/funding/deposits`
 - `GET /api/v1/funding/withdrawals`
@@ -211,6 +212,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/internal/funding/withdrawals/:withdrawalId/settle`
 - `POST /api/v1/internal/funding/reconciliation/runs`
 - `GET /api/v1/internal/funding/reconciliation/discrepancies`
+- `POST /api/v1/internal/exchange/schedule`
 - `GET /api/v1/internal/operations/reviews`
 - `GET /api/v1/internal/operations/audit-events`
 - `GET /api/v1/internal/operations/rate-limit-events`

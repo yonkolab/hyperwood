@@ -29,6 +29,8 @@ tags:
     description: Compliance profile and capability evaluation workflows.
   - name: Funding
     description: Wallet, funding methods, deposits, withdrawals, and reconciliation.
+  - name: Exchange
+    description: Exchange-wide schedule and operating metadata.
   - name: Markets
     description: Public market catalog, detail, order book, and matching operations.
   - name: Orders
@@ -78,6 +80,8 @@ paths:
     $ref: ./paths/compliance.yaml#/restrictions
   /api/v1/funding/methods:
     $ref: ./paths/funding.yaml#/fundingMethods
+  /api/v1/exchange/schedule:
+    $ref: ./paths/exchange.yaml#/schedule
   /api/v1/wallet/balance:
     $ref: ./paths/funding.yaml#/walletBalance
   /api/v1/funding/deposits:
@@ -100,6 +104,8 @@ paths:
     $ref: ./paths/funding.yaml#/reconciliationRuns
   /api/v1/internal/funding/reconciliation/discrepancies:
     $ref: ./paths/funding.yaml#/reconciliationDiscrepancies
+  /api/v1/internal/exchange/schedule:
+    $ref: ./paths/exchange.yaml#/internalSchedule
   /api/v1/markets:
     $ref: ./paths/markets.yaml#/markets
   /api/v1/markets/{marketId}:

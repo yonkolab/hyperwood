@@ -5,6 +5,7 @@ import { env } from './config/env';
 import { AppError } from './lib/errors';
 import { InMemoryRateLimiter, type RateLimitScopeType } from './lib/rate-limit';
 import { registerComplianceRoutes } from './modules/compliance/routes';
+import { registerExchangeRoutes } from './modules/exchange/routes';
 import { registerFundingRoutes } from './modules/funding/routes';
 import { registerIdentityRoutes } from './modules/identity/routes';
 import { registerMarketRoutes } from './modules/markets/routes';
@@ -336,6 +337,10 @@ export async function buildApp() {
   });
 
   await app.register(registerFundingRoutes, {
+    prefix: '/api/v1',
+  });
+
+  await app.register(registerExchangeRoutes, {
     prefix: '/api/v1',
   });
 
