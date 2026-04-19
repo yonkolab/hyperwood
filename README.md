@@ -167,6 +167,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/internal/funding/reconciliation/runs`
 - `GET /api/v1/internal/funding/reconciliation/discrepancies`
 - `GET /api/v1/internal/operations/reviews`
+- `GET /api/v1/internal/operations/audit-events`
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`

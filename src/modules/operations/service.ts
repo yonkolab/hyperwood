@@ -7,8 +7,11 @@ import {
   fundingTransfers,
   users,
 } from "../../db/schema";
+import { AdminAuditService } from "./audit";
 
 export class OperationsService {
+  private readonly adminAuditService = new AdminAuditService();
+
   async listActiveReviewQueue(input: { limit: number }) {
     const limit = Math.min(input.limit, 100);
 
@@ -175,5 +178,24 @@ export class OperationsService {
     }
 
     return {};
+  }
+
+  async listAuditEvents(input: {
+    limit: number;
+    targetType?: string;
+    targetId?: string;
+    action?: string;
+  }) {
+    const limit = Math.min(input.limit, 100);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      events: await this.adminAuditService.listEvents({
+        limit,
+        ...(input.targetType ? { targetType: input.targetType } : {}),
+        ...(input.targetId ? { targetId: input.targetId } : {}),
+        ...(input.action ? { action: input.action } : {}),
+      }),
+    };
   }
 }

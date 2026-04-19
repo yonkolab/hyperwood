@@ -133,6 +133,8 @@ paths:
     $ref: ./paths/portfolio.yaml#/settlements
   /api/v1/internal/operations/reviews:
     $ref: ./paths/operations.yaml#/reviews
+  /api/v1/internal/operations/audit-events:
+    $ref: ./paths/operations.yaml#/auditEvents
 components:
   securitySchemes:
     SessionBearer:

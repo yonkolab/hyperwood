@@ -154,3 +154,38 @@ OperationsReviewQueueResponse:
                     type: string
                   displayName:
                     type: string
+
+AuditEvent:
+  type: object
+  required: [id, action, actor, targetType, targetId, payload, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    action:
+      type: string
+    actor:
+      type: string
+      nullable: true
+    targetType:
+      type: string
+    targetId:
+      type: string
+    payload:
+      type: object
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time
+
+AuditEventListResponse:
+  type: object
+  required: [generatedAt, events]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    events:
+      type: array
+      items:
+        $ref: '#/AuditEvent'

@@ -21,6 +21,7 @@ import {
 } from "../../db/schema";
 import { AppError } from "../../lib/errors";
 import { ComplianceService } from "../compliance/service";
+import { AdminAuditService } from "../operations/audit";
 import {
   doesFundingRailSupportCurrency,
   getSupportedCurrenciesForFundingRail,
@@ -90,6 +91,7 @@ const WITHDRAWAL_REVIEW_THRESHOLD_MINOR = 250_000;
 
 export class FundingService {
   private readonly complianceService = new ComplianceService();
+  private readonly adminAuditService = new AdminAuditService();
 
   async linkFundingMethod(input: LinkFundingMethodInput) {
     await this.assertUserExists(input.userId);
@@ -750,6 +752,18 @@ export class FundingService {
       throw new AppError(500, "withdrawal_approval_failed", "failed to approve withdrawal");
     }
 
+    await this.adminAuditService.recordEvent({
+      action: "funding.withdrawal_review_approved",
+      actor: "bootstrap",
+      targetType: "withdrawal",
+      targetId: approvedWithdrawal.id,
+      payload: {
+        userId: approvedWithdrawal.userId,
+        amountMinor: approvedWithdrawal.amountMinor,
+        currency: approvedWithdrawal.currency,
+      },
+    });
+
     return {
       withdrawal: this.mapTransfer({
         ...approvedWithdrawal,
@@ -874,6 +888,19 @@ export class FundingService {
       if (!failedWithdrawal) {
         throw new AppError(500, "withdrawal_failure_failed", "failed to update withdrawal");
       }
+
+      await this.adminAuditService.recordEvent({
+        action: "funding.withdrawal_failed",
+        actor: "bootstrap",
+        targetType: "withdrawal",
+        targetId: failedWithdrawal.id,
+        payload: {
+          userId: failedWithdrawal.userId,
+          amountMinor: failedWithdrawal.amountMinor,
+          currency: failedWithdrawal.currency,
+          failureReason,
+        },
+      }, tx);
 
       return {
         withdrawal: this.mapTransfer({
@@ -1002,6 +1029,18 @@ export class FundingService {
           "failed to settle withdrawal",
         );
       }
+
+      await this.adminAuditService.recordEvent({
+        action: "funding.withdrawal_settled",
+        actor: "bootstrap",
+        targetType: "withdrawal",
+        targetId: settledWithdrawal.id,
+        payload: {
+          userId: settledWithdrawal.userId,
+          amountMinor: settledWithdrawal.amountMinor,
+          currency: settledWithdrawal.currency,
+        },
+      }, tx);
 
       return {
         withdrawal: this.mapTransfer({

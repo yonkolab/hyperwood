@@ -8,6 +8,13 @@ const listReviewQueueQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(25),
 });
 
+const listAuditEventsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+  targetType: z.string().min(1).max(64).optional(),
+  targetId: z.string().min(1).max(255).optional(),
+  action: z.string().min(1).max(128).optional(),
+});
+
 function assertBootstrapToken(request: FastifyRequest) {
   const bootstrapToken = request.headers["x-bootstrap-token"];
 
@@ -25,6 +32,18 @@ async function operationsRoutes(app: FastifyInstance, _options: FastifyPluginOpt
 
     return operationsService.listActiveReviewQueue({
       limit: query.limit,
+    });
+  });
+
+  app.get("/internal/operations/audit-events", async (request) => {
+    assertBootstrapToken(request);
+    const query = listAuditEventsQuerySchema.parse(request.query);
+
+    return operationsService.listAuditEvents({
+      limit: query.limit,
+      ...(query.targetType ? { targetType: query.targetType } : {}),
+      ...(query.targetId ? { targetId: query.targetId } : {}),
+      ...(query.action ? { action: query.action } : {}),
     });
   });
 }

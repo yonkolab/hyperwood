@@ -16,3 +16,37 @@ reviews:
               $ref: ../components/schemas/operations.yaml#/OperationsReviewQueueResponse
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
+
+auditEvents:
+  get:
+    operationId: listOperationsAuditEvents
+    tags: [Operations, Internal]
+    summary: List administrative audit events
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit25
+      - name: targetType
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: targetId
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: action
+        in: query
+        required: false
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Administrative audit events.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/operations.yaml#/AuditEventListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized

@@ -23,6 +23,7 @@ import {
   walletAccountTypeEnum,
 } from "../../db/schema";
 import { AppError } from "../../lib/errors";
+import { AdminAuditService } from "../operations/audit";
 
 type MarketStatus = (typeof marketStatusEnum.enumValues)[number];
 type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
@@ -106,6 +107,8 @@ type NormalizedPosition = {
 };
 
 export class MarketsService {
+  private readonly adminAuditService = new AdminAuditService();
+
   async createEvent(input: CreateMarketEventInput) {
     const insertedRows = await db
       .insert(marketEvents)
@@ -422,6 +425,19 @@ export class MarketsService {
         throw new AppError(500, "market_resolution_failed", "failed to persist market resolution");
       }
 
+      await this.adminAuditService.recordEvent({
+        action: "market.resolved",
+        actor: input.approvedBy ?? "bootstrap",
+        targetType: "market",
+        targetId: market.id,
+        payload: {
+          resolutionId: resolution.id,
+          outcome: resolution.outcome,
+          evidenceSummary: resolution.evidenceSummary,
+          evidenceSources: resolution.evidenceSources,
+        },
+      }, tx);
+
       return {
         market: updatedMarket,
         resolution: this.mapResolution(resolution),
@@ -500,6 +516,18 @@ export class MarketsService {
           "failed to persist market status transition",
         );
       }
+
+      await this.adminAuditService.recordEvent({
+        action: "market.status_updated",
+        actor: input.changedBy ?? "bootstrap",
+        targetType: "market",
+        targetId: market.id,
+        payload: {
+          fromStatus: market.status,
+          toStatus: input.status,
+          reason: input.reason,
+        },
+      }, tx);
 
       return {
         market: updatedMarket,
@@ -701,6 +729,20 @@ export class MarketsService {
           "failed to update settled market state",
         );
       }
+
+      await this.adminAuditService.recordEvent({
+        action: "market.settled",
+        actor: "bootstrap",
+        targetType: "market",
+        targetId: market.id,
+        payload: {
+          resolutionId: resolution.id,
+          settlementId: settlement.id,
+          outcome: resolution.outcome,
+          totalPayoutMinor: settlement.totalPayoutMinor,
+          affectedUserCount: settlement.affectedUserCount,
+        },
+      }, tx);
 
       return {
         marketId: market.id,

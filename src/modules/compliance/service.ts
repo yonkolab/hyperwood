@@ -11,6 +11,7 @@ import {
 } from "../../db/schema";
 import { AppError } from "../../lib/errors";
 import { getAllowedFundingRailsForCountry } from "../funding/policy";
+import { AdminAuditService } from "../operations/audit";
 
 type KycStatus = (typeof kycStatusEnum.enumValues)[number];
 type SanctionsStatus = (typeof sanctionsStatusEnum.enumValues)[number];
@@ -47,6 +48,8 @@ type CapabilityEvaluation = {
 };
 
 export class ComplianceService {
+  private readonly adminAuditService = new AdminAuditService();
+
   async upsertComplianceProfile(input: UpsertComplianceProfileInput) {
     const [user] = await db
       .select({
@@ -102,6 +105,21 @@ export class ComplianceService {
       })
       .where(eq(users.id, input.userId));
 
+    await this.adminAuditService.recordEvent({
+      action: "compliance.profile_upserted",
+      actor: "bootstrap",
+      targetType: "user",
+      targetId: input.userId,
+      payload: {
+        countryCode: input.countryCode.toUpperCase(),
+        jurisdictionCode: input.jurisdictionCode.toUpperCase(),
+        legalEntity: input.legalEntity,
+        kycStatus: input.kycStatus,
+        sanctionsStatus: input.sanctionsStatus,
+        ageVerified: input.ageVerified,
+      },
+    });
+
     return this.getCapabilityEvaluation(input.userId);
   }
 
@@ -128,6 +146,19 @@ export class ComplianceService {
         expiresAt: input.expiresAt,
       })
       .returning();
+
+    await this.adminAuditService.recordEvent({
+      action: "compliance.restriction_applied",
+      actor: "bootstrap",
+      targetType: "user",
+      targetId: input.userId,
+      payload: {
+        scope: input.scope,
+        reason: input.reason,
+        source: input.source,
+        expiresAt: input.expiresAt?.toISOString() ?? null,
+      },
+    });
 
     return {
       restriction: insertedRows[0],
