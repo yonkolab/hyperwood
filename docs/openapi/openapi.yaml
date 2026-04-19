@@ -115,6 +115,8 @@ paths:
     $ref: ./paths/markets.yaml#/internalMarkets
   /api/v1/internal/markets/{marketId}/match:
     $ref: ./paths/markets.yaml#/internalMatch
+  /api/v1/internal/markets/{marketId}/status:
+    $ref: ./paths/markets.yaml#/internalStatus
   /api/v1/internal/markets/{marketId}/resolve:
     $ref: ./paths/markets.yaml#/internalResolve
   /api/v1/internal/markets/{marketId}/settle:

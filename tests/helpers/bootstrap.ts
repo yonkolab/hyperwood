@@ -193,6 +193,43 @@ export async function runMarketMatch(
   };
 }
 
+export async function transitionMarketStatus(
+  app: FastifyInstance,
+  marketId: string,
+  overrides: Partial<{
+    status:
+      | "draft"
+      | "scheduled"
+      | "active"
+      | "halted"
+      | "trading_closed"
+      | "awaiting_resolution"
+      | "settled"
+      | "cancelled"
+      | "disputed"
+      | "voided";
+    reason: string;
+    changedBy: string;
+  }> = {},
+) {
+  const response = await app.inject({
+    method: "POST",
+    url: `/api/v1/internal/markets/${marketId}/status`,
+    headers: bootstrapHeaders(),
+    payload: {
+      status: "halted",
+      reason: "Manual operator action.",
+      changedBy: "ops-admin",
+      ...overrides,
+    },
+  });
+
+  return {
+    response,
+    body: response.json(),
+  };
+}
+
 export async function resolveMarket(
   app: FastifyInstance,
   marketId: string,

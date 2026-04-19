@@ -167,6 +167,37 @@ internalMatch:
       '409':
         $ref: ../components/responses/common.yaml#/Conflict
 
+internalStatus:
+  post:
+    operationId: updateMarketStatus
+    tags: [Markets, Internal]
+    summary: Apply an internal lifecycle status transition to a market
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/markets.yaml#/UpdateMarketStatusRequest
+    responses:
+      '200':
+        description: Market status transition applied or already in the requested state.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/UpdateMarketStatusResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
 internalResolve:
   post:
     operationId: resolveMarket

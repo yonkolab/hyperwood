@@ -20,18 +20,19 @@ The system MUST expose market detail fields required for informed trading, inclu
 #### Scenario: Market detail is requested
 - **WHEN** a client fetches a market detail resource
 - **THEN** the system returns the current YES and NO prices, resolution criteria, source references, time properties, and status timeline
+- **AND** the market response includes the market's quote and settlement currency
 
 ### Requirement: Explicit market lifecycle states
 The system SHALL model markets with explicit lifecycle states including draft, scheduled, active, halted, trading closed, awaiting resolution, settled, cancelled, disputed, and voided.
 
-#### Scenario: Market opens for trading
-- **WHEN** an approved scheduled market reaches its opening conditions and exchange state permits trading
-- **THEN** the system transitions the market to active
-- **AND** the transition is recorded as an auditable state change
+#### Scenario: Admin applies a lifecycle transition
+- **WHEN** an authorized internal workflow changes a market from one lifecycle state to another allowed state
+- **THEN** the system updates the market status
+- **AND** it records the from-state, to-state, reason, and actor in durable transition history
 
-#### Scenario: Halted market is not tradable
-- **WHEN** a market is in halted, voided, cancelled, or post-close states
-- **THEN** the system marks the market as not tradable for new order entry
+#### Scenario: Disputed market blocks settlement
+- **WHEN** a market is marked as disputed before final settlement execution
+- **THEN** the system rejects settlement attempts until the market leaves the disputed state
 
 ### Requirement: Public market catalog read API
 The system SHALL expose a public market catalog API with executable filtering, search, sorting, and event grouping metadata for markets that have been published into the catalog.
@@ -56,4 +57,13 @@ The system MUST expose a market detail resource that returns the current lifecyc
 #### Scenario: Unknown market detail is requested
 - **WHEN** a client fetches a market detail resource that does not exist
 - **THEN** the system rejects the request with a not-found error
+
+### Requirement: Market detail includes resolution and settlement state
+
+The system MUST expose market-level resolution and settlement metadata in market detail responses once those events exist.
+
+#### Scenario: Consumer requests a resolved market
+
+- **WHEN** a client requests market detail for a market that has been resolved or settled
+- **THEN** the system returns the recorded resolution outcome, evidence summary, and settlement timestamp alongside the existing market lifecycle fields
 

@@ -11,6 +11,7 @@ import {
   marketResolutions,
   marketSettlementPayouts,
   marketSettlements,
+  marketStatusTransitions,
   marketTrades,
   markets,
   marketStatusEnum,
@@ -128,32 +129,49 @@ export class MarketsService {
     await this.assertEventExists(input.eventId);
     this.assertPriceSnapshot(input.yesPriceBps, input.noPriceBps);
 
-    const insertedRows = await db
-      .insert(markets)
-      .values({
-        eventId: input.eventId,
-        slug: input.slug,
-        title: input.title,
-        summary: input.summary,
-        status: input.status,
-        currency: input.currency,
-        tags: input.tags ?? [],
-        resolutionRules: input.resolutionRules,
-        resolutionSources: input.resolutionSources ?? [],
-        yesPriceBps: input.yesPriceBps,
-        noPriceBps: input.noPriceBps,
-        volumeUsdMinor: input.volumeUsdMinor ?? 0,
-        opensAt: input.opensAt,
-        closesAt: input.closesAt,
-        resolvesAt: input.resolvesAt,
-        statusChangedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning();
+    return db.transaction(async (tx) => {
+      const now = new Date();
+      const insertedRows = await tx
+        .insert(markets)
+        .values({
+          eventId: input.eventId,
+          slug: input.slug,
+          title: input.title,
+          summary: input.summary,
+          status: input.status,
+          currency: input.currency,
+          tags: input.tags ?? [],
+          resolutionRules: input.resolutionRules,
+          resolutionSources: input.resolutionSources ?? [],
+          yesPriceBps: input.yesPriceBps,
+          noPriceBps: input.noPriceBps,
+          volumeUsdMinor: input.volumeUsdMinor ?? 0,
+          opensAt: input.opensAt,
+          closesAt: input.closesAt,
+          resolvesAt: input.resolvesAt,
+          statusChangedAt: now,
+          updatedAt: now,
+        })
+        .returning();
 
-    return {
-      market: insertedRows[0],
-    };
+      const market = insertedRows[0];
+
+      if (!market) {
+        throw new AppError(500, "market_creation_failed", "failed to create market");
+      }
+
+      await tx.insert(marketStatusTransitions).values({
+        marketId: market.id,
+        fromStatus: null,
+        toStatus: market.status,
+        reason: "market_created",
+        changedBy: "system",
+      });
+
+      return {
+        market,
+      };
+    });
   }
 
   async listMarkets(input: ListMarketsInput) {
@@ -282,7 +300,7 @@ export class MarketsService {
       throw new AppError(404, "market_not_found", "market was not found");
     }
 
-    const [resolution, settlement] = await Promise.all([
+    const [resolution, settlement, statusTransitions] = await Promise.all([
       db
         .select()
         .from(marketResolutions)
@@ -293,6 +311,11 @@ export class MarketsService {
         .from(marketSettlements)
         .where(eq(marketSettlements.marketId, marketId))
         .limit(1),
+      db
+        .select()
+        .from(marketStatusTransitions)
+        .where(eq(marketStatusTransitions.marketId, marketId))
+        .orderBy(asc(marketStatusTransitions.createdAt)),
     ]);
 
     const record = this.mapMarketRecord(market);
@@ -302,7 +325,10 @@ export class MarketsService {
         ...record,
         resolutionRules: market.resolutionRules,
         resolutionSources: market.resolutionSources,
-        statusTimeline: this.buildStatusTimeline(market),
+        statusTimeline: this.buildStatusTimeline(market, statusTransitions),
+        statusTransitions: statusTransitions.map((transition) =>
+          this.mapStatusTransition(transition),
+        ),
         lastCommandSequence: market.lastCommandSequence,
         resolution: resolution[0]
           ? this.mapResolution(resolution[0])
@@ -399,6 +425,86 @@ export class MarketsService {
       return {
         market: updatedMarket,
         resolution: this.mapResolution(resolution),
+      };
+    });
+  }
+
+  async updateMarketStatus(
+    marketId: string,
+    input: {
+      status: MarketStatus;
+      reason: string;
+      changedBy?: string;
+    },
+  ) {
+    return db.transaction(async (tx) => {
+      const [market] = await tx
+        .select()
+        .from(markets)
+        .where(eq(markets.id, marketId))
+        .limit(1);
+
+      if (!market) {
+        throw new AppError(404, "market_not_found", "market was not found");
+      }
+
+      await this.acquireMarketWriteLock(tx, market.id);
+
+      if (market.status === input.status) {
+        return {
+          market,
+          alreadyApplied: true,
+        };
+      }
+
+      this.assertAllowedMarketStatusTransition(market.status, input.status);
+
+      const now = new Date();
+      const updatedRows = await tx
+        .update(markets)
+        .set({
+          status: input.status,
+          statusChangedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(markets.id, market.id))
+        .returning();
+
+      const updatedMarket = updatedRows[0];
+
+      if (!updatedMarket) {
+        throw new AppError(
+          500,
+          "market_status_transition_failed",
+          "failed to update market status",
+        );
+      }
+
+      const transitionRows = await tx
+        .insert(marketStatusTransitions)
+        .values({
+          marketId: market.id,
+          fromStatus: market.status,
+          toStatus: input.status,
+          reason: input.reason,
+          changedBy: input.changedBy,
+        })
+        .returning();
+
+      const transition = transitionRows[0];
+
+      if (!transition) {
+        throw new AppError(
+          500,
+          "market_status_transition_failed",
+          "failed to persist market status transition",
+        );
+      }
+
+      return {
+        market: updatedMarket,
+        transition: this.mapStatusTransition(transition),
+        alreadyApplied: false,
       };
     });
   }
@@ -900,6 +1006,29 @@ export class MarketsService {
     return market;
   }
 
+  private assertAllowedMarketStatusTransition(fromStatus: MarketStatus, toStatus: MarketStatus) {
+    const allowedTransitions: Record<MarketStatus, MarketStatus[]> = {
+      draft: ["scheduled", "cancelled"],
+      scheduled: ["active", "halted", "cancelled"],
+      active: ["halted", "trading_closed", "disputed", "cancelled"],
+      halted: ["active", "trading_closed", "disputed", "cancelled"],
+      trading_closed: ["awaiting_resolution", "disputed", "cancelled"],
+      awaiting_resolution: ["disputed", "trading_closed"],
+      settled: [],
+      cancelled: [],
+      disputed: ["awaiting_resolution", "trading_closed", "cancelled"],
+      voided: [],
+    };
+
+    if (!allowedTransitions[fromStatus].includes(toStatus)) {
+      throw new AppError(
+        409,
+        "invalid_market_status_transition",
+        `cannot transition market from ${fromStatus} to ${toStatus}`,
+      );
+    }
+  }
+
   private async assertNoOpenOrders(executor: DbExecutor, marketId: string) {
     const [openOrder] = await executor
       .select({
@@ -1146,6 +1275,18 @@ export class MarketsService {
     };
   }
 
+  private mapStatusTransition(row: typeof marketStatusTransitions.$inferSelect) {
+    return {
+      id: row.id,
+      marketId: row.marketId,
+      fromStatus: row.fromStatus,
+      toStatus: row.toStatus,
+      reason: row.reason,
+      changedBy: row.changedBy,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
   private buildStatusTimeline(row: {
     createdAt: Date;
     opensAt: Date | null;
@@ -1153,7 +1294,7 @@ export class MarketsService {
     resolvesAt: Date | null;
     status: MarketStatus;
     statusChangedAt: Date;
-  }) {
+  }, transitions: Array<typeof marketStatusTransitions.$inferSelect>) {
     const timeline = [
       {
         milestone: "created",
@@ -1182,10 +1323,19 @@ export class MarketsService {
       });
     }
 
-    timeline.push({
-      milestone: `status:${row.status}`,
-      at: row.statusChangedAt,
-    });
+    for (const transition of transitions) {
+      timeline.push({
+        milestone: `status:${transition.toStatus}`,
+        at: transition.createdAt,
+      });
+    }
+
+    if (!transitions.length) {
+      timeline.push({
+        milestone: `status:${row.status}`,
+        at: row.statusChangedAt,
+      });
+    }
 
     return timeline;
   }

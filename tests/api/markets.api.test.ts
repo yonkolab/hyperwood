@@ -1,11 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildTestApp } from "../helpers/app";
+import { createVerifiedSession } from "../helpers/auth";
 import {
   createMarket,
   createMarketEvent,
   resolveMarket,
   settleMarket,
+  seedWallet,
+  transitionMarketStatus,
+  upsertApprovedComplianceProfile,
 } from "../helpers/bootstrap";
 import { createMatchedMarketScenario } from "../helpers/trading";
 
@@ -129,5 +133,106 @@ describe("markets api", () => {
     expect(detail.json().market.settlement.totalPayoutMinor).toBe(1_000);
     expect(detail.json().market.yesPriceBps).toBe(10000);
     expect(detail.json().market.noPriceBps).toBe(0);
+  });
+
+  it("halts a market, records transition history, and blocks new order entry until resumed", async () => {
+    const session = await createVerifiedSession(app);
+    await upsertApprovedComplianceProfile(app, session.body.user.id as string);
+    await seedWallet(app, session.body.user.id as string, {
+      amountMinor: 10_000,
+      currency: "USD",
+      referenceId: "halted-market-seed",
+    });
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string, {
+      status: "active",
+      currency: "USD",
+    });
+
+    const halt = await transitionMarketStatus(app, market.body.market.id as string, {
+      status: "halted",
+      reason: "Circuit breaker triggered.",
+      changedBy: "ops-admin",
+    });
+
+    expect(halt.response.statusCode).toBe(200);
+    expect(halt.body.alreadyApplied).toBe(false);
+    expect(halt.body.market.status).toBe("halted");
+    expect(halt.body.transition.toStatus).toBe("halted");
+
+    const haltedOrder = await app.inject({
+      method: "POST",
+      url: "/api/v1/orders",
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+        "idempotency-key": "halted-market-order",
+      },
+      payload: {
+        marketId: market.body.market.id,
+        type: "limit",
+        side: "buy",
+        outcome: "yes",
+        quantity: 10,
+        limitPriceBps: 5200,
+      },
+    });
+
+    expect(haltedOrder.statusCode).toBe(409);
+    expect(haltedOrder.json().error).toBe("market_not_tradable");
+
+    const resume = await transitionMarketStatus(app, market.body.market.id as string, {
+      status: "active",
+      reason: "Circuit breaker cleared.",
+      changedBy: "ops-admin",
+    });
+
+    expect(resume.response.statusCode).toBe(200);
+    expect(resume.body.market.status).toBe("active");
+
+    const detail = await app.inject({
+      method: "GET",
+      url: `/api/v1/markets/${market.body.market.id}`,
+    });
+
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().market.statusTransitions).toHaveLength(3);
+    expect(detail.json().market.statusTransitions[1]).toMatchObject({
+      fromStatus: "active",
+      toStatus: "halted",
+      reason: "Circuit breaker triggered.",
+    });
+    expect(detail.json().market.statusTransitions[2]).toMatchObject({
+      fromStatus: "halted",
+      toStatus: "active",
+      reason: "Circuit breaker cleared.",
+    });
+  });
+
+  it("blocks settlement when a resolved market is marked as disputed", async () => {
+    const scenario = await createMatchedMarketScenario(app, {
+      currency: "USD",
+      quantity: 10,
+      limitPriceBps: 4800,
+    });
+
+    await resolveMarket(app, scenario.market.body.market.id as string, {
+      outcome: "yes",
+      evidenceSummary: "Official election authority certified the result.",
+      evidenceSources: ["https://example.com/election-result"],
+    });
+
+    const dispute = await transitionMarketStatus(app, scenario.market.body.market.id as string, {
+      status: "disputed",
+      reason: "Outcome challenged by review team.",
+      changedBy: "ops-review",
+    });
+
+    expect(dispute.response.statusCode).toBe(200);
+    expect(dispute.body.market.status).toBe("disputed");
+
+    const settle = await settleMarket(app, scenario.market.body.market.id as string);
+
+    expect(settle.response.statusCode).toBe(409);
+    expect(settle.body.error).toBe("market_not_settleable");
   });
 });

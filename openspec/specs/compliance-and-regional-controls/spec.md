@@ -18,14 +18,10 @@ The system MUST integrate with an identity verification workflow that supports K
 ### Requirement: Regional access controls
 The system SHALL enforce policy-driven restrictions by country, jurisdiction, legal entity, and funding method.
 
-#### Scenario: Unsupported jurisdiction is denied
-- **WHEN** a user from a restricted jurisdiction attempts to access a region-limited capability
-- **THEN** the system rejects the action
-- **AND** the response identifies that a jurisdiction policy restriction applies
-
-#### Scenario: Funding method availability varies by region
-- **WHEN** a user queries available funding methods
-- **THEN** the system returns only the methods allowed for that user's compliance profile and region
+#### Scenario: Funding method discovery varies by region and currency
+- **WHEN** an authenticated user requests eligible funding methods for a currency
+- **THEN** the platform evaluates both the user's region policy and the requested currency
+- **AND** only rails permitted for that region and currency are returned
 
 ### Requirement: Risk review hooks
 The system MUST support compliance and fraud review signals such as source-of-funds review, suspicious activity flags, and account-level restrictions.

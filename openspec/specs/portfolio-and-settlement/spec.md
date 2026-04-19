@@ -6,9 +6,9 @@ Define how Hyperwood derives portfolio state, manages market resolution, and app
 The system SHALL expose portfolio data including cash totals, available balance, reserved balance, resting order value, open positions, fills, transfers, and settlement history.
 
 #### Scenario: Portfolio summary is requested
-- **WHEN** an authenticated user requests portfolio data
-- **THEN** the system returns current cash balances, reserved funds, open positions, and recent account activity derived from authoritative transaction and execution records
-- **AND** matched-but-unsettled collateral is reported separately from resting order reserve
+- **WHEN** an authenticated user requests portfolio data for a currency scope
+- **THEN** the system returns balances, positions, fills, and activity filtered to that currency
+- **AND** the response identifies the requested currency
 
 ### Requirement: Positions are derived from events
 The system MUST derive positions from executions and settlement events rather than treating positions as uncontrolled mutable fields.
@@ -36,4 +36,31 @@ The system MUST freeze trading on a resolved market, calculate winning and losin
 #### Scenario: Settlement completes
 - **WHEN** settlement executes successfully for a resolved market
 - **THEN** the system records settlement outputs, updates balances and positions, and exposes the settlement through user-facing APIs
+
+### Requirement: Market resolution approval
+
+The system SHALL record approved market resolution decisions before settlement executes.
+
+#### Scenario: Market enters awaiting settlement after approval
+
+- **WHEN** an authorized operator approves a market outcome with evidence
+- **THEN** the system records the approved outcome and evidence metadata
+- **AND** the market transitions to `awaiting_resolution`
+
+### Requirement: Settlement consumes collateral and credits final cash
+
+The system MUST settle matched positions from position collateral into user cash according to the approved resolution outcome.
+
+#### Scenario: Binary market settles to a winning outcome
+
+- **WHEN** settlement executes for a market resolved to `yes` or `no`
+- **THEN** the system debits each participant's position collateral for that market
+- **AND** credits final payout only to positions whose normalized outcome matches the resolved outcome
+- **AND** records the settlement in user-facing APIs
+
+#### Scenario: Void settlement refunds cost basis
+
+- **WHEN** settlement executes for a market resolved as `void`
+- **THEN** the system refunds each matched position's cost basis back to user cash
+- **AND** marks the market as `voided`
 

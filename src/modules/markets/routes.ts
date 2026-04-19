@@ -69,6 +69,23 @@ const marketParamsSchema = z.object({
   marketId: z.string().uuid(),
 });
 
+const updateMarketStatusBodySchema = z.object({
+  status: z.enum([
+    "draft",
+    "scheduled",
+    "active",
+    "halted",
+    "trading_closed",
+    "awaiting_resolution",
+    "settled",
+    "cancelled",
+    "disputed",
+    "voided",
+  ]),
+  reason: z.string().min(3).max(4000),
+  changedBy: z.string().min(3).max(128).optional(),
+});
+
 const resolveMarketBodySchema = z.object({
   outcome: z.enum(["yes", "no", "void"]),
   evidenceSummary: z.string().min(3).max(4000),
@@ -183,6 +200,19 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
     const params = marketParamsSchema.parse(request.params);
 
     return matchingService.runLimitOrderMatching(params.marketId);
+  });
+
+  app.post("/internal/markets/:marketId/status", async (request, reply) => {
+    assertBootstrapToken(request);
+    const params = marketParamsSchema.parse(request.params);
+    const body = updateMarketStatusBodySchema.parse(request.body);
+    const result = await marketsService.updateMarketStatus(params.marketId, {
+      status: body.status,
+      reason: body.reason,
+      ...(body.changedBy ? { changedBy: body.changedBy } : {}),
+    });
+
+    reply.status(200).send(result);
   });
 
   app.post("/internal/markets/:marketId/resolve", async (request, reply) => {

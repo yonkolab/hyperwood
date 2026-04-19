@@ -144,7 +144,7 @@ MarketDetailResponse:
       allOf:
         - $ref: ./common.yaml#/MarketRecord
         - type: object
-          required: [resolutionRules, resolutionSources, statusTimeline, lastCommandSequence, resolution, settlement]
+          required: [resolutionRules, resolutionSources, statusTimeline, statusTransitions, lastCommandSequence, resolution, settlement]
           properties:
             resolutionRules:
               type: string
@@ -163,12 +163,28 @@ MarketDetailResponse:
                   at:
                     type: string
                     format: date-time
+            statusTransitions:
+              type: array
+              items:
+                $ref: '#/MarketStatusTransition'
             lastCommandSequence:
               type: integer
             resolution:
               $ref: '#/MarketResolution'
             settlement:
               $ref: '#/MarketSettlement'
+
+UpdateMarketStatusRequest:
+  type: object
+  required: [status, reason]
+  properties:
+    status:
+      type: string
+      enum: [draft, scheduled, active, halted, trading_closed, awaiting_resolution, settled, cancelled, disputed, voided]
+    reason:
+      type: string
+    changedBy:
+      type: string
 
 ResolveMarketRequest:
   type: object
@@ -301,6 +317,43 @@ MarketResolution:
     updatedAt:
       type: string
       format: date-time
+
+MarketStatusTransition:
+  type: object
+  required: [id, marketId, fromStatus, toStatus, reason, changedBy, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    fromStatus:
+      type: string
+      nullable: true
+      enum: [draft, scheduled, active, halted, trading_closed, awaiting_resolution, settled, cancelled, disputed, voided]
+    toStatus:
+      type: string
+      enum: [draft, scheduled, active, halted, trading_closed, awaiting_resolution, settled, cancelled, disputed, voided]
+    reason:
+      type: string
+    changedBy:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+
+UpdateMarketStatusResponse:
+  type: object
+  required: [market, alreadyApplied]
+  properties:
+    market:
+      $ref: '#/InternalMarketState'
+    transition:
+      $ref: '#/MarketStatusTransition'
+    alreadyApplied:
+      type: boolean
 
 MarketSettlement:
   type: object

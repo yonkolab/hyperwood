@@ -1,16 +1,14 @@
 ## Purpose
 
 Define the administrative and exchange-operations behavior required to manage Hyperwood markets, reviews, announcements, and sensitive operational actions.
-
 ## Requirements
-
 ### Requirement: Market and exchange administration
 The system SHALL provide admin workflows for creating and managing events and markets, halting or resuming trading, publishing announcements, and configuring exchange schedules or fee tables.
 
-#### Scenario: Admin halts a market
-- **WHEN** an authorized administrator issues a halt action for a market
-- **THEN** the system updates the market to a halted state
-- **AND** downstream clients receive the state change through API and streaming channels
+#### Scenario: Admin resumes a halted market
+- **WHEN** an authorized administrator issues a resume action for a halted market
+- **THEN** the system transitions the market back to an allowed tradable state
+- **AND** the state change is preserved as an administrative market transition record
 
 ### Requirement: Review queues for sensitive operations
 The system MUST provide operational review workflows for KYC cases, flagged accounts, withdrawal reviews, reconciliation investigations, and settlement retries.
@@ -25,3 +23,20 @@ The system SHALL record immutable audit events for sensitive administrative acti
 #### Scenario: Sensitive override is audited
 - **WHEN** an administrator performs a sensitive action such as withdrawal approval, compliance override, market resolution, or manual ledger adjustment
 - **THEN** the system records the actor, action, target resource, relevant payload, and timestamp in audit records
+
+### Requirement: Administrative market resolution actions
+
+The system SHALL provide internal workflows for approving market outcomes and executing settlement.
+
+#### Scenario: Admin resolves a market
+
+- **WHEN** an authorized operator submits an approved market outcome
+- **THEN** the system records the actor metadata and evidence context
+- **AND** updates the market into its pre-settlement resolved state
+
+#### Scenario: Admin settles a resolved market
+
+- **WHEN** an authorized operator executes settlement for a resolved market
+- **THEN** the system applies the settlement exactly once
+- **AND** returns a summary of payouts and affected users
+

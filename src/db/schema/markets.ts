@@ -148,6 +148,24 @@ export const marketSettlements = pgTable(
   ],
 );
 
+export const marketStatusTransitions = pgTable(
+  "market_status_transitions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    marketId: uuid("market_id")
+      .notNull()
+      .references(() => markets.id, { onDelete: "cascade" }),
+    fromStatus: marketStatusEnum("from_status"),
+    toStatus: marketStatusEnum("to_status").notNull(),
+    reason: text("reason").notNull(),
+    changedBy: varchar("changed_by", { length: 128 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("market_status_transitions_market_id_idx").on(table.marketId, table.createdAt),
+  ],
+);
+
 export const marketSettlementPayouts = pgTable(
   "market_settlement_payouts",
   {
@@ -183,6 +201,16 @@ export const marketsRelations = relations(markets, ({ one }) => ({
     references: [marketEvents.id],
   }),
 }));
+
+export const marketStatusTransitionsRelations = relations(
+  marketStatusTransitions,
+  ({ one }) => ({
+    market: one(markets, {
+      fields: [marketStatusTransitions.marketId],
+      references: [markets.id],
+    }),
+  }),
+);
 
 export const marketResolutionsRelations = relations(marketResolutions, ({ one }) => ({
   market: one(markets, {
