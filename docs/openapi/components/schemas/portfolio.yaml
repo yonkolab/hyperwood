@@ -145,3 +145,54 @@ FillListResponse:
       type: array
       items:
         $ref: '#/Fill'
+
+Settlement:
+  type: object
+  required:
+    - settlementId
+    - marketId
+    - marketSlug
+    - marketTitle
+    - outcome
+    - quantity
+    - costBasisMinor
+    - payoutMinor
+    - netPnlMinor
+    - settledAt
+  properties:
+    settlementId:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    marketSlug:
+      type: string
+    marketTitle:
+      type: string
+    outcome:
+      type: string
+      enum: [yes, no, void]
+    quantity:
+      type: integer
+    costBasisMinor:
+      type: integer
+    payoutMinor:
+      type: integer
+    netPnlMinor:
+      type: integer
+    settledAt:
+      type: string
+      format: date-time
+
+SettlementListResponse:
+  type: object
+  required: [currency, settlements]
+  properties:
+    currency:
+      type: string
+      enum: [USD, BRL]
+    settlements:
+      type: array
+      items:
+        $ref: '#/Settlement'

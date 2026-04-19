@@ -69,6 +69,13 @@ const marketParamsSchema = z.object({
   marketId: z.string().uuid(),
 });
 
+const resolveMarketBodySchema = z.object({
+  outcome: z.enum(["yes", "no", "void"]),
+  evidenceSummary: z.string().min(3).max(4000),
+  evidenceSources: z.array(z.string().url()).max(16).optional(),
+  approvedBy: z.string().min(3).max(128).optional(),
+});
+
 const orderBookDeltasQuerySchema = z.object({
   afterSequence: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().positive().max(500).default(100),
@@ -176,6 +183,28 @@ async function marketRoutes(app: FastifyInstance, _options: FastifyPluginOptions
     const params = marketParamsSchema.parse(request.params);
 
     return matchingService.runLimitOrderMatching(params.marketId);
+  });
+
+  app.post("/internal/markets/:marketId/resolve", async (request, reply) => {
+    assertBootstrapToken(request);
+    const params = marketParamsSchema.parse(request.params);
+    const body = resolveMarketBodySchema.parse(request.body);
+    const result = await marketsService.resolveMarket(params.marketId, {
+      outcome: body.outcome,
+      evidenceSummary: body.evidenceSummary,
+      ...(body.evidenceSources ? { evidenceSources: body.evidenceSources } : {}),
+      ...(body.approvedBy ? { approvedBy: body.approvedBy } : {}),
+    });
+
+    reply.status(200).send(result);
+  });
+
+  app.post("/internal/markets/:marketId/settle", async (request, reply) => {
+    assertBootstrapToken(request);
+    const params = marketParamsSchema.parse(request.params);
+    const result = await marketsService.settleMarket(params.marketId);
+
+    reply.status(result.alreadySettled ? 200 : 201).send(result);
   });
 }
 

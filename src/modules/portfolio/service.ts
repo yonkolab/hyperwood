@@ -5,6 +5,8 @@ import {
   ledgerEntries,
   ledgerTransactions,
   marketCurrencyEnum,
+  marketSettlementPayouts,
+  marketSettlements,
   marketTrades,
   markets,
   orders,
@@ -70,6 +72,53 @@ export class PortfolioService {
     };
   }
 
+  async listSettlements(userId: string, limit: number, currency: MarketCurrency = "USD") {
+    await this.assertUserExists(userId);
+
+    const rows = await db
+      .select({
+        settlementId: marketSettlements.id,
+        marketId: marketSettlementPayouts.marketId,
+        marketSlug: markets.slug,
+        marketTitle: markets.title,
+        outcome: marketSettlements.outcome,
+        quantity: marketSettlementPayouts.quantity,
+        costBasisMinor: marketSettlementPayouts.costBasisMinor,
+        payoutMinor: marketSettlementPayouts.payoutMinor,
+        settledAt: marketSettlements.settledAt,
+      })
+      .from(marketSettlementPayouts)
+      .innerJoin(
+        marketSettlements,
+        eq(marketSettlements.id, marketSettlementPayouts.settlementId),
+      )
+      .innerJoin(markets, eq(markets.id, marketSettlementPayouts.marketId))
+      .where(
+        and(
+          eq(marketSettlementPayouts.userId, userId),
+          eq(markets.currency, currency),
+        ),
+      )
+      .orderBy(desc(marketSettlements.settledAt), desc(marketSettlementPayouts.createdAt))
+      .limit(Math.min(limit, 100));
+
+    return {
+      currency,
+      settlements: rows.map((row) => ({
+        settlementId: row.settlementId,
+        marketId: row.marketId,
+        marketSlug: row.marketSlug,
+        marketTitle: row.marketTitle,
+        outcome: row.outcome,
+        quantity: row.quantity,
+        costBasisMinor: row.costBasisMinor,
+        payoutMinor: row.payoutMinor,
+        netPnlMinor: row.payoutMinor - row.costBasisMinor,
+        settledAt: row.settledAt.toISOString(),
+      })),
+    };
+  }
+
   private async getCashSummary(userId: string, currency: MarketCurrency) {
     await this.assertUserExists(userId);
 
@@ -119,6 +168,10 @@ export class PortfolioService {
     const grouped = fills.reduce<
       Map<string, PositionRecord & { totalWeightedPriceBpsQuantity: number }>
     >((positions, fill) => {
+      if (fill.marketStatus === "settled" || fill.marketStatus === "voided") {
+        return positions;
+      }
+
       const normalized = this.normalizeExposure(fill);
       const key = `${normalized.marketId}:${normalized.outcome}`;
       const existing = positions.get(key);
@@ -267,6 +320,7 @@ export class PortfolioService {
         marketSlug: marketTable.slug,
         marketTitle: marketTable.title,
         marketCurrency: marketTable.currency,
+        marketStatus: marketTable.status,
         makerOrderId: marketTrades.makerOrderId,
         takerOrderId: marketTrades.takerOrderId,
         priceBps: marketTrades.priceBps,
@@ -299,6 +353,7 @@ export class PortfolioService {
           marketId: row.marketId,
           marketSlug: row.marketSlug,
           marketTitle: row.marketTitle,
+          marketStatus: row.marketStatus,
           orderId: row.makerOrderId,
           role: "maker" as FillRole,
           side: row.makerSide,
@@ -315,6 +370,7 @@ export class PortfolioService {
           marketId: row.marketId,
           marketSlug: row.marketSlug,
           marketTitle: row.marketTitle,
+          marketStatus: row.marketStatus,
           orderId: row.takerOrderId,
           role: "taker" as FillRole,
           side: row.takerSide,

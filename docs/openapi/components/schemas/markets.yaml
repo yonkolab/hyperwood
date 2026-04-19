@@ -144,7 +144,7 @@ MarketDetailResponse:
       allOf:
         - $ref: ./common.yaml#/MarketRecord
         - type: object
-          required: [resolutionRules, resolutionSources, statusTimeline, lastCommandSequence]
+          required: [resolutionRules, resolutionSources, statusTimeline, lastCommandSequence, resolution, settlement]
           properties:
             resolutionRules:
               type: string
@@ -165,6 +165,227 @@ MarketDetailResponse:
                     format: date-time
             lastCommandSequence:
               type: integer
+            resolution:
+              $ref: '#/MarketResolution'
+            settlement:
+              $ref: '#/MarketSettlement'
+
+ResolveMarketRequest:
+  type: object
+  required: [outcome, evidenceSummary]
+  properties:
+    outcome:
+      type: string
+      enum: [yes, no, void]
+    evidenceSummary:
+      type: string
+    evidenceSources:
+      type: array
+      items:
+        type: string
+        format: uri
+    approvedBy:
+      type: string
+
+InternalMarketState:
+  type: object
+  required:
+    - id
+    - eventId
+    - slug
+    - title
+    - status
+    - currency
+    - tags
+    - resolutionRules
+    - resolutionSources
+    - yesPriceBps
+    - noPriceBps
+    - volumeUsdMinor
+    - lastCommandSequence
+    - opensAt
+    - closesAt
+    - resolvesAt
+    - statusChangedAt
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    eventId:
+      type: string
+      format: uuid
+    slug:
+      type: string
+    title:
+      type: string
+    summary:
+      type: string
+      nullable: true
+    status:
+      type: string
+      enum: [draft, scheduled, active, halted, trading_closed, awaiting_resolution, settled, cancelled, disputed, voided]
+    currency:
+      type: string
+      enum: [USD, BRL]
+    tags:
+      type: array
+      items:
+        type: string
+    resolutionRules:
+      type: string
+    resolutionSources:
+      type: array
+      items:
+        type: string
+    yesPriceBps:
+      type: integer
+    noPriceBps:
+      type: integer
+    volumeUsdMinor:
+      type: integer
+    lastCommandSequence:
+      type: integer
+    opensAt:
+      type: string
+      format: date-time
+      nullable: true
+    closesAt:
+      type: string
+      format: date-time
+      nullable: true
+    resolvesAt:
+      type: string
+      format: date-time
+      nullable: true
+    statusChangedAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+MarketResolution:
+  type: object
+  nullable: true
+  required: [id, marketId, outcome, evidenceSummary, evidenceSources, approvedBy, approvedAt, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    outcome:
+      type: string
+      enum: [yes, no, void]
+    evidenceSummary:
+      type: string
+    evidenceSources:
+      type: array
+      items:
+        type: string
+    approvedBy:
+      type: string
+      nullable: true
+    approvedAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+MarketSettlement:
+  type: object
+  nullable: true
+  required: [id, marketId, resolutionId, outcome, settledAt, totalPayoutMinor, affectedUserCount, metadata, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    resolutionId:
+      type: string
+      format: uuid
+    outcome:
+      type: string
+      enum: [yes, no, void]
+    settledAt:
+      type: string
+      format: date-time
+    totalPayoutMinor:
+      type: integer
+    affectedUserCount:
+      type: integer
+    metadata:
+      type: object
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time
+
+ResolveMarketResponse:
+  type: object
+  required: [market, resolution]
+  properties:
+    market:
+      $ref: '#/InternalMarketState'
+    resolution:
+      $ref: '#/MarketResolution'
+
+SettlementPayout:
+  type: object
+  required: [userId, marketId, outcome, quantity, costBasisMinor, payoutMinor, netPnlMinor, currency]
+  properties:
+    userId:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    outcome:
+      type: string
+      enum: [yes, no, void]
+    quantity:
+      type: integer
+    costBasisMinor:
+      type: integer
+    payoutMinor:
+      type: integer
+    netPnlMinor:
+      type: integer
+    currency:
+      type: string
+      enum: [USD, BRL]
+
+SettleMarketResponse:
+  type: object
+  required: [marketId, alreadySettled, resolution, settlement, payouts]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    alreadySettled:
+      type: boolean
+    market:
+      $ref: '#/InternalMarketState'
+    resolution:
+      $ref: '#/MarketResolution'
+    settlement:
+      $ref: '#/MarketSettlement'
+    payouts:
+      type: array
+      items:
+        $ref: '#/SettlementPayout'
 
 OrderBookSideLevel:
   type: object

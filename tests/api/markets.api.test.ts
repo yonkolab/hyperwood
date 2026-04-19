@@ -1,7 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildTestApp } from "../helpers/app";
-import { createMarket, createMarketEvent } from "../helpers/bootstrap";
+import {
+  createMarket,
+  createMarketEvent,
+  resolveMarket,
+  settleMarket,
+} from "../helpers/bootstrap";
+import { createMatchedMarketScenario } from "../helpers/trading";
 
 describe("markets api", () => {
   let app: FastifyInstance;
@@ -80,5 +86,48 @@ describe("markets api", () => {
     expect(response.json()).toMatchObject({
       error: "invalid_bootstrap_token",
     });
+  });
+
+  it("resolves and settles a matched market through internal endpoints", async () => {
+    const scenario = await createMatchedMarketScenario(app, {
+      currency: "USD",
+      quantity: 10,
+      limitPriceBps: 4800,
+    });
+
+    expect(scenario.buyOrder.statusCode).toBe(201);
+    expect(scenario.sellOrder.statusCode).toBe(201);
+    expect(scenario.match.response.statusCode).toBe(200);
+    expect(scenario.match.body.summary.matchedTradeCount).toBe(1);
+
+    const resolve = await resolveMarket(app, scenario.market.body.market.id as string, {
+      outcome: "yes",
+      evidenceSummary: "Official election authority certified the result.",
+      evidenceSources: ["https://example.com/election-result"],
+    });
+
+    expect(resolve.response.statusCode).toBe(200);
+    expect(resolve.body.market.status).toBe("awaiting_resolution");
+    expect(resolve.body.resolution.outcome).toBe("yes");
+
+    const settle = await settleMarket(app, scenario.market.body.market.id as string);
+
+    expect(settle.response.statusCode).toBe(201);
+    expect(settle.body.alreadySettled).toBe(false);
+    expect(settle.body.settlement.outcome).toBe("yes");
+    expect(settle.body.settlement.totalPayoutMinor).toBe(1_000);
+    expect(settle.body.payouts).toHaveLength(2);
+
+    const detail = await app.inject({
+      method: "GET",
+      url: `/api/v1/markets/${scenario.market.body.market.id}`,
+    });
+
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().market.status).toBe("settled");
+    expect(detail.json().market.resolution.outcome).toBe("yes");
+    expect(detail.json().market.settlement.totalPayoutMinor).toBe(1_000);
+    expect(detail.json().market.yesPriceBps).toBe(10000);
+    expect(detail.json().market.noPriceBps).toBe(0);
   });
 });

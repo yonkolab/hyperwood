@@ -166,3 +166,63 @@ internalMatch:
         $ref: ../components/responses/common.yaml#/NotFound
       '409':
         $ref: ../components/responses/common.yaml#/Conflict
+
+internalResolve:
+  post:
+    operationId: resolveMarket
+    tags: [Markets, Internal]
+    summary: Record a final resolution outcome for a market
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/markets.yaml#/ResolveMarketRequest
+    responses:
+      '200':
+        description: Market resolution recorded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/ResolveMarketResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+internalSettle:
+  post:
+    operationId: settleMarket
+    tags: [Markets, Internal]
+    summary: Settle all positions for a resolved market
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    responses:
+      '200':
+        description: Market was already settled and the existing settlement is returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/SettleMarketResponse
+      '201':
+        description: Market settlement completed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/SettleMarketResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict

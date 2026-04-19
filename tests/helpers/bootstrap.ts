@@ -176,3 +176,64 @@ export async function createMarket(
     body: response.json(),
   };
 }
+
+export async function runMarketMatch(
+  app: FastifyInstance,
+  marketId: string,
+) {
+  const response = await app.inject({
+    method: "POST",
+    url: `/api/v1/internal/markets/${marketId}/match`,
+    headers: bootstrapHeaders(),
+  });
+
+  return {
+    response,
+    body: response.json(),
+  };
+}
+
+export async function resolveMarket(
+  app: FastifyInstance,
+  marketId: string,
+  overrides: Partial<{
+    outcome: "yes" | "no" | "void";
+    evidenceSummary: string;
+    evidenceSources: string[];
+    approvedBy: string;
+  }> = {},
+) {
+  const response = await app.inject({
+    method: "POST",
+    url: `/api/v1/internal/markets/${marketId}/resolve`,
+    headers: bootstrapHeaders(),
+    payload: {
+      outcome: "yes",
+      evidenceSummary: "Final result confirmed by approved source.",
+      evidenceSources: ["https://example.com/results"],
+      approvedBy: "ops-resolution",
+      ...overrides,
+    },
+  });
+
+  return {
+    response,
+    body: response.json(),
+  };
+}
+
+export async function settleMarket(
+  app: FastifyInstance,
+  marketId: string,
+) {
+  const response = await app.inject({
+    method: "POST",
+    url: `/api/v1/internal/markets/${marketId}/settle`,
+    headers: bootstrapHeaders(),
+  });
+
+  return {
+    response,
+    body: response.json(),
+  };
+}

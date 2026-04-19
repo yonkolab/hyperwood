@@ -1,23 +1,36 @@
-import { and, asc, desc, eq, gt, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, ilike, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "../../db/client";
 import {
+  ledgerEntries,
+  ledgerTransactions,
   marketCommandEvents,
   marketCurrencyEnum,
   marketEvents,
+  marketResolutionOutcomeEnum,
+  marketResolutions,
+  marketSettlementPayouts,
+  marketSettlements,
+  marketTrades,
   markets,
   marketStatusEnum,
   orders,
   orderOutcomeEnum,
   orderSideEnum,
   orderTypeEnum,
+  walletAccounts,
+  walletAccountTypeEnum,
 } from "../../db/schema";
 import { AppError } from "../../lib/errors";
 
 type MarketStatus = (typeof marketStatusEnum.enumValues)[number];
 type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
+type MarketResolutionOutcome = (typeof marketResolutionOutcomeEnum.enumValues)[number];
 type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
 type OrderSide = (typeof orderSideEnum.enumValues)[number];
 type OrderType = (typeof orderTypeEnum.enumValues)[number];
+type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
+type DbExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 type CreateMarketEventInput = {
   slug: string;
@@ -81,6 +94,14 @@ type MarketRecord = {
     startsAt: Date | null;
     endsAt: Date | null;
   };
+};
+
+type NormalizedPosition = {
+  userId: string;
+  marketId: string;
+  outcome: "yes" | "no";
+  quantity: number;
+  costBasisMinor: number;
 };
 
 export class MarketsService {
@@ -261,6 +282,19 @@ export class MarketsService {
       throw new AppError(404, "market_not_found", "market was not found");
     }
 
+    const [resolution, settlement] = await Promise.all([
+      db
+        .select()
+        .from(marketResolutions)
+        .where(eq(marketResolutions.marketId, marketId))
+        .limit(1),
+      db
+        .select()
+        .from(marketSettlements)
+        .where(eq(marketSettlements.marketId, marketId))
+        .limit(1),
+    ]);
+
     const record = this.mapMarketRecord(market);
 
     return {
@@ -270,8 +304,311 @@ export class MarketsService {
         resolutionSources: market.resolutionSources,
         statusTimeline: this.buildStatusTimeline(market),
         lastCommandSequence: market.lastCommandSequence,
+        resolution: resolution[0]
+          ? this.mapResolution(resolution[0])
+          : null,
+        settlement: settlement[0]
+          ? this.mapSettlement(settlement[0])
+          : null,
       },
     };
+  }
+
+  async resolveMarket(
+    marketId: string,
+    input: {
+      outcome: MarketResolutionOutcome;
+      evidenceSummary: string;
+      evidenceSources?: string[];
+      approvedBy?: string;
+    },
+  ) {
+    return db.transaction(async (tx) => {
+      const market = await this.loadMarketForResolution(tx, marketId);
+      await this.acquireMarketWriteLock(tx, market.id);
+      await this.assertNoOpenOrders(tx, market.id);
+
+      const existingResolutionRows = await tx
+        .select()
+        .from(marketResolutions)
+        .where(eq(marketResolutions.marketId, market.id))
+        .limit(1);
+
+      const existingResolution = existingResolutionRows[0];
+
+      if (existingResolution) {
+        throw new AppError(
+          409,
+          "market_already_resolved",
+          "market already has a recorded resolution",
+        );
+      }
+
+      const existingSettlementRows = await tx
+        .select({
+          id: marketSettlements.id,
+        })
+        .from(marketSettlements)
+        .where(eq(marketSettlements.marketId, market.id))
+        .limit(1);
+
+      if (existingSettlementRows[0]) {
+        throw new AppError(
+          409,
+          "market_already_settled",
+          "market has already been settled",
+        );
+      }
+
+      const now = new Date();
+      const updatedMarketRows = await tx
+        .update(markets)
+        .set({
+          status: "awaiting_resolution",
+          statusChangedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(markets.id, market.id))
+        .returning();
+
+      const updatedMarket = updatedMarketRows[0];
+
+      if (!updatedMarket) {
+        throw new AppError(500, "market_resolution_failed", "failed to update market status");
+      }
+
+      const insertedResolutionRows = await tx
+        .insert(marketResolutions)
+        .values({
+          marketId: market.id,
+          outcome: input.outcome,
+          evidenceSummary: input.evidenceSummary,
+          evidenceSources: input.evidenceSources ?? [],
+          approvedBy: input.approvedBy,
+          approvedAt: now,
+          updatedAt: now,
+        })
+        .returning();
+
+      const resolution = insertedResolutionRows[0];
+
+      if (!resolution) {
+        throw new AppError(500, "market_resolution_failed", "failed to persist market resolution");
+      }
+
+      return {
+        market: updatedMarket,
+        resolution: this.mapResolution(resolution),
+      };
+    });
+  }
+
+  async settleMarket(marketId: string) {
+    return db.transaction(async (tx) => {
+      const market = await this.loadMarketForSettlement(tx, marketId);
+      await this.acquireMarketWriteLock(tx, market.id);
+      await this.assertNoOpenOrders(tx, market.id);
+
+      const resolutionRows = await tx
+        .select()
+        .from(marketResolutions)
+        .where(eq(marketResolutions.marketId, market.id))
+        .limit(1);
+
+      const resolution = resolutionRows[0];
+
+      if (!resolution) {
+        throw new AppError(
+          409,
+          "market_resolution_missing",
+          "market must be resolved before settlement",
+        );
+      }
+
+      const existingSettlementRows = await tx
+        .select()
+        .from(marketSettlements)
+        .where(eq(marketSettlements.marketId, market.id))
+        .limit(1);
+
+      const existingSettlement = existingSettlementRows[0];
+
+      if (existingSettlement) {
+        return {
+          marketId: market.id,
+          alreadySettled: true,
+          resolution: this.mapResolution(resolution),
+          settlement: this.mapSettlement(existingSettlement),
+          payouts: await this.listSettlementPayouts(tx, existingSettlement.id, market.currency),
+        };
+      }
+
+      const positions = await this.loadNormalizedPositions(tx, market.id);
+      const payouts = positions.map((position) => {
+        const payoutMinor =
+          resolution.outcome === "void"
+            ? position.costBasisMinor
+            : position.outcome === resolution.outcome
+              ? position.quantity * 100
+              : 0;
+
+        return {
+          userId: position.userId,
+          marketId: market.id,
+          outcome: resolution.outcome,
+          quantity: position.quantity,
+          costBasisMinor: position.costBasisMinor,
+          payoutMinor,
+        };
+      });
+
+      const settlementStatus: MarketStatus =
+        resolution.outcome === "void" ? "voided" : "settled";
+      const settledAt = new Date();
+
+      const transactionRows = await tx
+        .insert(ledgerTransactions)
+        .values({
+          referenceType: "market_settlement",
+          referenceId: market.id,
+          metadata: {
+            marketId: market.id,
+            resolutionId: resolution.id,
+            outcome: resolution.outcome,
+            settledAt: settledAt.toISOString(),
+          },
+        })
+        .returning({
+          id: ledgerTransactions.id,
+        });
+
+      const transaction = transactionRows[0];
+
+      if (!transaction) {
+        throw new AppError(
+          500,
+          "ledger_transaction_failed",
+          "failed to create settlement ledger transaction",
+        );
+      }
+
+      const ledgerEntriesToInsert = [];
+
+      for (const payout of payouts) {
+        const positionWallet = await this.getOrCreateWalletAccount(tx, {
+          ownerUserId: payout.userId,
+          type: "user_position_collateral",
+          currency: market.currency,
+        });
+
+        if (payout.costBasisMinor > 0) {
+          ledgerEntriesToInsert.push({
+            transactionId: transaction.id,
+            walletAccountId: positionWallet.id,
+            side: "debit" as const,
+            amountMinor: payout.costBasisMinor,
+            currency: market.currency,
+          });
+        }
+
+        if (payout.payoutMinor > 0) {
+          const cashWallet = await this.getOrCreateWalletAccount(tx, {
+            ownerUserId: payout.userId,
+            type: "user_cash",
+            currency: market.currency,
+          });
+
+          ledgerEntriesToInsert.push({
+            transactionId: transaction.id,
+            walletAccountId: cashWallet.id,
+            side: "credit" as const,
+            amountMinor: payout.payoutMinor,
+            currency: market.currency,
+          });
+        }
+      }
+
+      if (ledgerEntriesToInsert.length > 0) {
+        await tx.insert(ledgerEntries).values(ledgerEntriesToInsert);
+      }
+
+      const settlementRows = await tx
+        .insert(marketSettlements)
+        .values({
+          marketId: market.id,
+          resolutionId: resolution.id,
+          outcome: resolution.outcome,
+          settledAt,
+          totalPayoutMinor: payouts.reduce((total, payout) => total + payout.payoutMinor, 0),
+          affectedUserCount: payouts.length,
+          metadata: {
+            currency: market.currency,
+            ledgerTransactionId: transaction.id,
+          },
+        })
+        .returning();
+
+      const settlement = settlementRows[0];
+
+      if (!settlement) {
+        throw new AppError(
+          500,
+          "market_settlement_failed",
+          "failed to persist market settlement",
+        );
+      }
+
+      if (payouts.length > 0) {
+        await tx.insert(marketSettlementPayouts).values(
+          payouts.map((payout) => ({
+            settlementId: settlement.id,
+            marketId: payout.marketId,
+            userId: payout.userId,
+            outcome: payout.outcome,
+            quantity: payout.quantity,
+            costBasisMinor: payout.costBasisMinor,
+            payoutMinor: payout.payoutMinor,
+          })),
+        );
+      }
+
+      const nextPriceSnapshot = this.getSettlementPriceSnapshot(resolution.outcome);
+
+      const updatedMarketRows = await tx
+        .update(markets)
+        .set({
+          status: settlementStatus,
+          yesPriceBps: nextPriceSnapshot.yesPriceBps,
+          noPriceBps: nextPriceSnapshot.noPriceBps,
+          statusChangedAt: settledAt,
+          updatedAt: settledAt,
+        })
+        .where(eq(markets.id, market.id))
+        .returning();
+
+      const updatedMarket = updatedMarketRows[0];
+
+      if (!updatedMarket) {
+        throw new AppError(
+          500,
+          "market_settlement_failed",
+          "failed to update settled market state",
+        );
+      }
+
+      return {
+        marketId: market.id,
+        alreadySettled: false,
+        market: updatedMarket,
+        resolution: this.mapResolution(resolution),
+        settlement: this.mapSettlement(settlement),
+        payouts: payouts.map((payout) => ({
+          ...payout,
+          currency: market.currency,
+          netPnlMinor: payout.payoutMinor - payout.costBasisMinor,
+        })),
+      };
+    });
   }
 
   async getOrderBookSnapshot(marketId: string) {
@@ -503,6 +840,200 @@ export class MarketsService {
     return market;
   }
 
+  private async loadMarketForResolution(executor: DbExecutor, marketId: string) {
+    const [market] = await executor
+      .select({
+        id: markets.id,
+        status: markets.status,
+        currency: markets.currency,
+      })
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1);
+
+    if (!market) {
+      throw new AppError(404, "market_not_found", "market was not found");
+    }
+
+    if (
+      market.status === "settled" ||
+      market.status === "voided" ||
+      market.status === "cancelled"
+    ) {
+      throw new AppError(
+        409,
+        "market_not_resolvable",
+        `market status ${market.status} is not eligible for resolution`,
+      );
+    }
+
+    return market;
+  }
+
+  private async loadMarketForSettlement(executor: DbExecutor, marketId: string) {
+    const [market] = await executor
+      .select({
+        id: markets.id,
+        status: markets.status,
+        currency: markets.currency,
+      })
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1);
+
+    if (!market) {
+      throw new AppError(404, "market_not_found", "market was not found");
+    }
+
+    if (
+      market.status !== "awaiting_resolution" &&
+      market.status !== "trading_closed" &&
+      market.status !== "active"
+    ) {
+      throw new AppError(
+        409,
+        "market_not_settleable",
+        `market status ${market.status} is not eligible for settlement`,
+      );
+    }
+
+    return market;
+  }
+
+  private async assertNoOpenOrders(executor: DbExecutor, marketId: string) {
+    const [openOrder] = await executor
+      .select({
+        id: orders.id,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.marketId, marketId),
+          inArray(orders.status, ["queued_for_matching", "partially_filled"]),
+        ),
+      )
+      .limit(1);
+
+    if (openOrder) {
+      throw new AppError(
+        409,
+        "market_has_open_orders",
+        "market still has open orders that must be cleared before resolution",
+      );
+    }
+  }
+
+  private async loadNormalizedPositions(executor: DbExecutor, marketId: string) {
+    const takerOrders = alias(orders, "taker_orders");
+    const rows = await executor
+      .select({
+        tradeId: marketTrades.id,
+        makerUserId: orders.userId,
+        makerSide: orders.side,
+        makerOutcome: orders.outcome,
+        takerUserId: takerOrders.userId,
+        takerSide: takerOrders.side,
+        takerOutcome: takerOrders.outcome,
+        priceBps: marketTrades.priceBps,
+        quantity: marketTrades.quantity,
+      })
+      .from(marketTrades)
+      .innerJoin(orders, eq(orders.id, marketTrades.makerOrderId))
+      .innerJoin(takerOrders, eq(takerOrders.id, marketTrades.takerOrderId))
+      .where(eq(marketTrades.marketId, marketId));
+
+    const positions = new Map<string, NormalizedPosition>();
+
+    for (const row of rows) {
+      for (const fill of [
+        {
+          userId: row.makerUserId,
+          marketId,
+          side: row.makerSide,
+          outcome: row.makerOutcome,
+          priceBps: row.priceBps,
+          quantity: row.quantity,
+        },
+        {
+          userId: row.takerUserId,
+          marketId,
+          side: row.takerSide,
+          outcome: row.takerOutcome,
+          priceBps: row.priceBps,
+          quantity: row.quantity,
+        },
+      ]) {
+        const normalizedOutcome =
+          fill.side === "buy"
+            ? fill.outcome
+            : fill.outcome === "yes"
+              ? "no"
+              : "yes";
+        const normalizedPriceBps =
+          fill.side === "buy" ? fill.priceBps : 10000 - fill.priceBps;
+        const key = `${fill.userId}:${normalizedOutcome}`;
+        const existing = positions.get(key);
+        const costBasisMinor = Math.ceil((fill.quantity * normalizedPriceBps) / 100);
+
+        positions.set(key, {
+          userId: fill.userId,
+          marketId,
+          outcome: normalizedOutcome,
+          quantity: (existing?.quantity ?? 0) + fill.quantity,
+          costBasisMinor: (existing?.costBasisMinor ?? 0) + costBasisMinor,
+        });
+      }
+    }
+
+    return Array.from(positions.values());
+  }
+
+  private getSettlementPriceSnapshot(outcome: MarketResolutionOutcome) {
+    if (outcome === "yes") {
+      return {
+        yesPriceBps: 10000,
+        noPriceBps: 0,
+      };
+    }
+
+    if (outcome === "no") {
+      return {
+        yesPriceBps: 0,
+        noPriceBps: 10000,
+      };
+    }
+
+    return {
+      yesPriceBps: 5000,
+      noPriceBps: 5000,
+    };
+  }
+
+  private async listSettlementPayouts(
+    executor: DbExecutor,
+    settlementId: string,
+    currency: MarketCurrency,
+  ) {
+    const rows = await executor
+      .select()
+      .from(marketSettlementPayouts)
+      .where(eq(marketSettlementPayouts.settlementId, settlementId))
+      .orderBy(asc(marketSettlementPayouts.createdAt));
+
+    return rows.map((row) => ({
+      settlementId: row.settlementId,
+      marketId: row.marketId,
+      userId: row.userId,
+      outcome: row.outcome,
+      quantity: row.quantity,
+      costBasisMinor: row.costBasisMinor,
+      payoutMinor: row.payoutMinor,
+      netPnlMinor: row.payoutMinor - row.costBasisMinor,
+      currency,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
   private assertPriceSnapshot(yesPriceBps: number, noPriceBps: number) {
     if (
       !Number.isInteger(yesPriceBps) ||
@@ -584,6 +1115,34 @@ export class MarketsService {
         startsAt: row.eventStartsAt,
         endsAt: row.eventEndsAt,
       },
+    };
+  }
+
+  private mapResolution(row: typeof marketResolutions.$inferSelect) {
+    return {
+      id: row.id,
+      marketId: row.marketId,
+      outcome: row.outcome,
+      evidenceSummary: row.evidenceSummary,
+      evidenceSources: row.evidenceSources,
+      approvedBy: row.approvedBy,
+      approvedAt: row.approvedAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  private mapSettlement(row: typeof marketSettlements.$inferSelect) {
+    return {
+      id: row.id,
+      marketId: row.marketId,
+      resolutionId: row.resolutionId,
+      outcome: row.outcome,
+      settledAt: row.settledAt.toISOString(),
+      totalPayoutMinor: row.totalPayoutMinor,
+      affectedUserCount: row.affectedUserCount,
+      metadata: this.asRecord(row.metadata),
+      createdAt: row.createdAt.toISOString(),
     };
   }
 
@@ -706,5 +1265,66 @@ export class MarketsService {
 
   private pickString(candidate: unknown, fallback: string) {
     return typeof candidate === "string" ? candidate : fallback;
+  }
+
+  private async acquireMarketWriteLock(executor: DbExecutor, marketId: string) {
+    await executor.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${marketId}, 0))`,
+    );
+  }
+
+  private async getOrCreateWalletAccount(
+    executor: DbExecutor,
+    input: {
+      ownerUserId: string | null;
+      type: WalletAccountType;
+      currency: string;
+    },
+  ) {
+    const whereClause =
+      input.ownerUserId === null
+        ? and(
+            eq(walletAccounts.type, input.type),
+            eq(walletAccounts.currency, input.currency),
+            sql`${walletAccounts.ownerUserId} is null`,
+          )
+        : and(
+            eq(walletAccounts.ownerUserId, input.ownerUserId),
+            eq(walletAccounts.type, input.type),
+            eq(walletAccounts.currency, input.currency),
+          );
+
+    const existingRows = await executor
+      .select({
+        id: walletAccounts.id,
+      })
+      .from(walletAccounts)
+      .where(whereClause)
+      .limit(1);
+
+    const existing = existingRows[0];
+
+    if (existing) {
+      return existing;
+    }
+
+    const insertedRows = await executor
+      .insert(walletAccounts)
+      .values({
+        ownerUserId: input.ownerUserId,
+        type: input.type,
+        currency: input.currency,
+      })
+      .returning({
+        id: walletAccounts.id,
+      });
+
+    const inserted = insertedRows[0];
+
+    if (!inserted) {
+      throw new AppError(500, "wallet_account_creation_failed", "failed to create wallet account");
+    }
+
+    return inserted;
   }
 }

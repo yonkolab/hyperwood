@@ -64,8 +64,9 @@ When adding or changing endpoints:
 
 1. update the relevant route and service code
 2. update the matching OpenAPI path and component files
-3. update or add guides if the behavior affects client integration
-4. run `npm run docs:lint` and `npm run docs:build`
+3. add or update API and integration coverage for the new behavior
+4. update or add guides if the behavior affects client integration
+5. run `npm run docs:lint`, `npm run test:api`, and the relevant integration tests
 
 ## Testing
 
@@ -144,6 +145,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/markets/:marketId/trades`
 - `GET /api/v1/portfolio`
 - `GET /api/v1/portfolio/fills`
+- `GET /api/v1/portfolio/settlements`
 - `POST /api/v1/orders`
 - `DELETE /api/v1/orders/:orderId`
 - `POST /api/v1/auth/api-keys`
@@ -168,6 +170,8 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`
+- `POST /api/v1/internal/markets/:marketId/resolve`
+- `POST /api/v1/internal/markets/:marketId/settle`
 
 For users with active MFA, sensitive account actions like API key creation and revocation require a short-lived step-up authorization from `POST /api/v1/auth/mfa/totp/authorize`.
 

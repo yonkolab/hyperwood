@@ -9,6 +9,11 @@ const fillsQuerySchema = z.object({
   currency: z.enum(["USD", "BRL"]).default("USD"),
 });
 
+const settlementsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(50),
+  currency: z.enum(["USD", "BRL"]).default("USD"),
+});
+
 const portfolioQuerySchema = z.object({
   currency: z.enum(["USD", "BRL"]).default("USD"),
 });
@@ -41,6 +46,14 @@ async function portfolioRoutes(app: FastifyInstance, _options: FastifyPluginOpti
     const user = await identityService.getUserFromSessionToken(sessionToken);
 
     return portfolioService.listFills(user.id, query.limit, query.currency);
+  });
+
+  app.get("/portfolio/settlements", async (request) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const query = settlementsQuerySchema.parse(request.query);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+
+    return portfolioService.listSettlements(user.id, query.limit, query.currency);
   });
 }
 

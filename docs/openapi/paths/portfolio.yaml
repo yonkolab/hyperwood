@@ -40,3 +40,25 @@ fills:
         $ref: ../components/responses/common.yaml#/Unauthorized
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
+
+settlements:
+  get:
+    operationId: listPortfolioSettlements
+    tags: [Portfolio]
+    summary: List settled position outcomes for the authenticated user
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit50
+      - $ref: ../components/parameters/common.yaml#/Currency
+    responses:
+      '200':
+        description: Recent settlement results.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/portfolio.yaml#/SettlementListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
