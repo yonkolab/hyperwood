@@ -4,6 +4,7 @@ import { db } from '../../db/client';
 import {
   ledgerEntries,
   ledgerTransactions,
+  marketAnnouncements,
   marketCommandEvents,
   type marketCurrencyEnum,
   marketEvents,
@@ -62,6 +63,12 @@ type CreateMarketInput = {
   opensAt?: Date;
   closesAt?: Date;
   resolvesAt?: Date;
+};
+
+type PublishMarketAnnouncementInput = {
+  title: string;
+  message: string;
+  publishedBy?: string;
 };
 
 type ListMarketsInput = {
@@ -360,6 +367,80 @@ export class MarketsService {
         settlement: settlement[0] ? this.mapSettlement(settlement[0]) : null,
       },
     };
+  }
+
+  async listMarketAnnouncements(marketId: string) {
+    await this.assertMarketExists(marketId);
+
+    const rows = await db
+      .select()
+      .from(marketAnnouncements)
+      .where(eq(marketAnnouncements.marketId, marketId))
+      .orderBy(
+        desc(marketAnnouncements.publishedAt),
+        desc(marketAnnouncements.createdAt),
+      );
+
+    return {
+      marketId,
+      announcements: rows.map((announcement) =>
+        this.mapAnnouncement(announcement),
+      ),
+    };
+  }
+
+  async publishMarketAnnouncement(
+    marketId: string,
+    input: PublishMarketAnnouncementInput,
+  ) {
+    return db.transaction(async (tx) => {
+      const market = await this.loadMarketSummary(tx, marketId);
+
+      const insertedRows = await tx
+        .insert(marketAnnouncements)
+        .values({
+          marketId,
+          title: input.title,
+          message: input.message,
+          publishedBy: input.publishedBy,
+        })
+        .returning();
+
+      const announcement = insertedRows[0];
+
+      if (!announcement) {
+        throw new AppError(
+          500,
+          'market_announcement_publish_failed',
+          'failed to publish market announcement',
+        );
+      }
+
+      await this.adminAuditService.recordEvent(
+        {
+          action: 'market.announcement_published',
+          actor: input.publishedBy ?? 'bootstrap',
+          targetType: 'market',
+          targetId: market.id,
+          payload: {
+            announcementId: announcement.id,
+            title: announcement.title,
+            status: market.status,
+          },
+        },
+        tx,
+      );
+
+      return {
+        market: {
+          id: market.id,
+          slug: market.slug,
+          title: market.title,
+          status: market.status,
+        },
+        announcement: this.mapAnnouncement(announcement),
+      };
+    });
   }
 
   async resolveMarket(
@@ -1037,6 +1118,25 @@ export class MarketsService {
     return market;
   }
 
+  private async loadMarketSummary(executor: DbExecutor, marketId: string) {
+    const [market] = await executor
+      .select({
+        id: markets.id,
+        slug: markets.slug,
+        title: markets.title,
+        status: markets.status,
+      })
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1);
+
+    if (!market) {
+      throw new AppError(404, 'market_not_found', 'market was not found');
+    }
+
+    return market;
+  }
+
   private async loadMarketForResolution(
     executor: DbExecutor,
     marketId: string,
@@ -1390,6 +1490,20 @@ export class MarketsService {
       reason: row.reason,
       changedBy: row.changedBy,
       createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  private mapAnnouncement(
+    announcement: typeof marketAnnouncements.$inferSelect,
+  ) {
+    return {
+      id: announcement.id,
+      marketId: announcement.marketId,
+      title: announcement.title,
+      message: announcement.message,
+      publishedBy: announcement.publishedBy,
+      publishedAt: announcement.publishedAt.toISOString(),
+      createdAt: announcement.createdAt.toISOString(),
     };
   }
 

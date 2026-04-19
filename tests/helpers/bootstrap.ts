@@ -191,6 +191,34 @@ export async function runMarketMatch(app: FastifyInstance, marketId: string) {
   };
 }
 
+export async function publishMarketAnnouncement(
+  app: FastifyInstance,
+  marketId: string,
+  overrides: Partial<{
+    title: string;
+    message: string;
+    publishedBy: string;
+  }> = {},
+) {
+  const response = await app.inject({
+    method: 'POST',
+    url: `/api/v1/internal/markets/${marketId}/announcements`,
+    headers: bootstrapHeaders(),
+    payload: {
+      title: 'Trading halt notice',
+      message:
+        'Trading is paused while the operations team reviews the market state.',
+      publishedBy: 'ops-admin',
+      ...overrides,
+    },
+  });
+
+  return {
+    response,
+    body: response.json(),
+  };
+}
+
 export async function transitionMarketStatus(
   app: FastifyInstance,
   marketId: string,

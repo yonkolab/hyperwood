@@ -195,6 +195,31 @@ export const marketStatusTransitions = pgTable(
   ],
 );
 
+export const marketAnnouncements = pgTable(
+  'market_announcements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    marketId: uuid('market_id')
+      .notNull()
+      .references(() => markets.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 160 }).notNull(),
+    message: text('message').notNull(),
+    publishedBy: varchar('published_by', { length: 128 }),
+    publishedAt: timestamp('published_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('market_announcements_market_id_idx').on(
+      table.marketId,
+      table.publishedAt,
+    ),
+  ],
+);
+
 export const marketSettlementPayouts = pgTable(
   'market_settlement_payouts',
   {
@@ -241,6 +266,16 @@ export const marketStatusTransitionsRelations = relations(
   ({ one }) => ({
     market: one(markets, {
       fields: [marketStatusTransitions.marketId],
+      references: [markets.id],
+    }),
+  }),
+);
+
+export const marketAnnouncementsRelations = relations(
+  marketAnnouncements,
+  ({ one }) => ({
+    market: one(markets, {
+      fields: [marketAnnouncements.marketId],
       references: [markets.id],
     }),
   }),

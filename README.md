@@ -187,6 +187,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/markets/:marketId/order-book`
 - `GET /api/v1/markets/:marketId/order-book/deltas`
 - `GET /api/v1/markets/:marketId/trades`
+- `GET /api/v1/markets/:marketId/announcements`
 - `GET /api/v1/portfolio`
 - `GET /api/v1/portfolio/fills`
 - `GET /api/v1/portfolio/settlements`
@@ -216,6 +217,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`
+- `POST /api/v1/internal/markets/:marketId/announcements`
 - `POST /api/v1/internal/markets/:marketId/status`
 - `POST /api/v1/internal/markets/:marketId/resolve`
 - `POST /api/v1/internal/markets/:marketId/settle`

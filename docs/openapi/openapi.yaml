@@ -110,12 +110,16 @@ paths:
     $ref: ./paths/markets.yaml#/orderBookDeltas
   /api/v1/markets/{marketId}/trades:
     $ref: ./paths/markets.yaml#/trades
+  /api/v1/markets/{marketId}/announcements:
+    $ref: ./paths/markets.yaml#/announcements
   /api/v1/internal/markets/events:
     $ref: ./paths/markets.yaml#/internalEvents
   /api/v1/internal/markets:
     $ref: ./paths/markets.yaml#/internalMarkets
   /api/v1/internal/markets/{marketId}/match:
     $ref: ./paths/markets.yaml#/internalMatch
+  /api/v1/internal/markets/{marketId}/announcements:
+    $ref: ./paths/markets.yaml#/internalAnnouncements
   /api/v1/internal/markets/{marketId}/status:
     $ref: ./paths/markets.yaml#/internalStatus
   /api/v1/internal/markets/{marketId}/resolve:

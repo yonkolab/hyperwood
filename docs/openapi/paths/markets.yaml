@@ -94,6 +94,24 @@ trades:
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
 
+announcements:
+  get:
+    operationId: listMarketAnnouncements
+    tags: [Markets]
+    summary: List published announcements for a market
+    security: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    responses:
+      '200':
+        description: Market announcement history ordered newest first.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/MarketAnnouncementListResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
 internalEvents:
   post:
     operationId: createMarketEvent
@@ -166,6 +184,33 @@ internalMatch:
         $ref: ../components/responses/common.yaml#/NotFound
       '409':
         $ref: ../components/responses/common.yaml#/Conflict
+
+internalAnnouncements:
+  post:
+    operationId: publishMarketAnnouncement
+    tags: [Markets, Internal]
+    summary: Publish a market announcement
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/markets.yaml#/PublishMarketAnnouncementRequest
+    responses:
+      '201':
+        description: Market announcement published.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/PublishMarketAnnouncementResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
 
 internalStatus:
   post:

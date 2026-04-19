@@ -5,6 +5,7 @@ import { createVerifiedSession } from '../helpers/auth';
 import {
   createMarket,
   createMarketEvent,
+  publishMarketAnnouncement,
   resolveMarket,
   seedWallet,
   settleMarket,
@@ -73,6 +74,45 @@ describe('markets api', () => {
 
     expect(deltas.statusCode).toBe(200);
     expect(deltas.json().deltas).toEqual([]);
+  });
+
+  it('publishes and lists market announcements', async () => {
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string);
+
+    const publish = await publishMarketAnnouncement(
+      app,
+      market.body.market.id as string,
+      {
+        title: 'Market under review',
+        message:
+          'Operations is reviewing the latest data feed for this market.',
+        publishedBy: 'ops-admin',
+      },
+    );
+
+    expect(publish.response.statusCode).toBe(201);
+    expect(publish.body.announcement).toMatchObject({
+      marketId: market.body.market.id,
+      title: 'Market under review',
+      message: 'Operations is reviewing the latest data feed for this market.',
+      publishedBy: 'ops-admin',
+    });
+
+    const list = await app.inject({
+      method: 'GET',
+      url: `/api/v1/markets/${market.body.market.id}/announcements`,
+    });
+
+    expect(list.statusCode).toBe(200);
+    expect(list.json()).toMatchObject({
+      marketId: market.body.market.id,
+    });
+    expect(list.json().announcements).toHaveLength(1);
+    expect(list.json().announcements[0]).toMatchObject({
+      title: 'Market under review',
+      publishedBy: 'ops-admin',
+    });
   });
 
   it('rejects internal market creation without the bootstrap token', async () => {

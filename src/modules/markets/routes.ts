@@ -73,6 +73,12 @@ const marketParamsSchema = z.object({
   marketId: z.string().uuid(),
 });
 
+const publishMarketAnnouncementBodySchema = z.object({
+  title: z.string().min(3).max(160),
+  message: z.string().min(3).max(4000),
+  publishedBy: z.string().min(3).max(128).optional(),
+});
+
 const updateMarketStatusBodySchema = z.object({
   status: z.enum([
     'draft',
@@ -167,6 +173,12 @@ async function marketRoutes(
     return matchingService.listRecentTrades(params.marketId, query.limit);
   });
 
+  app.get('/markets/:marketId/announcements', async (request) => {
+    const params = marketParamsSchema.parse(request.params);
+
+    return marketsService.listMarketAnnouncements(params.marketId);
+  });
+
   app.post('/internal/markets/events', async (request, reply) => {
     assertBootstrapToken(request);
     const body = createEventBodySchema.parse(request.body);
@@ -216,6 +228,25 @@ async function marketRoutes(
 
     return matchingService.runLimitOrderMatching(params.marketId);
   });
+
+  app.post(
+    '/internal/markets/:marketId/announcements',
+    async (request, reply) => {
+      assertBootstrapToken(request);
+      const params = marketParamsSchema.parse(request.params);
+      const body = publishMarketAnnouncementBodySchema.parse(request.body);
+      const result = await marketsService.publishMarketAnnouncement(
+        params.marketId,
+        {
+          title: body.title,
+          message: body.message,
+          ...(body.publishedBy ? { publishedBy: body.publishedBy } : {}),
+        },
+      );
+
+      reply.status(201).send(result);
+    },
+  );
 
   app.post('/internal/markets/:marketId/status', async (request, reply) => {
     assertBootstrapToken(request);
