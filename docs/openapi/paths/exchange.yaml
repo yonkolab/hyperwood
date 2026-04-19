@@ -14,6 +14,46 @@ schedule:
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
 
+status:
+  get:
+    operationId: getExchangeStatus
+    tags: [Exchange]
+    summary: Get the current derived exchange status
+    security: []
+    responses:
+      '200':
+        description: Current exchange trading status derived from the active schedule.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/exchange.yaml#/ExchangeStatusResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+fees:
+  get:
+    operationId: listExchangeFeeSchedules
+    tags: [Exchange]
+    summary: List active exchange fee schedules
+    security: []
+    parameters:
+      - name: currency
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [USD, BRL]
+        example: BRL
+    responses:
+      '200':
+        description: Active exchange fee schedules.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/exchange.yaml#/ExchangeFeeSchedulesResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
 internalSchedule:
   post:
     operationId: upsertExchangeSchedule
@@ -42,3 +82,42 @@ internalSchedule:
               $ref: ../components/schemas/exchange.yaml#/UpsertExchangeScheduleResponse
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
+
+internalFees:
+  post:
+    operationId: publishExchangeFeeSchedule
+    tags: [Exchange, Internal]
+    summary: Publish an exchange fee schedule
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/exchange.yaml#/PublishExchangeFeeScheduleRequest
+          examples:
+            brlStandardFee:
+              value:
+                name: Hyperwood BRL standard fee schedule
+                currency: BRL
+                makerFeeBps: 25
+                takerFeeBps: 60
+                effectiveFrom: '2026-04-20T00:00:00.000Z'
+                notes: Standard retail fee schedule for BRL markets.
+                publishedBy: ops-fees@hyperwood.internal
+    responses:
+      '201':
+        description: Exchange fee schedule published.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/exchange.yaml#/PublishExchangeFeeScheduleResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '409':
+        description: Overlapping fee schedule window.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/common.yaml#/ErrorResponse

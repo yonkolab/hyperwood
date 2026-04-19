@@ -19,6 +19,7 @@ import {
 import { sha256Hex } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
 import { ComplianceService } from '../compliance/service';
+import { ExchangeService } from '../exchange/service';
 
 type DbExecutor =
   | typeof db
@@ -50,6 +51,7 @@ const MAX_ORDER_RESERVE_MINOR = 10_000_000;
 
 export class OrdersService {
   private readonly complianceService = new ComplianceService();
+  private readonly exchangeService = new ExchangeService();
 
   async createOrder(input: CreateOrderInput) {
     const capabilityEvaluation =
@@ -131,6 +133,7 @@ export class OrdersService {
       }
 
       this.assertOrderQuantity(input.quantity);
+      await this.exchangeService.assertTradingOpen(tx);
       this.assertMarketTradable(market.status);
 
       const referencePriceBps =

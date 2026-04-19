@@ -100,6 +100,50 @@ export async function seedWallet(
   };
 }
 
+export async function upsertExchangeSchedule(
+  app: FastifyInstance,
+  overrides: Partial<{
+    name: string;
+    timezone: string;
+    weeklyWindows: Array<{
+      weekday:
+        | 'monday'
+        | 'tuesday'
+        | 'wednesday'
+        | 'thursday'
+        | 'friday'
+        | 'saturday'
+        | 'sunday';
+      opensAt: string;
+      closesAt: string;
+    }>;
+    maintenanceWindows: Array<{
+      startsAt: string;
+      endsAt: string;
+      message: string;
+    }>;
+    notes: string;
+  }> = {},
+) {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/internal/exchange/schedule',
+    headers: bootstrapHeaders(),
+    payload: {
+      name: 'Hyperwood exchange schedule',
+      timezone: 'UTC',
+      weeklyWindows: [],
+      maintenanceWindows: [],
+      ...overrides,
+    },
+  });
+
+  return {
+    response,
+    body: response.json(),
+  };
+}
+
 export async function createMarketEvent(
   app: FastifyInstance,
   overrides: Partial<{

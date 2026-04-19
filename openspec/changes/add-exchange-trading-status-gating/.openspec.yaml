@@ -1,0 +1,5 @@
+change:
+  id: add-exchange-trading-status-gating
+  title: Add exchange trading status gating
+  owner: codex
+  status: active

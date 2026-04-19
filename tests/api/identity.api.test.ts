@@ -5,6 +5,10 @@ import { loginUser, registerUser } from '../helpers/auth';
 
 describe('identity api', () => {
   let app: FastifyInstance;
+  const authRateLimitMaxRequests = Number.parseInt(
+    process.env.AUTH_RATE_LIMIT_MAX_REQUESTS ?? '100',
+    10,
+  );
 
   beforeAll(async () => {
     app = await buildTestApp();
@@ -52,7 +56,7 @@ describe('identity api', () => {
     expect(registration.response.statusCode).toBe(201);
 
     const attempts = await Promise.all(
-      Array.from({ length: 6 }, () =>
+      Array.from({ length: authRateLimitMaxRequests + 1 }, () =>
         app.inject({
           method: 'POST',
           url: '/api/v1/auth/request-email-verification',
@@ -70,7 +74,9 @@ describe('identity api', () => {
       error: 'rate_limit_exceeded',
       message: 'rate limit exceeded',
     });
-    expect(finalAttempt?.headers['x-ratelimit-limit']).toBe('5');
+    expect(finalAttempt?.headers['x-ratelimit-limit']).toBe(
+      authRateLimitMaxRequests.toString(),
+    );
     expect(finalAttempt?.headers['retry-after']).toEqual(expect.any(String));
   });
 });

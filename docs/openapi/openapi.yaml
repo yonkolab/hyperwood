@@ -82,6 +82,10 @@ paths:
     $ref: ./paths/funding.yaml#/fundingMethods
   /api/v1/exchange/schedule:
     $ref: ./paths/exchange.yaml#/schedule
+  /api/v1/exchange/status:
+    $ref: ./paths/exchange.yaml#/status
+  /api/v1/exchange/fees:
+    $ref: ./paths/exchange.yaml#/fees
   /api/v1/wallet/balance:
     $ref: ./paths/funding.yaml#/walletBalance
   /api/v1/funding/deposits:
@@ -106,6 +110,8 @@ paths:
     $ref: ./paths/funding.yaml#/reconciliationDiscrepancies
   /api/v1/internal/exchange/schedule:
     $ref: ./paths/exchange.yaml#/internalSchedule
+  /api/v1/internal/exchange/fees:
+    $ref: ./paths/exchange.yaml#/internalFees
   /api/v1/markets:
     $ref: ./paths/markets.yaml#/markets
   /api/v1/markets/{marketId}:

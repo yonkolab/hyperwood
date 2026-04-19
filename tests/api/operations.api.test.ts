@@ -13,6 +13,10 @@ import {
 
 describe('operations api', () => {
   let app: FastifyInstance;
+  const authRateLimitMaxRequests = Number.parseInt(
+    process.env.AUTH_RATE_LIMIT_MAX_REQUESTS ?? '100',
+    10,
+  );
 
   beforeAll(async () => {
     app = await buildTestApp();
@@ -113,7 +117,11 @@ describe('operations api', () => {
 
     expect(registration.response.statusCode).toBe(201);
 
-    for (let attempt = 0; attempt < 6; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < authRateLimitMaxRequests + 1;
+      attempt += 1
+    ) {
       await app.inject({
         method: 'POST',
         url: '/api/v1/auth/request-email-verification',
@@ -144,8 +152,10 @@ describe('operations api', () => {
       scopeKey: registration.credentials.email,
       method: 'POST',
       path: '/api/v1/auth/request-email-verification',
-      limit: 5,
+      limit: authRateLimitMaxRequests,
     });
-    expect(events.json().events[0].observedCount).toBeGreaterThanOrEqual(6);
+    expect(events.json().events[0].observedCount).toBeGreaterThanOrEqual(
+      authRateLimitMaxRequests + 1,
+    );
   });
 });

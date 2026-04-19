@@ -6,6 +6,7 @@ import {
   runMarketMatch,
   seedWallet,
   upsertApprovedComplianceProfile,
+  upsertExchangeSchedule,
 } from './bootstrap';
 
 export async function createMatchedMarketScenario(
@@ -14,11 +15,23 @@ export async function createMatchedMarketScenario(
     currency: 'USD' | 'BRL';
     quantity: number;
     limitPriceBps: number;
+    match: boolean;
   }> = {},
 ) {
   const currency = overrides.currency ?? 'USD';
   const quantity = overrides.quantity ?? 10;
   const limitPriceBps = overrides.limitPriceBps ?? 4800;
+  const shouldMatch = overrides.match ?? true;
+  const weekdayNames = [
+    'sunday',
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+  ] as const;
+  const currentWeekday = weekdayNames[new Date().getUTCDay()];
 
   const buyer = await createVerifiedSession(app);
   const seller = await createVerifiedSession(app);
@@ -37,6 +50,20 @@ export async function createMatchedMarketScenario(
       referenceId: `seed-${currency.toLowerCase()}-seller`,
     }),
   ]);
+
+  await upsertExchangeSchedule(app, {
+    name: 'Always-on API test schedule',
+    timezone: 'UTC',
+    weeklyWindows: [
+      {
+        weekday: currentWeekday,
+        opensAt: '00:00',
+        closesAt: '23:59',
+      },
+    ],
+    maintenanceWindows: [],
+    notes: 'Keeps exchange trading open during API matching tests.',
+  });
 
   const event = await createMarketEvent(app, {
     category: 'politics',
@@ -82,7 +109,9 @@ export async function createMatchedMarketScenario(
     },
   });
 
-  const match = await runMarketMatch(app, market.body.market.id as string);
+  const match = shouldMatch
+    ? await runMarketMatch(app, market.body.market.id as string)
+    : null;
 
   return {
     currency,

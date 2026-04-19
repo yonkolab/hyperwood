@@ -13,6 +13,7 @@ import {
   type walletAccountTypeEnum,
 } from '../../db/schema';
 import { AppError } from '../../lib/errors';
+import { ExchangeService } from '../exchange/service';
 
 type DbExecutor =
   | typeof db
@@ -64,9 +65,12 @@ type TradeCollateralMove = {
 };
 
 export class MatchingService {
+  private readonly exchangeService = new ExchangeService();
+
   async runLimitOrderMatching(marketId: string) {
     return db.transaction(async (tx) => {
       const market = await this.assertMarketMatchable(tx, marketId);
+      await this.exchangeService.assertTradingOpen(tx);
 
       await this.acquireMarketWriteLock(tx, market.id);
 

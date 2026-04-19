@@ -7,12 +7,28 @@ import {
   createMarketEvent,
   publishMarketAnnouncement,
   resolveMarket,
+  runMarketMatch,
   seedWallet,
   settleMarket,
   transitionMarketStatus,
   upsertApprovedComplianceProfile,
+  upsertExchangeSchedule,
 } from '../helpers/bootstrap';
 import { createMatchedMarketScenario } from '../helpers/trading';
+
+const weekdayNames = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+] as const;
+
+function getCurrentUtcWeekday() {
+  return weekdayNames[new Date().getUTCDay()];
+}
 
 describe('markets api', () => {
   let app: FastifyInstance;
@@ -195,6 +211,20 @@ describe('markets api', () => {
       status: 'active',
       currency: 'USD',
     });
+    await upsertExchangeSchedule(app, {
+      name: 'Open exchange for halted market test',
+      timezone: 'UTC',
+      weeklyWindows: [
+        {
+          weekday: getCurrentUtcWeekday(),
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+      ],
+      maintenanceWindows: [],
+      notes:
+        'Keeps exchange open so the halted market gate is the asserted behavior.',
+    });
 
     const halt = await transitionMarketStatus(
       app,
@@ -296,5 +326,48 @@ describe('markets api', () => {
 
     expect(settle.response.statusCode).toBe(409);
     expect(settle.body.error).toBe('market_not_settleable');
+  });
+
+  it('blocks internal matching while the exchange is under maintenance', async () => {
+    const scenario = await createMatchedMarketScenario(app, {
+      currency: 'USD',
+      quantity: 10,
+      limitPriceBps: 4800,
+      match: false,
+    });
+    const now = Date.now();
+
+    expect(scenario.buyOrder.statusCode).toBe(201);
+    expect(scenario.sellOrder.statusCode).toBe(201);
+
+    await upsertExchangeSchedule(app, {
+      name: 'Maintenance matching gate schedule',
+      timezone: 'UTC',
+      weeklyWindows: [
+        {
+          weekday: getCurrentUtcWeekday(),
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+      ],
+      maintenanceWindows: [
+        {
+          startsAt: new Date(now - 5 * 60 * 1000).toISOString(),
+          endsAt: new Date(now + 5 * 60 * 1000).toISOString(),
+          message: 'Matching is disabled during maintenance.',
+        },
+      ],
+      notes: 'Exchange should block internal matching during maintenance.',
+    });
+
+    const match = await runMarketMatch(
+      app,
+      scenario.market.body.market.id as string,
+    );
+
+    expect(match.response.statusCode).toBe(409);
+    expect(match.body).toMatchObject({
+      error: 'exchange_not_open',
+    });
   });
 });

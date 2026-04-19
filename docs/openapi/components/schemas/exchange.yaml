@@ -61,6 +61,46 @@ ExchangeScheduleResponse:
     schedule:
       $ref: '#/ExchangeSchedule'
 
+ExchangeStatusResponse:
+  type: object
+  required:
+    - asOf
+    - status
+    - reason
+    - tradingAllowed
+    - localDate
+    - localTime
+    - activeWindow
+    - activeMaintenanceWindow
+    - schedule
+  properties:
+    asOf:
+      type: string
+      format: date-time
+    status:
+      type: string
+      enum: [open, closed, maintenance]
+    reason:
+      type: string
+      enum:
+        [within_scheduled_hours, outside_scheduled_hours, maintenance_window]
+    tradingAllowed:
+      type: boolean
+    localDate:
+      type: string
+      example: '2026-04-19'
+    localTime:
+      type: string
+      pattern: '^\d{2}:\d{2}$'
+    activeWindow:
+      $ref: '#/ExchangeScheduleWindow'
+      nullable: true
+    activeMaintenanceWindow:
+      $ref: '#/ExchangeMaintenanceWindow'
+      nullable: true
+    schedule:
+      $ref: '#/ExchangeSchedule'
+
 UpsertExchangeScheduleRequest:
   type: object
   required: [name, timezone, weeklyWindows, maintenanceWindows]
@@ -88,3 +128,108 @@ UpsertExchangeScheduleResponse:
       type: boolean
     schedule:
       $ref: '#/ExchangeSchedule'
+
+ExchangeFeeSchedule:
+  type: object
+  required:
+    - id
+    - name
+    - currency
+    - makerFeeBps
+    - takerFeeBps
+    - effectiveFrom
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    currency:
+      type: string
+      enum: [USD, BRL]
+    makerFeeBps:
+      type: integer
+      minimum: 0
+      maximum: 10000
+    takerFeeBps:
+      type: integer
+      minimum: 0
+      maximum: 10000
+    effectiveFrom:
+      type: string
+      format: date-time
+    effectiveUntil:
+      type: string
+      format: date-time
+      nullable: true
+    notes:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+ExchangeFeeSchedulesResponse:
+  type: object
+  required: [asOf, feeSchedules]
+  properties:
+    asOf:
+      type: string
+      format: date-time
+    feeSchedules:
+      type: array
+      items:
+        $ref: '#/ExchangeFeeSchedule'
+
+PublishExchangeFeeScheduleRequest:
+  type: object
+  required:
+    - name
+    - currency
+    - makerFeeBps
+    - takerFeeBps
+    - effectiveFrom
+  properties:
+    name:
+      type: string
+      example: Hyperwood BRL standard fee schedule
+    currency:
+      type: string
+      enum: [USD, BRL]
+    makerFeeBps:
+      type: integer
+      minimum: 0
+      maximum: 10000
+      example: 25
+    takerFeeBps:
+      type: integer
+      minimum: 0
+      maximum: 10000
+      example: 60
+    effectiveFrom:
+      type: string
+      format: date-time
+      example: '2026-04-20T00:00:00.000Z'
+    effectiveUntil:
+      type: string
+      format: date-time
+      nullable: true
+      example: '2026-07-01T00:00:00.000Z'
+    notes:
+      type: string
+      nullable: true
+    publishedBy:
+      type: string
+      nullable: true
+
+PublishExchangeFeeScheduleResponse:
+  type: object
+  required: [feeSchedule]
+  properties:
+    feeSchedule:
+      $ref: '#/ExchangeFeeSchedule'
