@@ -29,6 +29,8 @@ Prediction market API skeleton focused on the day-1 `identity-and-access` founda
 4. Apply the current migration set with `npm run db:migrate`.
 5. Run the server with `npm run dev`.
 
+If you need browser-based clients such as the Scalar docs preview to call the API from a different origin, set `CORS_ALLOWED_ORIGINS` to a comma-separated allowlist. In development, Hyperwood also accepts localhost and private-network origins by default so WSL-hosted docs previews can reach the API.
+
 ## Local Docker
 
 1. Copy `.env.example` to `.env`.

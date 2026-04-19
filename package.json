@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
+    "@fastify/cors": "^11.2.0",
     "@scalar/api-reference": "^1.52.3",
     "@scalar/fastify-api-reference": "^1.52.3",
     "@types/node": "^22.10.2",

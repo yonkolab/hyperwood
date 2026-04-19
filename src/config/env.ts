@@ -5,6 +5,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   HOST: z.string().default("0.0.0.0"),
   PORT: z.coerce.number().int().positive().default(3000),
+  CORS_ALLOWED_ORIGINS: z.string().default(""),
   DATABASE_URL: z.string().min(1),
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(24 * 30),
   EMAIL_VERIFICATION_TTL_MINUTES: z.coerce.number().int().positive().default(60),
