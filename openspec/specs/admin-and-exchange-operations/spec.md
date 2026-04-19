@@ -24,6 +24,11 @@ The system SHALL record immutable audit events for sensitive administrative acti
 - **WHEN** an administrator performs a sensitive action such as withdrawal approval, compliance override, market resolution, or manual ledger adjustment
 - **THEN** the system records the actor, action, target resource, relevant payload, and timestamp in audit records
 
+#### Scenario: Audit trail is queried by target
+- **WHEN** an internal operator queries audit history for a specific target resource
+- **THEN** the system returns matching immutable audit events ordered from newest to oldest
+- **AND** each event includes action, actor, target identity, payload, and timestamp
+
 ### Requirement: Administrative market resolution actions
 
 The system SHALL provide internal workflows for approving market outcomes and executing settlement.
@@ -39,4 +44,3 @@ The system SHALL provide internal workflows for approving market outcomes and ex
 - **WHEN** an authorized operator executes settlement for a resolved market
 - **THEN** the system applies the settlement exactly once
 - **AND** returns a summary of payouts and affected users
-

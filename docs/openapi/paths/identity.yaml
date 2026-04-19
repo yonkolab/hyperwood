@@ -17,6 +17,8 @@ register:
           application/json:
             schema:
               $ref: ../components/schemas/identity.yaml#/VerificationResponse
+      '429':
+        $ref: ../components/responses/common.yaml#/TooManyRequests
       '409':
         $ref: ../components/responses/common.yaml#/Conflict
       '500':
@@ -68,6 +70,8 @@ requestEmailVerification:
           application/json:
             schema:
               $ref: ../components/schemas/identity.yaml#/VerificationResponse
+      '429':
+        $ref: ../components/responses/common.yaml#/TooManyRequests
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
       '409':
@@ -92,6 +96,8 @@ verifyEmail:
           application/json:
             schema:
               $ref: ../components/schemas/identity.yaml#/VerifyEmailResponse
+      '429':
+        $ref: ../components/responses/common.yaml#/TooManyRequests
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
       '409':
@@ -118,6 +124,8 @@ verifyTotpLogin:
           application/json:
             schema:
               $ref: ../components/schemas/identity.yaml#/LoginSessionResponse
+      '429':
+        $ref: ../components/responses/common.yaml#/TooManyRequests
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
       '404':

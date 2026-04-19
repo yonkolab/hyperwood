@@ -8,9 +8,11 @@ import {
   users,
 } from "../../db/schema";
 import { AdminAuditService } from "./audit";
+import { RateLimitEventService } from "./rate-limit";
 
 export class OperationsService {
   private readonly adminAuditService = new AdminAuditService();
+  private readonly rateLimitEventService = new RateLimitEventService();
 
   async listActiveReviewQueue(input: { limit: number }) {
     const limit = Math.min(input.limit, 100);
@@ -195,6 +197,27 @@ export class OperationsService {
         ...(input.targetType ? { targetType: input.targetType } : {}),
         ...(input.targetId ? { targetId: input.targetId } : {}),
         ...(input.action ? { action: input.action } : {}),
+      }),
+    };
+  }
+
+  async listRateLimitEvents(input: {
+    bucket?: string;
+    limit: number;
+    path?: string;
+    scopeKey?: string;
+    scopeType?: string;
+  }) {
+    const limit = Math.min(input.limit, 100);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      events: await this.rateLimitEventService.listEvents({
+        limit,
+        ...(input.bucket ? { bucket: input.bucket } : {}),
+        ...(input.scopeType ? { scopeType: input.scopeType } : {}),
+        ...(input.scopeKey ? { scopeKey: input.scopeKey } : {}),
+        ...(input.path ? { path: input.path } : {}),
       }),
     };
   }

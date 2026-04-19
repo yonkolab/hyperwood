@@ -189,3 +189,53 @@ AuditEventListResponse:
       type: array
       items:
         $ref: '#/AuditEvent'
+
+RateLimitEvent:
+  type: object
+  required: [id, bucket, scopeType, scopeKey, method, path, limit, observedCount, windowStartedAt, windowEndsAt, metadata, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    bucket:
+      type: string
+    scopeType:
+      type: string
+      enum: [api_key, email, ip]
+    scopeKey:
+      type: string
+    method:
+      type: string
+    path:
+      type: string
+    limit:
+      type: integer
+    observedCount:
+      type: integer
+    requestIp:
+      type: string
+      nullable: true
+    windowStartedAt:
+      type: string
+      format: date-time
+    windowEndsAt:
+      type: string
+      format: date-time
+    metadata:
+      type: object
+      additionalProperties: true
+    createdAt:
+      type: string
+      format: date-time
+
+RateLimitEventListResponse:
+  type: object
+  required: [generatedAt, events]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    events:
+      type: array
+      items:
+        $ref: '#/RateLimitEvent'

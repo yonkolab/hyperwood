@@ -77,6 +77,10 @@ TooManyRequests:
       schema:
         $ref: ../schemas/common.yaml#/ErrorResponse
       examples:
+        throttled:
+          value:
+            error: rate_limit_exceeded
+            message: rate limit exceeded
         blocked:
           value:
             error: login_temporarily_restricted

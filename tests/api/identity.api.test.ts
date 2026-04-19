@@ -45,4 +45,32 @@ describe("identity api", () => {
       message: "missing bearer session token",
     });
   });
+
+  it("rate limits repeated public auth requests for the same email", async () => {
+    const registration = await registerUser(app);
+
+    expect(registration.response.statusCode).toBe(201);
+
+    const attempts = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        app.inject({
+          method: "POST",
+          url: "/api/v1/auth/request-email-verification",
+          payload: {
+            email: registration.credentials.email,
+          },
+        }),
+      ),
+    );
+
+    const finalAttempt = attempts.at(-1);
+
+    expect(finalAttempt?.statusCode).toBe(429);
+    expect(finalAttempt?.json()).toMatchObject({
+      error: "rate_limit_exceeded",
+      message: "rate limit exceeded",
+    });
+    expect(finalAttempt?.headers["x-ratelimit-limit"]).toBe("5");
+    expect(finalAttempt?.headers["retry-after"]).toEqual(expect.any(String));
+  });
 });

@@ -33,6 +33,8 @@ orders:
         $ref: ../components/responses/common.yaml#/Unauthorized
       '403':
         $ref: ../components/responses/common.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses/common.yaml#/TooManyRequests
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
       '409':

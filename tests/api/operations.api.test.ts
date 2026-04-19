@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildTestApp } from "../helpers/app";
-import { createVerifiedSession } from "../helpers/auth";
+import { createVerifiedSession, registerUser } from "../helpers/auth";
 import {
   createMarket,
   createMarketEvent,
@@ -97,5 +97,45 @@ describe("operations api", () => {
       toStatus: "halted",
       reason: "Circuit breaker triggered.",
     });
+  });
+
+  it("lists persisted rate-limit exceed events for internal operators", async () => {
+    const registration = await registerUser(app);
+
+    expect(registration.response.statusCode).toBe(201);
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      await app.inject({
+        method: "POST",
+        url: "/api/v1/auth/request-email-verification",
+        payload: {
+          email: registration.credentials.email,
+        },
+      });
+    }
+
+    const events = await app.inject({
+      method: "GET",
+      url:
+        "/api/v1/internal/operations/rate-limit-events" +
+        `?limit=10&bucket=auth_external&scopeType=email&scopeKey=${encodeURIComponent(
+          registration.credentials.email,
+        )}&path=${encodeURIComponent("/api/v1/auth/request-email-verification")}`,
+      headers: {
+        "x-bootstrap-token": process.env.INTERNAL_BOOTSTRAP_TOKEN ?? "test-bootstrap-token",
+      },
+    });
+
+    expect(events.statusCode).toBe(200);
+    expect(events.json().events).toHaveLength(1);
+    expect(events.json().events[0]).toMatchObject({
+      bucket: "auth_external",
+      scopeType: "email",
+      scopeKey: registration.credentials.email,
+      method: "POST",
+      path: "/api/v1/auth/request-email-verification",
+      limit: 5,
+    });
+    expect(events.json().events[0].observedCount).toBeGreaterThanOrEqual(6);
   });
 });

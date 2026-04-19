@@ -50,3 +50,43 @@ auditEvents:
               $ref: ../components/schemas/operations.yaml#/AuditEventListResponse
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
+
+rateLimitEvents:
+  get:
+    operationId: listOperationsRateLimitEvents
+    tags: [Operations, Internal]
+    summary: List external API rate-limit exceed events
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit25
+      - name: bucket
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: scopeType
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [api_key, email, ip]
+      - name: scopeKey
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: path
+        in: query
+        required: false
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Persisted rate-limit exceed events for external API requests.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/operations.yaml#/RateLimitEventListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized

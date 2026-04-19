@@ -13,6 +13,7 @@ info:
     - Public read-only endpoints exist for market discovery and health checks.
     - Authenticated endpoints use opaque bearer session tokens unless documented otherwise.
     - Internal endpoints use the `x-bootstrap-token` header.
+    - External API routes are rate-limited. Public auth routes use a stricter bucket than general API traffic.
     - Webhooks and realtime transports are not implemented yet and are documented as future work in `/docs/guides`.
   license:
     name: Proprietary
@@ -135,6 +136,8 @@ paths:
     $ref: ./paths/operations.yaml#/reviews
   /api/v1/internal/operations/audit-events:
     $ref: ./paths/operations.yaml#/auditEvents
+  /api/v1/internal/operations/rate-limit-events:
+    $ref: ./paths/operations.yaml#/rateLimitEvents
 components:
   securitySchemes:
     SessionBearer:

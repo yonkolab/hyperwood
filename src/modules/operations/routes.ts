@@ -15,6 +15,14 @@ const listAuditEventsQuerySchema = z.object({
   action: z.string().min(1).max(128).optional(),
 });
 
+const listRateLimitEventsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+  bucket: z.string().min(1).max(64).optional(),
+  scopeType: z.string().min(1).max(32).optional(),
+  scopeKey: z.string().min(1).max(255).optional(),
+  path: z.string().min(1).max(255).optional(),
+});
+
 function assertBootstrapToken(request: FastifyRequest) {
   const bootstrapToken = request.headers["x-bootstrap-token"];
 
@@ -44,6 +52,19 @@ async function operationsRoutes(app: FastifyInstance, _options: FastifyPluginOpt
       ...(query.targetType ? { targetType: query.targetType } : {}),
       ...(query.targetId ? { targetId: query.targetId } : {}),
       ...(query.action ? { action: query.action } : {}),
+    });
+  });
+
+  app.get("/internal/operations/rate-limit-events", async (request) => {
+    assertBootstrapToken(request);
+    const query = listRateLimitEventsQuerySchema.parse(request.query);
+
+    return operationsService.listRateLimitEvents({
+      limit: query.limit,
+      ...(query.bucket ? { bucket: query.bucket } : {}),
+      ...(query.scopeType ? { scopeType: query.scopeType } : {}),
+      ...(query.scopeKey ? { scopeKey: query.scopeKey } : {}),
+      ...(query.path ? { path: query.path } : {}),
     });
   });
 }

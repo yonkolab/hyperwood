@@ -1,12 +1,15 @@
 import cors from "@fastify/cors";
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 import { env } from "./config/env";
+import { AppError } from "./lib/errors";
+import { InMemoryRateLimiter, type RateLimitScopeType } from "./lib/rate-limit";
 import { registerComplianceRoutes } from "./modules/compliance/routes";
 import { registerFundingRoutes } from "./modules/funding/routes";
 import { registerIdentityRoutes } from "./modules/identity/routes";
 import { registerMarketRoutes } from "./modules/markets/routes";
 import { registerOperationsRoutes } from "./modules/operations/routes";
+import { RateLimitEventService } from "./modules/operations/rate-limit";
 import { registerOrderRoutes } from "./modules/orders/routes";
 import { registerPortfolioRoutes } from "./modules/portfolio/routes";
 
@@ -60,12 +63,121 @@ function isDevelopmentOrigin(origin: string): boolean {
   return isPrivateIpv4Host(hostname);
 }
 
+function getPathname(rawUrl: string): string {
+  try {
+    return new URL(rawUrl, "http://localhost").pathname;
+  } catch {
+    return rawUrl;
+  }
+}
+
+function getRequestEmail(body: unknown): string | undefined {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return undefined;
+  }
+
+  const email = (body as { email?: unknown }).email;
+
+  return typeof email === "string" && email.length > 0
+    ? email.toLowerCase()
+    : undefined;
+}
+
+function getRateLimitScope(
+  request: FastifyRequest,
+  pathname: string,
+): { scopeKey: string; scopeType: RateLimitScopeType } {
+  const requestEmail = getRequestEmail(request.body);
+
+  if (requestEmail) {
+    return {
+      scopeType: "email",
+      scopeKey: requestEmail,
+    };
+  }
+
+  const apiKeyHeader = request.headers["x-api-key"];
+
+  if (typeof apiKeyHeader === "string" && apiKeyHeader.length > 0) {
+    return {
+      scopeType: "api_key",
+      scopeKey: apiKeyHeader,
+    };
+  }
+
+  const authorization = request.headers.authorization;
+
+  if (authorization?.startsWith("Bearer hw_")) {
+    return {
+      scopeType: "api_key",
+      scopeKey: authorization.slice("Bearer ".length, "Bearer ".length + 24),
+    };
+  }
+
+  return {
+    scopeType: "ip",
+    scopeKey:
+      request.ip.length > 0 ? request.ip : pathname,
+  };
+}
+
+function getRateLimitPolicy(
+  request: FastifyRequest,
+  pathname: string,
+):
+  | {
+      bucket: string;
+      limit: number;
+      scopeKey: string;
+      scopeType: RateLimitScopeType;
+      windowSeconds: number;
+    }
+  | undefined {
+  if (
+    request.method === "OPTIONS" ||
+    !pathname.startsWith("/api/v1/") ||
+    pathname.startsWith("/api/v1/internal/")
+  ) {
+    return undefined;
+  }
+
+  const authPaths = new Set([
+    "/api/v1/auth/register",
+    "/api/v1/auth/login",
+    "/api/v1/auth/request-email-verification",
+    "/api/v1/auth/verify-email",
+    "/api/v1/auth/mfa/totp/verify",
+  ]);
+
+  const scope = getRateLimitScope(request, pathname);
+
+  if (authPaths.has(pathname)) {
+    return {
+      bucket: "auth_external",
+      limit: env.AUTH_RATE_LIMIT_MAX_REQUESTS,
+      scopeType: scope.scopeType,
+      scopeKey: scope.scopeKey,
+      windowSeconds: env.AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    };
+  }
+
+  return {
+    bucket: "api_external",
+    limit: env.API_RATE_LIMIT_MAX_REQUESTS,
+    scopeType: scope.scopeType,
+    scopeKey: scope.scopeKey,
+    windowSeconds: env.API_RATE_LIMIT_WINDOW_SECONDS,
+  };
+}
+
 export async function buildApp() {
   const app = Fastify({
     logger: env.NODE_ENV === "development",
   });
 
   const allowedOrigins = parseAllowedOrigins(env.CORS_ALLOWED_ORIGINS);
+  const rateLimiter = new InMemoryRateLimiter();
+  const rateLimitEventService = new RateLimitEventService();
 
   await app.register(cors, {
     methods: ["GET", "POST", "DELETE", "OPTIONS"],
@@ -139,6 +251,67 @@ export async function buildApp() {
       error: code,
       message: error.message,
     });
+  });
+
+  app.addHook("preHandler", async (request, reply) => {
+    const pathname = getPathname(request.raw.url ?? request.url);
+    const policy = getRateLimitPolicy(request, pathname);
+
+    if (!policy) {
+      return;
+    }
+
+    const decision = rateLimiter.evaluate(policy);
+    const resetEpochSeconds = Math.ceil(decision.resetAt.getTime() / 1000);
+
+    reply.header("X-RateLimit-Limit", String(decision.limit));
+    reply.header("X-RateLimit-Remaining", String(decision.remaining));
+    reply.header("X-RateLimit-Reset", String(resetEpochSeconds));
+
+    if (decision.allowed) {
+      return;
+    }
+
+    reply.header(
+      "Retry-After",
+      String(Math.max(1, Math.ceil((decision.resetAt.getTime() - Date.now()) / 1000))),
+    );
+
+    if (decision.shouldRecordExceededEvent) {
+      try {
+        await rateLimitEventService.recordExceededEvent({
+          bucket: policy.bucket,
+          limit: decision.limit,
+          method: request.method,
+          observedCount: decision.observedCount,
+          path: pathname,
+          requestIp: request.ip,
+          scopeKey: policy.scopeKey,
+          scopeType: policy.scopeType,
+          windowEndsAt: decision.resetAt,
+          windowStartedAt: decision.windowStartedAt,
+          metadata: {
+            userAgent:
+              typeof request.headers["user-agent"] === "string"
+                ? request.headers["user-agent"]
+                : null,
+          },
+        });
+      } catch (error) {
+        app.log.error(
+          {
+            err: error,
+            bucket: policy.bucket,
+            path: pathname,
+            scopeKey: policy.scopeKey,
+            scopeType: policy.scopeType,
+          },
+          "failed to persist rate limit event",
+        );
+      }
+    }
+
+    throw new AppError(429, "rate_limit_exceeded", "rate limit exceeded");
   });
 
   app.get("/health", async () => ({

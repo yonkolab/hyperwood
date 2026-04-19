@@ -31,6 +31,13 @@ Prediction market API skeleton focused on the day-1 `identity-and-access` founda
 
 If you need browser-based clients such as the Scalar docs preview to call the API from a different origin, set `CORS_ALLOWED_ORIGINS` to a comma-separated allowlist. In development, Hyperwood also accepts localhost and private-network origins by default so WSL-hosted docs previews can reach the API.
 
+Hyperwood applies default external API throttles:
+
+- public auth routes: `AUTH_RATE_LIMIT_MAX_REQUESTS` within `AUTH_RATE_LIMIT_WINDOW_SECONDS`
+- other external API routes: `API_RATE_LIMIT_MAX_REQUESTS` within `API_RATE_LIMIT_WINDOW_SECONDS`
+
+Exceeded windows return `429 rate_limit_exceeded` and are available to operators through the internal rate-limit event feed.
+
 ## Local Docker
 
 1. Copy `.env.example` to `.env`.
@@ -59,6 +66,14 @@ Useful commands:
 
 `docs:preview` starts a small Fastify server with Scalar at `/reference`.
 `docs:build` generates a static Scalar reference into `docs/reference/`.
+
+Relevant guides:
+
+- `docs/guides/getting-started.md`
+- `docs/guides/authentication.md`
+- `docs/guides/errors.md`
+- `docs/guides/idempotency.md`
+- `docs/guides/rate-limits.md`
 
 When adding or changing endpoints:
 
@@ -168,6 +183,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/internal/funding/reconciliation/discrepancies`
 - `GET /api/v1/internal/operations/reviews`
 - `GET /api/v1/internal/operations/audit-events`
+- `GET /api/v1/internal/operations/rate-limit-events`
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`
