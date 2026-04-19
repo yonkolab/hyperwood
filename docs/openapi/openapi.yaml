@@ -157,6 +157,8 @@ paths:
     $ref: ./paths/operations.yaml#/auditEvents
   /api/v1/internal/operations/rate-limit-events:
     $ref: ./paths/operations.yaml#/rateLimitEvents
+  /api/v1/internal/operations/alerts:
+    $ref: ./paths/operations.yaml#/alerts
 components:
   securitySchemes:
     SessionBearer:

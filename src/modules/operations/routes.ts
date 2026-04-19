@@ -27,6 +27,14 @@ const listRateLimitEventsQuerySchema = z.object({
   path: z.string().min(1).max(255).optional(),
 });
 
+const listAlertsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+  category: z.string().min(1).max(64).optional(),
+  severity: z.enum(['warning', 'critical']).optional(),
+  status: z.enum(['open', 'acknowledged', 'resolved']).optional(),
+  sourceType: z.string().min(1).max(64).optional(),
+});
+
 function assertBootstrapToken(request: FastifyRequest) {
   const bootstrapToken = request.headers['x-bootstrap-token'];
 
@@ -76,6 +84,19 @@ async function operationsRoutes(
       ...(query.scopeType ? { scopeType: query.scopeType } : {}),
       ...(query.scopeKey ? { scopeKey: query.scopeKey } : {}),
       ...(query.path ? { path: query.path } : {}),
+    });
+  });
+
+  app.get('/internal/operations/alerts', async (request) => {
+    assertBootstrapToken(request);
+    const query = listAlertsQuerySchema.parse(request.query);
+
+    return operationsService.listAlerts({
+      limit: query.limit,
+      ...(query.category ? { category: query.category } : {}),
+      ...(query.severity ? { severity: query.severity } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.sourceType ? { sourceType: query.sourceType } : {}),
     });
   });
 }

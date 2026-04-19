@@ -239,3 +239,55 @@ RateLimitEventListResponse:
       type: array
       items:
         $ref: '#/RateLimitEvent'
+
+OperationsAlert:
+  type: object
+  required:
+    [id, category, severity, status, sourceType, sourceId, message, metadata, acknowledgedAt, resolvedAt, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    category:
+      type: string
+    severity:
+      type: string
+      enum: [warning, critical]
+    status:
+      type: string
+      enum: [open, acknowledged, resolved]
+    sourceType:
+      type: string
+    sourceId:
+      type: string
+    message:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+    acknowledgedAt:
+      type: string
+      format: date-time
+      nullable: true
+    resolvedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+OperationsAlertListResponse:
+  type: object
+  required: [generatedAt, alerts]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    alerts:
+      type: array
+      items:
+        $ref: '#/OperationsAlert'

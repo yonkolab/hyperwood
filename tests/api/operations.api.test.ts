@@ -158,4 +158,78 @@ describe('operations api', () => {
       authRateLimitMaxRequests + 1,
     );
   });
+
+  it('lists persisted operational alerts for critical reconciliation discrepancies', async () => {
+    const session = await createVerifiedSession(app);
+    await upsertApprovedComplianceProfile(app, session.body.user.id as string);
+    const fundingMethod = await linkFundingMethod(
+      app,
+      session.body.user.id as string,
+    );
+
+    const deposit = await app.inject({
+      method: 'POST',
+      url: '/api/v1/funding/deposits',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+      payload: {
+        fundingMethodId: fundingMethod.body.fundingMethod.id,
+        amountMinor: 25_000,
+        currency: 'USD',
+      },
+    });
+
+    expect(deposit.statusCode).toBe(201);
+
+    const reconciliation = await app.inject({
+      method: 'POST',
+      url: '/api/v1/internal/funding/reconciliation/runs',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+      payload: {
+        provider: 'test-bank',
+        snapshots: [
+          {
+            transferId: deposit.json().deposit.id,
+            expectedStatus: 'settled',
+          },
+        ],
+      },
+    });
+
+    expect(reconciliation.statusCode).toBe(201);
+    expect(reconciliation.json().discrepancies).toHaveLength(1);
+
+    const alerts = await app.inject({
+      method: 'GET',
+      url:
+        '/api/v1/internal/operations/alerts' +
+        '?limit=10&category=funding_reconciliation&severity=critical&status=open&sourceType=reconciliation_discrepancy',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+    });
+
+    expect(alerts.statusCode).toBe(200);
+    expect(alerts.json().alerts).toHaveLength(1);
+    expect(alerts.json().alerts[0]).toMatchObject({
+      category: 'funding_reconciliation',
+      severity: 'critical',
+      status: 'open',
+      sourceType: 'reconciliation_discrepancy',
+      message:
+        'authoritative transfer status did not match the internal status',
+    });
+    expect(alerts.json().alerts[0].metadata).toMatchObject({
+      discrepancyType: 'status_mismatch',
+      expectedStatus: 'settled',
+      actualStatus: 'pending',
+      provider: 'test-bank',
+      transferId: deposit.json().deposit.id,
+    });
+  });
 });

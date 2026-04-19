@@ -78,6 +78,7 @@ Relevant guides:
 
 - `docs/guides/getting-started.md`
 - `docs/guides/authentication.md`
+- `docs/guides/alerts.md`
 - `docs/guides/errors.md`
 - `docs/guides/idempotency.md`
 - `docs/guides/observability.md`
@@ -225,6 +226,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/internal/operations/reviews`
 - `GET /api/v1/internal/operations/audit-events`
 - `GET /api/v1/internal/operations/rate-limit-events`
+- `GET /api/v1/internal/operations/alerts`
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`

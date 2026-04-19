@@ -90,3 +90,44 @@ rateLimitEvents:
               $ref: ../components/schemas/operations.yaml#/RateLimitEventListResponse
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
+
+alerts:
+  get:
+    operationId: listOperationsAlerts
+    tags: [Operations, Internal]
+    summary: List persisted operational alerts
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit25
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: severity
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [warning, critical]
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [open, acknowledged, resolved]
+      - name: sourceType
+        in: query
+        required: false
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Persisted operational alerts ordered from newest to oldest.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/operations.yaml#/OperationsAlertListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized

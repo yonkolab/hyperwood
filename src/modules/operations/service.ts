@@ -7,10 +7,12 @@ import {
   fundingTransfers,
   users,
 } from '../../db/schema';
+import { OperationsAlertService } from './alerts';
 import { AdminAuditService } from './audit';
 import { RateLimitEventService } from './rate-limit';
 
 export class OperationsService {
+  private readonly operationsAlertService = new OperationsAlertService();
   private readonly adminAuditService = new AdminAuditService();
   private readonly rateLimitEventService = new RateLimitEventService();
 
@@ -238,6 +240,27 @@ export class OperationsService {
         ...(input.scopeType ? { scopeType: input.scopeType } : {}),
         ...(input.scopeKey ? { scopeKey: input.scopeKey } : {}),
         ...(input.path ? { path: input.path } : {}),
+      }),
+    };
+  }
+
+  async listAlerts(input: {
+    limit: number;
+    category?: string;
+    severity?: 'warning' | 'critical';
+    sourceType?: string;
+    status?: 'open' | 'acknowledged' | 'resolved';
+  }) {
+    const limit = Math.min(input.limit, 100);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      alerts: await this.operationsAlertService.listAlerts({
+        limit,
+        ...(input.category ? { category: input.category } : {}),
+        ...(input.severity ? { severity: input.severity } : {}),
+        ...(input.status ? { status: input.status } : {}),
+        ...(input.sourceType ? { sourceType: input.sourceType } : {}),
       }),
     };
   }

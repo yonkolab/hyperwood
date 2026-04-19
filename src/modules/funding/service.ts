@@ -22,6 +22,7 @@ import {
 } from '../../db/schema';
 import { AppError } from '../../lib/errors';
 import { ComplianceService } from '../compliance/service';
+import { OperationsAlertService } from '../operations/alerts';
 import { AdminAuditService } from '../operations/audit';
 import {
   doesFundingRailSupportCurrency,
@@ -114,6 +115,7 @@ const WITHDRAWAL_REVIEW_THRESHOLD_MINOR = 250_000;
 export class FundingService {
   private readonly complianceService = new ComplianceService();
   private readonly adminAuditService = new AdminAuditService();
+  private readonly operationsAlertService = new OperationsAlertService();
 
   async linkFundingMethod(input: LinkFundingMethodInput) {
     await this.assertUserExists(input.userId);
@@ -1454,6 +1456,31 @@ export class FundingService {
             .where(eq(fundingReconciliationDiscrepancies.runId, run.id))
             .orderBy(desc(fundingReconciliationDiscrepancies.createdAt))
         : [];
+
+      const criticalDiscrepancies = persistedDiscrepancies.filter(
+        (row) => row.severity === 'critical',
+      );
+
+      for (const discrepancy of criticalDiscrepancies) {
+        await this.operationsAlertService.createAlert(
+          {
+            category: 'funding_reconciliation',
+            severity: 'critical',
+            sourceType: 'reconciliation_discrepancy',
+            sourceId: discrepancy.id,
+            message: discrepancy.message,
+            metadata: {
+              discrepancyType: discrepancy.discrepancyType,
+              expectedStatus: discrepancy.expectedStatus,
+              actualStatus: discrepancy.actualStatus,
+              runId: run.id,
+              provider: run.provider,
+              transferId: discrepancy.transferId,
+            },
+          },
+          tx,
+        );
+      }
 
       return {
         run: this.mapReconciliationRun(run),
