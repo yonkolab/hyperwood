@@ -6,8 +6,6 @@ const dbBackedProject = {
   globalSetup: ['./tests/setup/db.global.ts'],
   hookTimeout: 120_000,
   isolate: false,
-  maxWorkers: 1,
-  minWorkers: 1,
   setupFiles: ['./tests/setup/db.setup.ts'],
   testTimeout: 120_000,
 };
@@ -34,6 +32,8 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/unit/**/*.test.ts'],
           setupFiles: ['./tests/setup/unit.setup.ts'],
+          fileParallelism: false,
+          maxWorkers: 1,
         },
       }),
       defineProject({
@@ -41,6 +41,7 @@ export default defineConfig({
           ...dbBackedProject,
           name: 'api',
           include: ['tests/api/**/*.test.ts'],
+          maxWorkers: 1,
         },
       }),
       defineProject({
@@ -48,6 +49,7 @@ export default defineConfig({
           ...dbBackedProject,
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
+          maxWorkers: 1,
         },
       }),
     ],
