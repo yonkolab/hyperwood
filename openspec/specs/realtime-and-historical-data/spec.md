@@ -29,9 +29,10 @@ The system MUST support snapshot-plus-delta recovery with sequence numbers so cl
 ### Requirement: Separate historical access paths
 The system SHALL expose historical data through dedicated historical access paths for archived markets, orders, fills, trades, charts, and account exports.
 
-#### Scenario: Historical query crosses archival boundary
-- **WHEN** a client requests data that has moved beyond the live retention boundary
-- **THEN** the system serves that data through the historical path instead of the live operational path
+#### Scenario: Historical market trades are served through a dedicated path
+- **WHEN** a client requests trades for an archived market such as a settled, voided, or cancelled market
+- **THEN** the live market trades path rejects the request in favor of a historical path
+- **AND** the dedicated historical trades path returns the archived trades for that market
 
 ### Requirement: Historical exports and retention
 The system MUST support archival policies, historical exports, and retained order book or candlestick data suitable for compliance and analytics use cases.
@@ -44,3 +45,4 @@ The system MUST support archival policies, historical exports, and retained orde
 - **WHEN** an authenticated user requests an account history export for a supported currency
 - **THEN** the system creates an export job and completes it with a persisted artifact
 - **AND** the user can retrieve the resulting artifact through an authenticated historical export path
+
