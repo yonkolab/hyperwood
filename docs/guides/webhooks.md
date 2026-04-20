@@ -32,6 +32,7 @@ Operational notes:
 - invalid signatures are rejected and logged with request correlation data
 - successful processing writes a durable provider webhook event record for idempotent replay handling
 - callers should record `X-Request-Id` when debugging callback failures
+- operators can run `POST /api/v1/internal/funding/webhook-delay-scan` to detect overdue provider-backed transfers and create callback delay alerts
 
 Current limitations:
 

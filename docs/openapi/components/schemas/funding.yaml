@@ -369,3 +369,54 @@ FundingProviderWebhookResponse:
       $ref: ./common.yaml#/TransferSummary
     webhookEvent:
       $ref: '#/FundingProviderWebhookEvent'
+
+FundingCallbackDelayScanRequest:
+  type: object
+  properties:
+    provider:
+      type: string
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 50
+
+FundingCallbackDelayScanResponse:
+  type: object
+  required: [generatedAt, thresholdMinutes, delayedTransfers, alertsCreated]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    thresholdMinutes:
+      type: integer
+    delayedTransfers:
+      type: array
+      items:
+        type: object
+        required: [id, type, status, amountMinor, currency, requestedAt, provider, fundingMethod]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            type: string
+            enum: [deposit, withdrawal]
+          status:
+            type: string
+            enum: [pending, in_review]
+          amountMinor:
+            type: integer
+          currency:
+            type: string
+            enum: [USD, BRL]
+          requestedAt:
+            type: string
+            format: date-time
+          provider:
+            type: string
+            nullable: true
+          fundingMethod:
+            $ref: ./common.yaml#/FundingMethodSummary
+    alertsCreated:
+      type: integer

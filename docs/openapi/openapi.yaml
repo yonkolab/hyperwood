@@ -109,6 +109,8 @@ paths:
     $ref: ./paths/funding.yaml#/reconciliationRuns
   /api/v1/internal/funding/reconciliation/discrepancies:
     $ref: ./paths/funding.yaml#/reconciliationDiscrepancies
+  /api/v1/internal/funding/webhook-delay-scan:
+    $ref: ./paths/funding.yaml#/webhookDelayScan
   /api/v1/webhooks/funding/providers/{provider}:
     $ref: ./paths/funding.yaml#/providerFundingWebhook
   /api/v1/internal/exchange/schedule:
@@ -356,6 +358,10 @@ components:
       $ref: ./components/schemas/funding.yaml#/FundingProviderWebhookEvent
     FundingProviderWebhookResponse:
       $ref: ./components/schemas/funding.yaml#/FundingProviderWebhookResponse
+    FundingCallbackDelayScanRequest:
+      $ref: ./components/schemas/funding.yaml#/FundingCallbackDelayScanRequest
+    FundingCallbackDelayScanResponse:
+      $ref: ./components/schemas/funding.yaml#/FundingCallbackDelayScanResponse
     CreateEventRequest:
       $ref: ./components/schemas/markets.yaml#/CreateEventRequest
     CreateEventResponse:

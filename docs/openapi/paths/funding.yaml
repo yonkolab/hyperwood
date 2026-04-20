@@ -323,6 +323,31 @@ reconciliationDiscrepancies:
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
 
+webhookDelayScan:
+  post:
+    operationId: scanFundingWebhookDelays
+    tags: [Funding, Internal]
+    summary: Scan for delayed provider callbacks
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/funding.yaml#/FundingCallbackDelayScanRequest
+    responses:
+      '200':
+        description: Delayed transfers were evaluated against the configured callback delay threshold.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/funding.yaml#/FundingCallbackDelayScanResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
 providerFundingWebhook:
   post:
     operationId: processProviderFundingWebhook

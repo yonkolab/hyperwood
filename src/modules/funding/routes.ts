@@ -97,6 +97,11 @@ const reconciliationRunBodySchema = z.object({
   snapshots: z.array(reconciliationSnapshotSchema).min(1).max(500),
 });
 
+const callbackDelayScanBodySchema = z.object({
+  provider: z.string().min(1).max(64).optional(),
+  limit: z.coerce.number().int().positive().max(100).default(50),
+});
+
 const reconciliationDiscrepanciesQuerySchema = z.object({
   unresolvedOnly: z.coerce.boolean().default(true),
   limit: z.coerce.number().int().positive().max(200).default(50),
@@ -412,6 +417,24 @@ async function fundingRoutes(
       unresolvedOnly: query.unresolvedOnly,
       limit: query.limit,
     });
+  });
+
+  app.post('/internal/funding/webhook-delay-scan', async (request, reply) => {
+    assertBootstrapToken(request);
+    const body = callbackDelayScanBodySchema.parse(request.body ?? {});
+    const result = await fundingService.scanDelayedProviderCallbacks({
+      limit: body.limit,
+      ...(body.provider ? { provider: body.provider } : {}),
+    });
+
+    logWorkflowEvent(request, 'funding.callback_delay_scan.completed', {
+      provider: body.provider ?? null,
+      delayedTransferCount: result.delayedTransfers.length,
+      alertsCreated: result.alertsCreated,
+      thresholdMinutes: result.thresholdMinutes,
+    });
+
+    reply.status(200).send(result);
   });
 
   app.post('/webhooks/funding/providers/:provider', async (request, reply) => {

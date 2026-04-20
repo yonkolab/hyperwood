@@ -22,9 +22,10 @@ Current alert shape includes:
 Current categories:
 
 - `funding_reconciliation`
+- `funding_callback_delay`
 
 Current limitations:
 
 - alerts are persisted for operator polling, not pushed to PagerDuty, email, or chat systems
 - alert acknowledgement and resolution workflows are not implemented yet
-- settlement failures, callback delays, and realtime outages are still future alert sources
+- settlement failures and realtime outages are still future alert sources
