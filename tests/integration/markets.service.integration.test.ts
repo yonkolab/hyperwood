@@ -8,6 +8,7 @@ describe('MarketsService integration', () => {
   let MatchingService: typeof import('../../src/modules/matching/service').MatchingService;
   let MarketsService: typeof import('../../src/modules/markets/service').MarketsService;
   let PortfolioService: typeof import('../../src/modules/portfolio/service').PortfolioService;
+  let ExchangeService: typeof import('../../src/modules/exchange/service').ExchangeService;
 
   beforeAll(async () => {
     ({ IdentityService } = await import(
@@ -25,6 +26,9 @@ describe('MarketsService integration', () => {
     ({ PortfolioService } = await import(
       '../../src/modules/portfolio/service.js'
     ));
+    ({ ExchangeService } = await import(
+      '../../src/modules/exchange/service.js'
+    ));
   });
 
   it('resolves and settles matched positions against the migrated settlement tables', async () => {
@@ -35,6 +39,7 @@ describe('MarketsService integration', () => {
     const matchingService = new MatchingService();
     const marketsService = new MarketsService();
     const portfolioService = new PortfolioService();
+    const exchangeService = new ExchangeService();
 
     const [buyer, seller] = await Promise.all([
       identityService.register({
@@ -50,9 +55,9 @@ describe('MarketsService integration', () => {
     ]);
 
     await Promise.all([
-      identityService.verifyEmail({ token: buyer.verificationChallenge.token }),
+      identityService.verifyEmail({ token: buyer.verificationChallenge.token! }),
       identityService.verifyEmail({
-        token: seller.verificationChallenge.token,
+        token: seller.verificationChallenge.token!,
       }),
       complianceService.upsertComplianceProfile({
         userId: buyer.user.id,
@@ -85,6 +90,50 @@ describe('MarketsService integration', () => {
         referenceId: 'settlement-seller-seed',
       }),
     ]);
+
+    await exchangeService.upsertActiveSchedule({
+      name: 'Integration test schedule',
+      timezone: 'UTC',
+      weeklyWindows: [
+        {
+          weekday: 'monday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'tuesday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'wednesday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'thursday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'friday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'saturday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'sunday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+      ],
+      maintenanceWindows: [],
+      notes: 'Always-on schedule for integration testing.',
+    });
 
     const event = await marketsService.createEvent({
       slug: 'integration-resolution-event',
