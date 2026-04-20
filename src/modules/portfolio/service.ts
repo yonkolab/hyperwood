@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from '../../db/client';
 import {
+  historicalExportJobs,
   ledgerEntries,
   ledgerTransactions,
   type marketCurrencyEnum,
@@ -133,6 +134,117 @@ export class PortfolioService {
         netPnlMinor: row.payoutMinor - row.costBasisMinor,
         settledAt: row.settledAt.toISOString(),
       })),
+    };
+  }
+
+  async createAccountHistoryExport(
+    userId: string,
+    currency: MarketCurrency = 'USD',
+  ) {
+    await this.assertUserExists(userId);
+
+    const [portfolioSummary, fills, settlements, ledgerActivity] =
+      await Promise.all([
+        this.getPortfolioSummary(userId, currency),
+        this.listFills(userId, 100, currency),
+        this.listSettlements(userId, 100, currency),
+        this.listLedgerActivity(userId, 100, currency),
+      ]);
+
+    const completedAt = new Date();
+    const artifact = {
+      exportType: 'account_history',
+      currency,
+      generatedAt: completedAt.toISOString(),
+      portfolioSummary,
+      fills: fills.fills,
+      settlements: settlements.settlements,
+      ledgerActivity,
+    };
+
+    const rows = await db
+      .insert(historicalExportJobs)
+      .values({
+        userId,
+        scope: 'account_history',
+        status: 'completed',
+        format: 'json',
+        currency,
+        artifact,
+        createdAt: completedAt,
+        completedAt,
+      })
+      .returning();
+
+    const exportJob = rows[0];
+
+    if (!exportJob) {
+      throw new AppError(
+        500,
+        'historical_export_creation_failed',
+        'failed to create historical export job',
+      );
+    }
+
+    return {
+      exportJob: this.mapExportJob(exportJob),
+    };
+  }
+
+  async listAccountHistoryExports(
+    userId: string,
+    limit: number,
+    currency: MarketCurrency = 'USD',
+  ) {
+    await this.assertUserExists(userId);
+
+    const rows = await db
+      .select()
+      .from(historicalExportJobs)
+      .where(
+        and(
+          eq(historicalExportJobs.userId, userId),
+          eq(historicalExportJobs.scope, 'account_history'),
+          eq(historicalExportJobs.currency, currency),
+        ),
+      )
+      .orderBy(desc(historicalExportJobs.createdAt))
+      .limit(Math.min(limit, 100));
+
+    return {
+      currency,
+      exportJobs: rows.map((row) => this.mapExportJob(row)),
+    };
+  }
+
+  async getAccountHistoryExport(userId: string, exportJobId: string) {
+    await this.assertUserExists(userId);
+
+    const rows = await db
+      .select()
+      .from(historicalExportJobs)
+      .where(
+        and(
+          eq(historicalExportJobs.id, exportJobId),
+          eq(historicalExportJobs.userId, userId),
+          eq(historicalExportJobs.scope, 'account_history'),
+        ),
+      )
+      .limit(1);
+
+    const exportJob = rows[0];
+
+    if (!exportJob) {
+      throw new AppError(
+        404,
+        'historical_export_not_found',
+        'historical export job was not found',
+      );
+    }
+
+    return {
+      exportJob: this.mapExportJob(exportJob),
+      artifact: this.asRecord(exportJob.artifact),
     };
   }
 
@@ -485,6 +597,26 @@ export class PortfolioService {
     };
   }
 
+  private mapExportJob(row: {
+    id: string;
+    scope: 'account_history';
+    status: 'completed';
+    format: 'json';
+    currency: string;
+    createdAt: Date;
+    completedAt: Date;
+  }) {
+    return {
+      id: row.id,
+      scope: row.scope,
+      status: row.status,
+      format: row.format,
+      currency: row.currency,
+      createdAt: row.createdAt.toISOString(),
+      completedAt: row.completedAt.toISOString(),
+    };
+  }
+
   private async assertUserExists(userId: string) {
     const [user] = await db
       .select({
@@ -508,6 +640,14 @@ export class PortfolioService {
       .where(eq(ledgerEntries.walletAccountId, walletAccountId));
 
     return Number(balanceRows[0]?.balanceMinor ?? 0);
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+
+    return {};
   }
 
   private async getOrCreateWalletAccount(
@@ -557,13 +697,5 @@ export class PortfolioService {
     }
 
     return inserted;
-  }
-
-  private asRecord(value: unknown) {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-      return {};
-    }
-
-    return value as Record<string, unknown>;
   }
 }

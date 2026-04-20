@@ -198,6 +198,48 @@ describe('markets api', () => {
     expect(detail.json().market.noPriceBps).toBe(0);
   });
 
+  it('serves archived market trades through the historical path after settlement', async () => {
+    const scenario = await createMatchedMarketScenario(app, {
+      currency: 'USD',
+      quantity: 10,
+      limitPriceBps: 4800,
+    });
+
+    await resolveMarket(app, scenario.market.body.market.id as string, {
+      outcome: 'yes',
+      evidenceSummary: 'Official election authority certified the result.',
+      evidenceSources: ['https://example.com/election-result'],
+    });
+    await settleMarket(app, scenario.market.body.market.id as string);
+
+    const liveTrades = await app.inject({
+      method: 'GET',
+      url: `/api/v1/markets/${scenario.market.body.market.id}/trades`,
+    });
+
+    expect(liveTrades.statusCode).toBe(410);
+    expect(liveTrades.json()).toMatchObject({
+      error: 'historical_market_data',
+    });
+
+    const historicalTrades = await app.inject({
+      method: 'GET',
+      url: `/api/v1/historical/markets/${scenario.market.body.market.id}/trades?limit=10`,
+    });
+
+    expect(historicalTrades.statusCode).toBe(200);
+    expect(historicalTrades.json().marketId).toBe(
+      scenario.market.body.market.id,
+    );
+    expect(historicalTrades.json().trades).toHaveLength(1);
+    expect(historicalTrades.json().trades[0]).toMatchObject({
+      marketId: scenario.market.body.market.id,
+      quantity: 10,
+      priceBps: 4800,
+      outcome: 'yes',
+    });
+  });
+
   it('halts a market, records transition history, and blocks new order entry until resumed', async () => {
     const session = await createVerifiedSession(app);
     await upsertApprovedComplianceProfile(app, session.body.user.id as string);

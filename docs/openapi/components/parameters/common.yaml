@@ -98,6 +98,14 @@ WithdrawalId:
     type: string
     format: uuid
 
+ExportJobId:
+  name: exportJobId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
 ProviderName:
   name: provider
   in: path

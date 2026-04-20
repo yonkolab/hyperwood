@@ -22,6 +22,19 @@ const portfolioQuerySchema = z.object({
   currency: z.enum(['USD', 'BRL']).default('USD'),
 });
 
+const exportJobsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+  currency: z.enum(['USD', 'BRL']).default('USD'),
+});
+
+const createExportBodySchema = z.object({
+  currency: z.enum(['USD', 'BRL']).default('USD'),
+});
+
+const exportJobParamsSchema = z.object({
+  exportJobId: z.string().uuid(),
+});
+
 function getSessionTokenFromRequest(request: FastifyRequest) {
   const header = request.headers.authorization;
 
@@ -64,6 +77,41 @@ async function portfolioRoutes(
       user.id,
       query.limit,
       query.currency,
+    );
+  });
+
+  app.post('/portfolio/exports', async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const body = createExportBodySchema.parse(request.body ?? {});
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const result = await portfolioService.createAccountHistoryExport(
+      user.id,
+      body.currency,
+    );
+
+    reply.status(201).send(result);
+  });
+
+  app.get('/portfolio/exports', async (request) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const query = exportJobsQuerySchema.parse(request.query);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+
+    return portfolioService.listAccountHistoryExports(
+      user.id,
+      query.limit,
+      query.currency,
+    );
+  });
+
+  app.get('/portfolio/exports/:exportJobId', async (request) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const params = exportJobParamsSchema.parse(request.params);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+
+    return portfolioService.getAccountHistoryExport(
+      user.id,
+      params.exportJobId,
     );
   });
 }

@@ -171,7 +171,14 @@ async function marketRoutes(
     const params = marketParamsSchema.parse(request.params);
     const query = recentTradesQuerySchema.parse(request.query);
 
-    return matchingService.listRecentTrades(params.marketId, query.limit);
+    return marketsService.listRecentTrades(params.marketId, query.limit);
+  });
+
+  app.get('/historical/markets/:marketId/trades', async (request) => {
+    const params = marketParamsSchema.parse(request.params);
+    const query = recentTradesQuerySchema.parse(request.query);
+
+    return marketsService.listHistoricalTrades(params.marketId, query.limit);
   });
 
   app.get('/markets/:marketId/announcements', async (request) => {

@@ -40,3 +40,7 @@ The system MUST support archival policies, historical exports, and retained orde
 - **WHEN** an eligible user or admin requests an account or market history export
 - **THEN** the system generates an export job and makes the resulting artifact available through an approved delivery path
 
+#### Scenario: User requests account history export
+- **WHEN** an authenticated user requests an account history export for a supported currency
+- **THEN** the system creates an export job and completes it with a persisted artifact
+- **AND** the user can retrieve the resulting artifact through an authenticated historical export path

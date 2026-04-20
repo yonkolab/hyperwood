@@ -62,3 +62,71 @@ settlements:
         $ref: ../components/responses/common.yaml#/Unauthorized
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
+
+exports:
+  get:
+    operationId: listPortfolioExports
+    tags: [Portfolio]
+    summary: List account history export jobs for the authenticated user
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit25
+      - $ref: ../components/parameters/common.yaml#/Currency
+    responses:
+      '200':
+        description: Historical export jobs for the requested currency.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/portfolio.yaml#/HistoricalExportJobListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+  post:
+    operationId: createPortfolioExport
+    tags: [Portfolio]
+    summary: Create an account history export job
+    security:
+      - SessionBearer: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/portfolio.yaml#/CreateHistoricalExportRequest
+    responses:
+      '201':
+        description: Historical export job created and completed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/portfolio.yaml#/HistoricalExportJobResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+exportById:
+  get:
+    operationId: getPortfolioExport
+    tags: [Portfolio]
+    summary: Fetch a completed account history export artifact
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/ExportJobId
+    responses:
+      '200':
+        description: Completed account history export artifact.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/portfolio.yaml#/HistoricalExportArtifactResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound

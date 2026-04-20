@@ -389,6 +389,34 @@ export class MarketsService {
     };
   }
 
+  async listRecentTrades(marketId: string, limit: number) {
+    const market = await this.loadTradeAccessMarket(marketId);
+
+    if (this.isHistoricalMarketStatus(market.status)) {
+      throw new AppError(
+        410,
+        'historical_market_data',
+        'archived market trades are available through /api/v1/historical/markets/:marketId/trades',
+      );
+    }
+
+    return this.listTrades(market.id, limit);
+  }
+
+  async listHistoricalTrades(marketId: string, limit: number) {
+    const market = await this.loadTradeAccessMarket(marketId);
+
+    if (!this.isHistoricalMarketStatus(market.status)) {
+      throw new AppError(
+        409,
+        'market_not_archived',
+        `market status ${market.status} is not archived`,
+      );
+    }
+
+    return this.listTrades(market.id, limit);
+  }
+
   async publishMarketAnnouncement(
     marketId: string,
     input: PublishMarketAnnouncementInput,
@@ -1703,5 +1731,42 @@ export class MarketsService {
     }
 
     return inserted;
+  }
+
+  private async listTrades(marketId: string, limit: number) {
+    const rows = await db
+      .select()
+      .from(marketTrades)
+      .where(eq(marketTrades.marketId, marketId))
+      .orderBy(desc(marketTrades.executedAt), desc(marketTrades.id))
+      .limit(Math.min(limit, 100));
+
+    return {
+      marketId,
+      trades: rows,
+    };
+  }
+
+  private async loadTradeAccessMarket(marketId: string) {
+    const [market] = await db
+      .select({
+        id: markets.id,
+        status: markets.status,
+      })
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1);
+
+    if (!market) {
+      throw new AppError(404, 'market_not_found', 'market was not found');
+    }
+
+    return market;
+  }
+
+  private isHistoricalMarketStatus(status: MarketStatus) {
+    return (
+      status === 'settled' || status === 'voided' || status === 'cancelled'
+    );
   }
 }

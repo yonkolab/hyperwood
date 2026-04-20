@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db/client';
 import {
   ledgerEntries,
@@ -220,38 +220,6 @@ export class MatchingService {
         orders: updatedOrders,
       };
     });
-  }
-
-  async listRecentTrades(marketId: string, limit: number) {
-    await this.assertMarketExists(marketId);
-
-    const rows = await db
-      .select()
-      .from(marketTrades)
-      .where(eq(marketTrades.marketId, marketId))
-      .orderBy(desc(marketTrades.executedAt), desc(marketTrades.id))
-      .limit(Math.min(limit, 100));
-
-    return {
-      marketId,
-      trades: rows,
-    };
-  }
-
-  private async assertMarketExists(marketId: string) {
-    const [market] = await db
-      .select({
-        id: markets.id,
-      })
-      .from(markets)
-      .where(eq(markets.id, marketId))
-      .limit(1);
-
-    if (!market) {
-      throw new AppError(404, 'market_not_found', 'market was not found');
-    }
-
-    return market;
   }
 
   private async assertMarketMatchable(executor: DbExecutor, marketId: string) {

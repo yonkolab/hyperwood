@@ -127,6 +127,8 @@ paths:
     $ref: ./paths/markets.yaml#/orderBookDeltas
   /api/v1/markets/{marketId}/trades:
     $ref: ./paths/markets.yaml#/trades
+  /api/v1/historical/markets/{marketId}/trades:
+    $ref: ./paths/markets.yaml#/historicalTrades
   /api/v1/markets/{marketId}/announcements:
     $ref: ./paths/markets.yaml#/announcements
   /api/v1/internal/markets/events:
@@ -153,6 +155,10 @@ paths:
     $ref: ./paths/portfolio.yaml#/fills
   /api/v1/portfolio/settlements:
     $ref: ./paths/portfolio.yaml#/settlements
+  /api/v1/portfolio/exports:
+    $ref: ./paths/portfolio.yaml#/exports
+  /api/v1/portfolio/exports/{exportJobId}:
+    $ref: ./paths/portfolio.yaml#/exportById
   /api/v1/internal/operations/reviews:
     $ref: ./paths/operations.yaml#/reviews
   /api/v1/internal/operations/audit-events:
@@ -192,6 +198,8 @@ components:
       $ref: ./components/parameters/common.yaml#/DepositId
     WithdrawalId:
       $ref: ./components/parameters/common.yaml#/WithdrawalId
+    ExportJobId:
+      $ref: ./components/parameters/common.yaml#/ExportJobId
     ProviderName:
       $ref: ./components/parameters/common.yaml#/ProviderName
     AfterSequence:
@@ -400,5 +408,17 @@ components:
       $ref: ./components/schemas/portfolio.yaml#/PortfolioSummaryResponse
     FillListResponse:
       $ref: ./components/schemas/portfolio.yaml#/FillListResponse
+    SettlementListResponse:
+      $ref: ./components/schemas/portfolio.yaml#/SettlementListResponse
+    HistoricalExportJob:
+      $ref: ./components/schemas/portfolio.yaml#/HistoricalExportJob
+    CreateHistoricalExportRequest:
+      $ref: ./components/schemas/portfolio.yaml#/CreateHistoricalExportRequest
+    HistoricalExportJobResponse:
+      $ref: ./components/schemas/portfolio.yaml#/HistoricalExportJobResponse
+    HistoricalExportJobListResponse:
+      $ref: ./components/schemas/portfolio.yaml#/HistoricalExportJobListResponse
+    HistoricalExportArtifactResponse:
+      $ref: ./components/schemas/portfolio.yaml#/HistoricalExportArtifactResponse
     OperationsReviewQueueResponse:
       $ref: ./components/schemas/operations.yaml#/OperationsReviewQueueResponse

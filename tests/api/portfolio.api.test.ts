@@ -103,4 +103,87 @@ describe('portfolio api', () => {
       netPnlMinor: 520,
     });
   });
+
+  it('creates, lists, and retrieves account history export jobs', async () => {
+    const session = await createVerifiedSession(app);
+    await seedWallet(app, session.body.user.id as string, {
+      amountMinor: 12_500,
+      currency: 'USD',
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/portfolio/exports',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+      payload: {
+        currency: 'USD',
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.json().exportJob).toMatchObject({
+      scope: 'account_history',
+      status: 'completed',
+      format: 'json',
+      currency: 'USD',
+    });
+
+    const exportJobId = createResponse.json().exportJob.id as string;
+
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: '/api/v1/portfolio/exports?currency=USD&limit=10',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+    });
+
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json().currency).toBe('USD');
+    expect(listResponse.json().exportJobs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: exportJobId,
+          scope: 'account_history',
+          status: 'completed',
+        }),
+      ]),
+    );
+
+    const artifactResponse = await app.inject({
+      method: 'GET',
+      url: `/api/v1/portfolio/exports/${exportJobId}`,
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+    });
+
+    expect(artifactResponse.statusCode).toBe(200);
+    expect(artifactResponse.json()).toMatchObject({
+      exportJob: {
+        id: exportJobId,
+        currency: 'USD',
+      },
+      artifact: {
+        exportType: 'account_history',
+        currency: 'USD',
+        portfolioSummary: {
+          currency: 'USD',
+          cash: {
+            availableBalanceMinor: 12_500,
+          },
+        },
+        fills: [],
+        settlements: [],
+      },
+    });
+    expect(artifactResponse.json().artifact.ledgerActivity).toEqual(
+      expect.any(Array),
+    );
+    expect(artifactResponse.json().artifact.generatedAt).toEqual(
+      expect.any(String),
+    );
+  });
 });

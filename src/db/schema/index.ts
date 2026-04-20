@@ -1,6 +1,7 @@
 export * from './compliance';
 export * from './exchange';
 export * from './funding';
+export * from './historical';
 export * from './markets';
 export * from './matching';
 export * from './operations';

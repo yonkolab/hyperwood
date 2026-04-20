@@ -80,6 +80,8 @@ Relevant guides:
 - `docs/guides/authentication.md`
 - `docs/guides/alerts.md`
 - `docs/guides/errors.md`
+- `docs/guides/historical-data.md`
+- `docs/guides/historical-exports.md`
 - `docs/guides/idempotency.md`
 - `docs/guides/observability.md`
 - `docs/guides/rate-limits.md`
@@ -196,10 +198,14 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/markets/:marketId/order-book`
 - `GET /api/v1/markets/:marketId/order-book/deltas`
 - `GET /api/v1/markets/:marketId/trades`
+- `GET /api/v1/historical/markets/:marketId/trades`
 - `GET /api/v1/markets/:marketId/announcements`
 - `GET /api/v1/portfolio`
 - `GET /api/v1/portfolio/fills`
 - `GET /api/v1/portfolio/settlements`
+- `POST /api/v1/portfolio/exports`
+- `GET /api/v1/portfolio/exports`
+- `GET /api/v1/portfolio/exports/:exportJobId`
 - `POST /api/v1/orders`
 - `PATCH /api/v1/orders/:orderId`
 - `DELETE /api/v1/orders/:orderId`

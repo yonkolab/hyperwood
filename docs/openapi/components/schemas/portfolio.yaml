@@ -196,3 +196,66 @@ SettlementListResponse:
       type: array
       items:
         $ref: '#/Settlement'
+
+HistoricalExportJob:
+  type: object
+  required: [id, scope, status, format, currency, createdAt, completedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    scope:
+      type: string
+      enum: [account_history]
+    status:
+      type: string
+      enum: [completed]
+    format:
+      type: string
+      enum: [json]
+    currency:
+      type: string
+      enum: [USD, BRL]
+    createdAt:
+      type: string
+      format: date-time
+    completedAt:
+      type: string
+      format: date-time
+
+CreateHistoricalExportRequest:
+  type: object
+  properties:
+    currency:
+      type: string
+      enum: [USD, BRL]
+      default: USD
+
+HistoricalExportJobResponse:
+  type: object
+  required: [exportJob]
+  properties:
+    exportJob:
+      $ref: '#/HistoricalExportJob'
+
+HistoricalExportJobListResponse:
+  type: object
+  required: [currency, exportJobs]
+  properties:
+    currency:
+      type: string
+      enum: [USD, BRL]
+    exportJobs:
+      type: array
+      items:
+        $ref: '#/HistoricalExportJob'
+
+HistoricalExportArtifactResponse:
+  type: object
+  required: [exportJob, artifact]
+  properties:
+    exportJob:
+      $ref: '#/HistoricalExportJob'
+    artifact:
+      type: object
+      additionalProperties: true

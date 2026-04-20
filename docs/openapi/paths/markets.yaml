@@ -91,8 +91,31 @@ trades:
           application/json:
             schema:
               $ref: ../components/schemas/markets.yaml#/TradeListResponse
+      '410':
+        $ref: ../components/responses/common.yaml#/Gone
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
+
+historicalTrades:
+  get:
+    operationId: listHistoricalMarketTrades
+    tags: [Markets]
+    summary: List archived trades for a historical market
+    security: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+      - $ref: ../components/parameters/common.yaml#/Limit50
+    responses:
+      '200':
+        description: Archived trades for a historical market.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/TradeListResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
 
 announcements:
   get:
