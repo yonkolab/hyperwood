@@ -4,47 +4,24 @@ import {
   ledgerEntries,
   ledgerTransactions,
   marketCommandEvents,
-  type marketCommandTypeEnum,
-  type marketCurrencyEnum,
-  type marketStatusEnum,
   markets,
-  type orderOutcomeEnum,
-  type orderSideEnum,
   orders,
-  type orderTypeEnum,
-  type selfTradePreventionEnum,
   walletAccounts,
-  type walletAccountTypeEnum,
 } from '../../db/schema';
 import { sha256Hex } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
 import { ComplianceService } from '../compliance/service';
 import { ExchangeService } from '../exchange/service';
-
-type DbExecutor =
-  | typeof db
-  | Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-type OrderType = (typeof orderTypeEnum.enumValues)[number];
-type OrderSide = (typeof orderSideEnum.enumValues)[number];
-type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
-type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
-type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
-type SelfTradePrevention = (typeof selfTradePreventionEnum.enumValues)[number];
-type MarketStatus = (typeof marketStatusEnum.enumValues)[number];
-type MarketCommandType = (typeof marketCommandTypeEnum.enumValues)[number];
-
-type CreateOrderInput = {
-  userId: string;
-  marketId: string;
-  idempotencyKey: string;
-  type: OrderType;
-  side: OrderSide;
-  outcome: OrderOutcome;
-  quantity: number;
-  limitPriceBps?: number;
-  selfTradePrevention: SelfTradePrevention;
-};
+import type {
+  CreateOrderInput,
+  DbExecutor,
+  MarketCommandType,
+  MarketCurrency,
+  MarketStatus,
+  OrderOutcome,
+  OrderSide,
+  WalletAccountType,
+} from './types';
 
 const MAX_ORDER_QUANTITY = 100_000;
 const MAX_ORDER_RESERVE_MINOR = 10_000_000;

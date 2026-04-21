@@ -6,63 +6,20 @@ import {
   marketCommandEvents,
   markets,
   marketTrades,
-  type orderOutcomeEnum,
-  type orderSideEnum,
   orders,
   walletAccounts,
-  type walletAccountTypeEnum,
 } from '../../db/schema';
 import { AppError } from '../../lib/errors';
 import { ExchangeService } from '../exchange/service';
-
-type DbExecutor =
-  | typeof db
-  | Parameters<Parameters<typeof db.transaction>[0]>[0];
-type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
-type OrderSide = (typeof orderSideEnum.enumValues)[number];
-type WalletAccountType = (typeof walletAccountTypeEnum.enumValues)[number];
-
-type MatchableOrder = {
-  id: string;
-  userId: string;
-  marketId: string;
-  outcome: OrderOutcome;
-  side: OrderSide;
-  quantity: number;
-  filledQuantity: number;
-  limitPriceBps: number;
-  referencePriceBps: number;
-  reservedAmountMinor: number;
-  currency: string;
-  status: 'queued_for_matching' | 'partially_filled';
-  createSequence: number;
-};
-
-type OrderState = MatchableOrder & {
-  nextFilledQuantity: number;
-  nextReservedAmountMinor: number;
-};
-
-type PendingTrade = {
-  makerOrderId: string;
-  takerOrderId: string;
-  marketId: string;
-  outcome: OrderOutcome;
-  priceBps: number;
-  quantity: number;
-  makerRemainingQuantity: number;
-  takerRemainingQuantity: number;
-  executedAt: Date;
-};
-
-type TradeCollateralMove = {
-  orderId: string;
-  userId: string;
-  currency: string;
-  reserveConsumedMinor: number;
-  positionCollateralMinor: number;
-  cashReleaseMinor: number;
-};
+import type {
+  DbExecutor,
+  MatchableOrder,
+  OrderSide,
+  OrderState,
+  PendingTrade,
+  TradeCollateralMove,
+  WalletAccountType,
+} from './types';
 
 export class MatchingService {
   private readonly exchangeService = new ExchangeService();

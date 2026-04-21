@@ -3,113 +3,30 @@ import type {
   FastifyPluginOptions,
   FastifyRequest,
 } from 'fastify';
-import { z } from 'zod';
 import { env } from '../../config/env';
 import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
 import { verifyFundingWebhookSignature } from '../../lib/webhooks';
 import { IdentityService } from '../identity/service';
+import {
+  callbackDelayScanBodySchema,
+  createDepositBodySchema,
+  createWithdrawalBodySchema,
+  fundingDepositParamsSchema,
+  fundingMethodBodySchema,
+  fundingMethodsQuerySchema,
+  fundingProviderWebhookBodySchema,
+  fundingUserParamsSchema,
+  fundingWebhookProviderParamsSchema,
+  fundingWithdrawalParamsSchema,
+  listDepositsQuerySchema,
+  listWithdrawalsQuerySchema,
+  reconciliationDiscrepanciesQuerySchema,
+  reconciliationRunBodySchema,
+  seedWalletBodySchema,
+  walletBalanceQuerySchema,
+} from './schema';
 import { FundingService } from './service';
-
-const fundingMethodBodySchema = z.object({
-  rail: z.enum(['ach', 'fps', 'pix', 'wire', 'debit_card', 'crypto_wallet']),
-  status: z.enum(['pending_verification', 'verified', 'disabled']),
-  displayName: z.string().min(2).max(128),
-  countryCode: z.string().length(2),
-  provider: z.string().min(1).max(64).optional(),
-  providerReference: z.string().min(1).max(255).optional(),
-  last4: z.string().length(4).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
-const fundingMethodsQuerySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).default('USD'),
-});
-
-const createDepositBodySchema = z.object({
-  fundingMethodId: z.string().uuid(),
-  amountMinor: z.number().int().positive(),
-  currency: z.enum(['USD', 'BRL']),
-});
-
-const createWithdrawalBodySchema = z.object({
-  fundingMethodId: z.string().uuid(),
-  amountMinor: z.number().int().positive(),
-  currency: z.enum(['USD', 'BRL']),
-});
-
-const listDepositsQuerySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).optional(),
-  limit: z.coerce.number().int().positive().max(100).default(25),
-});
-
-const listWithdrawalsQuerySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).optional(),
-  limit: z.coerce.number().int().positive().max(100).default(25),
-});
-
-const seedWalletBodySchema = z.object({
-  amountMinor: z.number().int().positive(),
-  currency: z.enum(['USD', 'BRL']),
-  referenceId: z.string().min(1).max(255).optional(),
-});
-
-const fundingUserParamsSchema = z.object({
-  userId: z.string().uuid(),
-});
-
-const fundingDepositParamsSchema = z.object({
-  depositId: z.string().uuid(),
-});
-
-const fundingWithdrawalParamsSchema = z.object({
-  withdrawalId: z.string().uuid(),
-});
-
-const fundingWebhookProviderParamsSchema = z.object({
-  provider: z.string().min(1).max(64),
-});
-
-const fundingProviderWebhookBodySchema = z.object({
-  eventId: z.string().min(1).max(255),
-  eventType: z.literal('funding.transfer.updated'),
-  occurredAt: z.string().datetime(),
-  transferId: z.string().uuid(),
-  status: z.enum(['pending', 'in_review', 'settled', 'failed']),
-  providerTransferReference: z.string().min(1).max(255).optional(),
-  failureReason: z.string().min(1).max(4000).optional(),
-});
-
-const reconciliationSnapshotSchema = z.object({
-  transferId: z.string().uuid(),
-  expectedStatus: z.enum([
-    'pending',
-    'in_review',
-    'settled',
-    'failed',
-    'cancelled',
-    'reversed',
-  ]),
-});
-
-const reconciliationRunBodySchema = z.object({
-  provider: z.string().min(1).max(64).optional(),
-  snapshots: z.array(reconciliationSnapshotSchema).min(1).max(500),
-});
-
-const callbackDelayScanBodySchema = z.object({
-  provider: z.string().min(1).max(64).optional(),
-  limit: z.coerce.number().int().positive().max(100).default(50),
-});
-
-const reconciliationDiscrepanciesQuerySchema = z.object({
-  unresolvedOnly: z.coerce.boolean().default(true),
-  limit: z.coerce.number().int().positive().max(200).default(50),
-});
-
-const walletBalanceQuerySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).default('USD'),
-});
 
 function getSessionTokenFromRequest(request: FastifyRequest) {
   const header = request.headers.authorization;

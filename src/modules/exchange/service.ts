@@ -1,43 +1,20 @@
 import { and, asc, desc, eq, gt, isNull, lte, or } from 'drizzle-orm';
 import { db } from '../../db/client';
 import {
-  type ExchangeScheduleMaintenance,
   type ExchangeScheduleWindow,
   exchangeFeeSchedules,
   exchangeSchedules,
 } from '../../db/schema/exchange';
-import type { marketCurrencyEnum } from '../../db/schema/markets';
 import { AppError } from '../../lib/errors';
 import { AdminAuditService } from '../operations/audit';
-
-type DbExecutor =
-  | typeof db
-  | Parameters<Parameters<typeof db.transaction>[0]>[0];
-type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
-type ExchangeStatus = 'open' | 'closed' | 'maintenance';
-type ExchangeStatusReason =
-  | 'within_scheduled_hours'
-  | 'outside_scheduled_hours'
-  | 'maintenance_window';
-
-type UpsertExchangeScheduleInput = {
-  maintenanceWindows: ExchangeScheduleMaintenance[];
-  name: string;
-  notes?: string;
-  timezone: string;
-  weeklyWindows: ExchangeScheduleWindow[];
-};
-
-type PublishExchangeFeeScheduleInput = {
-  currency: MarketCurrency;
-  effectiveFrom: Date;
-  effectiveUntil?: Date;
-  makerFeeBps: number;
-  name: string;
-  notes?: string;
-  publishedBy?: string;
-  takerFeeBps: number;
-};
+import type {
+  DbExecutor,
+  ExchangeStatus,
+  ExchangeStatusReason,
+  MarketCurrency,
+  PublishExchangeFeeScheduleInput,
+  UpsertExchangeScheduleInput,
+} from './types';
 
 export class ExchangeService {
   private readonly adminAuditService = new AdminAuditService();

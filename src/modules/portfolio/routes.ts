@@ -3,37 +3,17 @@ import type {
   FastifyPluginOptions,
   FastifyRequest,
 } from 'fastify';
-import { z } from 'zod';
 import { AppError } from '../../lib/errors';
 import { IdentityService } from '../identity/service';
+import {
+  createExportBodySchema,
+  exportJobParamsSchema,
+  exportJobsQuerySchema,
+  fillsQuerySchema,
+  portfolioQuerySchema,
+  settlementsQuerySchema,
+} from './schema';
 import { PortfolioService } from './service';
-
-const fillsQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(50),
-  currency: z.enum(['USD', 'BRL']).default('USD'),
-});
-
-const settlementsQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(50),
-  currency: z.enum(['USD', 'BRL']).default('USD'),
-});
-
-const portfolioQuerySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).default('USD'),
-});
-
-const exportJobsQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(25),
-  currency: z.enum(['USD', 'BRL']).default('USD'),
-});
-
-const createExportBodySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).default('USD'),
-});
-
-const exportJobParamsSchema = z.object({
-  exportJobId: z.string().uuid(),
-});
 
 function getSessionTokenFromRequest(request: FastifyRequest) {
   const header = request.headers.authorization;

@@ -3,59 +3,21 @@ import type {
   FastifyPluginOptions,
   FastifyRequest,
 } from 'fastify';
-import { z } from 'zod';
 import { env } from '../../config/env';
 import { AppError } from '../../lib/errors';
+import {
+  apiKeyParamsSchema,
+  authorizeSensitiveActionBodySchema,
+  confirmTotpSetupBodySchema,
+  createApiKeyBodySchema,
+  linkExistingUserBodySchema,
+  loginBodySchema,
+  registerBodySchema,
+  requestEmailVerificationBodySchema,
+  verifyEmailBodySchema,
+  verifyTotpLoginBodySchema,
+} from './schema';
 import { IdentityService } from './service';
-
-const registerBodySchema = z.object({
-  email: z.string().email(),
-  username: z.string().min(3).max(64).optional(),
-  password: z.string().min(10),
-});
-
-const loginBodySchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
-const requestEmailVerificationBodySchema = z.object({
-  email: z.string().email(),
-});
-
-const verifyEmailBodySchema = z.object({
-  token: z.string().min(1),
-});
-
-const confirmTotpSetupBodySchema = z.object({
-  factorId: z.string().uuid(),
-  code: z.string().regex(/^\d{6}$/),
-});
-
-const verifyTotpLoginBodySchema = z.object({
-  challengeToken: z.string().min(1),
-  code: z.string().regex(/^\d{6}$/),
-});
-
-const authorizeSensitiveActionBodySchema = z.object({
-  action: z.enum(['api_keys_manage']),
-  code: z.string().regex(/^\d{6}$/),
-});
-
-const linkExistingUserBodySchema = z.object({
-  userId: z.string().uuid(),
-  email: z.string().email(),
-  password: z.string().min(10),
-  emailVerified: z.boolean().optional(),
-});
-
-const createApiKeyBodySchema = z.object({
-  scopes: z.array(z.string().min(1)).min(1),
-});
-
-const apiKeyParamsSchema = z.object({
-  apiKeyId: z.string().uuid(),
-});
 
 function getSessionTokenFromRequest(request: FastifyRequest) {
   const header = request.headers.authorization;

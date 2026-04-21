@@ -3,57 +3,15 @@ import type {
   FastifyPluginOptions,
   FastifyRequest,
 } from 'fastify';
-import { z } from 'zod';
 import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
 import { IdentityService } from '../identity/service';
+import {
+  amendOrderBodySchema,
+  createOrderBodySchema,
+  orderParamsSchema,
+} from './schema';
 import { OrdersService } from './service';
-
-const createOrderBodySchema = z
-  .object({
-    marketId: z.string().uuid(),
-    type: z.enum(['limit', 'market']),
-    side: z.enum(['buy', 'sell']),
-    outcome: z.enum(['yes', 'no']),
-    quantity: z.number().int().positive(),
-    limitPriceBps: z.number().int().min(1).max(9999).optional(),
-    selfTradePrevention: z
-      .enum(['decrement_and_cancel', 'cancel_oldest', 'cancel_newest'])
-      .default('decrement_and_cancel'),
-  })
-  .superRefine((body, ctx) => {
-    if (body.type === 'limit' && body.limitPriceBps === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['limitPriceBps'],
-        message: 'limitPriceBps is required for limit orders',
-      });
-    }
-
-    if (body.type === 'market' && body.limitPriceBps !== undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['limitPriceBps'],
-        message: 'limitPriceBps is not allowed for market orders',
-      });
-    }
-  });
-
-const orderParamsSchema = z.object({
-  orderId: z.string().uuid(),
-});
-
-const amendOrderBodySchema = z
-  .object({
-    quantity: z.number().int().positive().optional(),
-    limitPriceBps: z.number().int().min(1).max(9999).optional(),
-  })
-  .refine(
-    (body) => body.quantity !== undefined || body.limitPriceBps !== undefined,
-    {
-      message: 'quantity or limitPriceBps is required',
-    },
-  );
 
 function getSessionTokenFromRequest(request: FastifyRequest) {
   const header = request.headers.authorization;

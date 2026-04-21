@@ -5,7 +5,6 @@ import {
   historicalExportJobs,
   ledgerEntries,
   ledgerTransactions,
-  type marketCurrencyEnum,
   marketSettlementPayouts,
   marketSettlements,
   markets,
@@ -15,23 +14,12 @@ import {
   walletAccounts,
 } from '../../db/schema';
 import { AppError } from '../../lib/errors';
-
-type FillRole = 'maker' | 'taker';
-type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
-type WalletAccountType =
-  | 'user_cash'
-  | 'user_order_reserved'
-  | 'user_position_collateral'
-  | 'user_withdrawal_hold';
-type PositionRecord = {
-  marketId: string;
-  marketSlug: string;
-  marketTitle: string;
-  outcome: 'yes' | 'no';
-  quantity: number;
-  averageEntryPriceBps: number;
-  costBasisMinor: number;
-};
+import type {
+  FillRole,
+  MarketCurrency,
+  PositionRecord,
+  WalletAccountType,
+} from './types';
 
 const DEFAULT_RECENT_FILL_LIMIT = 20;
 const DEFAULT_RECENT_ACTIVITY_LIMIT = 20;

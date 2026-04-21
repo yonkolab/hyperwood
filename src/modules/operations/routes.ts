@@ -3,37 +3,15 @@ import type {
   FastifyPluginOptions,
   FastifyRequest,
 } from 'fastify';
-import { z } from 'zod';
 import { env } from '../../config/env';
 import { AppError } from '../../lib/errors';
+import {
+  listAlertsQuerySchema,
+  listAuditEventsQuerySchema,
+  listRateLimitEventsQuerySchema,
+  listReviewQueueQuerySchema,
+} from './schema';
 import { OperationsService } from './service';
-
-const listReviewQueueQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(25),
-});
-
-const listAuditEventsQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(25),
-  targetType: z.string().min(1).max(64).optional(),
-  targetId: z.string().min(1).max(255).optional(),
-  action: z.string().min(1).max(128).optional(),
-});
-
-const listRateLimitEventsQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(25),
-  bucket: z.string().min(1).max(64).optional(),
-  scopeType: z.string().min(1).max(32).optional(),
-  scopeKey: z.string().min(1).max(255).optional(),
-  path: z.string().min(1).max(255).optional(),
-});
-
-const listAlertsQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(25),
-  category: z.string().min(1).max(64).optional(),
-  severity: z.enum(['warning', 'critical']).optional(),
-  status: z.enum(['open', 'acknowledged', 'resolved']).optional(),
-  sourceType: z.string().min(1).max(64).optional(),
-});
 
 function assertBootstrapToken(request: FastifyRequest) {
   const bootstrapToken = request.headers['x-bootstrap-token'];

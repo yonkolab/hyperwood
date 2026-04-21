@@ -3,49 +3,20 @@ import { db } from '../../db/client';
 import {
   accountRestrictions,
   complianceProfiles,
-  type fundingRailEnum,
-  type kycStatusEnum,
-  type restrictionSourceEnum,
-  type sanctionsStatusEnum,
   users,
 } from '../../db/schema';
 import { AppError } from '../../lib/errors';
 import { getAllowedFundingRailsForCountry } from '../funding/policy';
 import { AdminAuditService } from '../operations/audit';
-
-type KycStatus = (typeof kycStatusEnum.enumValues)[number];
-type SanctionsStatus = (typeof sanctionsStatusEnum.enumValues)[number];
-type RestrictionSource = (typeof restrictionSourceEnum.enumValues)[number];
-type CapabilityName = 'trading' | 'funding' | 'withdrawal';
-type FundingRail = (typeof fundingRailEnum.enumValues)[number];
-
-type UpsertComplianceProfileInput = {
-  userId: string;
-  countryCode: string;
-  jurisdictionCode: string;
-  legalEntity: string;
-  kycStatus: KycStatus;
-  sanctionsStatus: SanctionsStatus;
-  kycProvider?: string;
-  providerReference?: string;
-  ageVerified: boolean;
-  metadata?: Record<string, unknown>;
-};
-
-type ApplyAccountRestrictionInput = {
-  userId: string;
-  scope: 'all' | CapabilityName;
-  reason: string;
-  source: RestrictionSource;
-  expiresAt?: Date;
-};
+import type {
+  ApplyAccountRestrictionInput,
+  CapabilityEvaluation,
+  CapabilityName,
+  FundingRail,
+  UpsertComplianceProfileInput,
+} from './types';
 
 const RESTRICTED_JURISDICTIONS = new Set(['CU', 'IR', 'KP', 'SY']);
-
-type CapabilityEvaluation = {
-  allowed: boolean;
-  reasons: string[];
-};
 
 export class ComplianceService {
   private readonly adminAuditService = new AdminAuditService();

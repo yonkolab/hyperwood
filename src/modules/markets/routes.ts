@@ -3,115 +3,22 @@ import type {
   FastifyPluginOptions,
   FastifyRequest,
 } from 'fastify';
-import { z } from 'zod';
 import { env } from '../../config/env';
 import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
 import { MatchingService } from '../matching/service';
+import {
+  createEventBodySchema,
+  createMarketBodySchema,
+  listMarketsQuerySchema,
+  marketParamsSchema,
+  orderBookDeltasQuerySchema,
+  publishMarketAnnouncementBodySchema,
+  recentTradesQuerySchema,
+  resolveMarketBodySchema,
+  updateMarketStatusBodySchema,
+} from './schema';
 import { MarketsService } from './service';
-
-const createEventBodySchema = z.object({
-  slug: z.string().min(3).max(128),
-  title: z.string().min(3).max(160),
-  summary: z.string().min(3).max(2000).optional(),
-  category: z.string().min(2).max(64),
-  startsAt: z.string().datetime().optional(),
-  endsAt: z.string().datetime().optional(),
-});
-
-const createMarketBodySchema = z.object({
-  eventId: z.string().uuid(),
-  slug: z.string().min(3).max(128),
-  title: z.string().min(3).max(160),
-  summary: z.string().min(3).max(2000).optional(),
-  currency: z.enum(['USD', 'BRL']).default('USD'),
-  status: z.enum([
-    'draft',
-    'scheduled',
-    'active',
-    'halted',
-    'trading_closed',
-    'awaiting_resolution',
-    'settled',
-    'cancelled',
-    'disputed',
-    'voided',
-  ]),
-  tags: z.array(z.string().min(1).max(64)).max(16).optional(),
-  resolutionRules: z.string().min(3).max(4000),
-  resolutionSources: z.array(z.string().url()).max(16).optional(),
-  yesPriceBps: z.number().int().min(0).max(10000),
-  noPriceBps: z.number().int().min(0).max(10000),
-  volumeUsdMinor: z.number().int().nonnegative().optional(),
-  opensAt: z.string().datetime().optional(),
-  closesAt: z.string().datetime().optional(),
-  resolvesAt: z.string().datetime().optional(),
-});
-
-const listMarketsQuerySchema = z.object({
-  category: z.string().min(2).max(64).optional(),
-  status: z
-    .enum([
-      'draft',
-      'scheduled',
-      'active',
-      'halted',
-      'trading_closed',
-      'awaiting_resolution',
-      'settled',
-      'cancelled',
-      'disputed',
-      'voided',
-    ])
-    .optional(),
-  tag: z.string().min(1).max(64).optional(),
-  search: z.string().min(1).max(160).optional(),
-  sort: z.enum(['newest', 'closing_soon', 'highest_volume']).optional(),
-  limit: z.coerce.number().int().positive().max(100).default(25),
-});
-
-const marketParamsSchema = z.object({
-  marketId: z.string().uuid(),
-});
-
-const publishMarketAnnouncementBodySchema = z.object({
-  title: z.string().min(3).max(160),
-  message: z.string().min(3).max(4000),
-  publishedBy: z.string().min(3).max(128).optional(),
-});
-
-const updateMarketStatusBodySchema = z.object({
-  status: z.enum([
-    'draft',
-    'scheduled',
-    'active',
-    'halted',
-    'trading_closed',
-    'awaiting_resolution',
-    'settled',
-    'cancelled',
-    'disputed',
-    'voided',
-  ]),
-  reason: z.string().min(3).max(4000),
-  changedBy: z.string().min(3).max(128).optional(),
-});
-
-const resolveMarketBodySchema = z.object({
-  outcome: z.enum(['yes', 'no', 'void']),
-  evidenceSummary: z.string().min(3).max(4000),
-  evidenceSources: z.array(z.string().url()).max(16).optional(),
-  approvedBy: z.string().min(3).max(128).optional(),
-});
-
-const orderBookDeltasQuerySchema = z.object({
-  afterSequence: z.coerce.number().int().min(0).default(0),
-  limit: z.coerce.number().int().positive().max(500).default(100),
-});
-
-const recentTradesQuerySchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(50),
-});
 
 function assertBootstrapToken(request: FastifyRequest) {
   const bootstrapToken = request.headers['x-bootstrap-token'];
