@@ -55,9 +55,11 @@ describe('MarketsService integration', () => {
     ]);
 
     await Promise.all([
-      identityService.verifyEmail({ token: buyer.verificationChallenge.token! }),
       identityService.verifyEmail({
-        token: seller.verificationChallenge.token!,
+        token: String(buyer.verificationChallenge.token),
+      }),
+      identityService.verifyEmail({
+        token: String(seller.verificationChallenge.token),
       }),
       complianceService.upsertComplianceProfile({
         userId: buyer.user.id,
