@@ -1,13 +1,17 @@
+import { eq } from 'drizzle-orm';
 import type {
   FastifyInstance,
   FastifyPluginOptions,
   FastifyRequest,
 } from 'fastify';
 import { env } from '../../config/env';
+import { db } from '../../db/client';
+import { fundingTransfers } from '../../db/schema';
 import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
 import { verifyFundingWebhookSignature } from '../../lib/webhooks';
 import { IdentityService } from '../identity/service';
+import { accountRealtimeService } from '../portfolio/account-realtime.service';
 import {
   callbackDelayScanBodySchema,
   createDepositBodySchema,
@@ -27,6 +31,8 @@ import {
   walletBalanceQuerySchema,
 } from './schema';
 import { FundingService } from './service';
+
+type FundingCurrency = 'USD' | 'BRL';
 
 function getSessionTokenFromRequest(request: FastifyRequest) {
   const header = request.headers.authorization;
@@ -98,6 +104,65 @@ function getWebhookSignatureFromRequest(request: FastifyRequest) {
   return header;
 }
 
+async function getFundingTransferOwner(transferId: string) {
+  const rows = await db
+    .select({
+      userId: fundingTransfers.userId,
+      currency: fundingTransfers.currency,
+    })
+    .from(fundingTransfers)
+    .where(eq(fundingTransfers.id, transferId))
+    .limit(1);
+  const transfer = rows[0];
+
+  if (!transfer) {
+    throw new AppError(
+      404,
+      'funding_transfer_not_found',
+      `funding transfer was not found for id ${transferId}`,
+    );
+  }
+
+  return {
+    userId: transfer.userId,
+    currency: transfer.currency as FundingCurrency,
+  };
+}
+
+async function publishTransferAndBalanceEvent(
+  fundingService: FundingService,
+  input: {
+    userId: string;
+    currency: FundingCurrency;
+    transfer: Record<string, unknown>;
+    trigger: string;
+  },
+) {
+  const balance = await fundingService.getWalletBalance(
+    input.userId,
+    input.currency,
+  );
+
+  accountRealtimeService.publish({
+    userId: input.userId,
+    currency: input.currency,
+    type: 'transfer_updated',
+    data: {
+      trigger: input.trigger,
+      transfer: input.transfer,
+    },
+  });
+  accountRealtimeService.publish({
+    userId: input.userId,
+    currency: input.currency,
+    type: 'balance_updated',
+    data: {
+      trigger: input.trigger,
+      balance,
+    },
+  });
+}
+
 async function fundingRoutes(
   app: FastifyInstance,
   _options: FastifyPluginOptions,
@@ -152,6 +217,13 @@ async function fundingRoutes(
       status: result.deposit.status,
     });
 
+    await publishTransferAndBalanceEvent(fundingService, {
+      userId: user.id,
+      currency: result.deposit.currency as 'USD' | 'BRL',
+      transfer: result.deposit,
+      trigger: 'deposit_created',
+    });
+
     reply.status(201).send(result);
   });
 
@@ -184,6 +256,13 @@ async function fundingRoutes(
       currency: result.withdrawal.currency,
       rail: result.withdrawal.fundingMethod.rail,
       status: result.withdrawal.status,
+    });
+
+    await publishTransferAndBalanceEvent(fundingService, {
+      userId: user.id,
+      currency: result.withdrawal.currency as 'USD' | 'BRL',
+      transfer: result.withdrawal,
+      trigger: 'withdrawal_created',
     });
 
     reply.status(201).send(result);
@@ -244,6 +323,17 @@ async function fundingRoutes(
         alreadySettled: result.alreadySettled,
       });
 
+      const transferOwner = await getFundingTransferOwner(result.deposit.id);
+
+      await publishTransferAndBalanceEvent(fundingService, {
+        userId: transferOwner.userId,
+        currency: transferOwner.currency,
+        transfer: result.deposit,
+        trigger: result.alreadySettled
+          ? 'deposit_settlement_replay'
+          : 'deposit_settled',
+      });
+
       reply.status(200).send(result);
     },
   );
@@ -262,6 +352,17 @@ async function fundingRoutes(
         amountMinor: result.withdrawal.amountMinor,
         currency: result.withdrawal.currency,
         alreadyApproved: result.alreadyApproved,
+      });
+
+      const transferOwner = await getFundingTransferOwner(result.withdrawal.id);
+
+      await publishTransferAndBalanceEvent(fundingService, {
+        userId: transferOwner.userId,
+        currency: transferOwner.currency,
+        transfer: result.withdrawal,
+        trigger: result.alreadyApproved
+          ? 'withdrawal_review_approval_replay'
+          : 'withdrawal_review_approved',
       });
 
       reply.status(200).send(result);
@@ -285,6 +386,17 @@ async function fundingRoutes(
         alreadyFailed: result.alreadyFailed,
       });
 
+      const transferOwner = await getFundingTransferOwner(result.withdrawal.id);
+
+      await publishTransferAndBalanceEvent(fundingService, {
+        userId: transferOwner.userId,
+        currency: transferOwner.currency,
+        transfer: result.withdrawal,
+        trigger: result.alreadyFailed
+          ? 'withdrawal_failure_replay'
+          : 'withdrawal_failed',
+      });
+
       reply.status(200).send(result);
     },
   );
@@ -301,6 +413,17 @@ async function fundingRoutes(
         amountMinor: result.withdrawal.amountMinor,
         currency: result.withdrawal.currency,
         alreadySettled: result.alreadySettled,
+      });
+
+      const transferOwner = await getFundingTransferOwner(result.withdrawal.id);
+
+      await publishTransferAndBalanceEvent(fundingService, {
+        userId: transferOwner.userId,
+        currency: transferOwner.currency,
+        transfer: result.withdrawal,
+        trigger: result.alreadySettled
+          ? 'withdrawal_settlement_replay'
+          : 'withdrawal_settled',
       });
 
       reply.status(200).send(result);
@@ -414,6 +537,17 @@ async function fundingRoutes(
       transferId: result.transfer.id,
       transferStatus: result.transfer.status,
       alreadyProcessed: result.alreadyProcessed,
+    });
+
+    const transferOwner = await getFundingTransferOwner(result.transfer.id);
+
+    await publishTransferAndBalanceEvent(fundingService, {
+      userId: transferOwner.userId,
+      currency: transferOwner.currency,
+      transfer: result.transfer,
+      trigger: result.alreadyProcessed
+        ? 'provider_webhook_replay'
+        : 'provider_webhook_applied',
     });
 
     reply.status(200).send(result);

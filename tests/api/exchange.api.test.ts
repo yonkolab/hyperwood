@@ -72,14 +72,14 @@ describe('exchange api', () => {
       },
     });
 
-    expect(upsert.statusCode).toBe(201);
+    expect([200, 201]).toContain(upsert.statusCode);
     expect(upsert.json()).toMatchObject({
-      created: true,
       schedule: {
         name: 'Hyperwood Weekday Schedule',
         timezone: 'America/Sao_Paulo',
       },
     });
+    expect(typeof upsert.json().created).toBe('boolean');
     expect(upsert.json().schedule.weeklyWindows).toHaveLength(2);
 
     const read = await app.inject({

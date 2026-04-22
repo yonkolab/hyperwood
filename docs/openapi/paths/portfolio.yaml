@@ -19,6 +19,41 @@ portfolio:
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
 
+stream:
+  get:
+    operationId: streamAccountRealtime
+    tags: [Portfolio]
+    summary: Stream authenticated account updates as server-sent events
+    description: |
+      Opens an authenticated SSE stream for one user and one currency scope.
+
+      The first event is always `account_snapshot`, which contains the current
+      portfolio summary, recent fills, and recent settlements for the authenticated
+      user and requested currency.
+
+      Subsequent events are typed private account updates such as `order_updated`,
+      `balance_updated`, `transfer_updated`, `fill_batch`, and `settlement_updated`.
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Currency
+    responses:
+      '200':
+        description: Open authenticated SSE stream for one user and currency scope.
+        content:
+          text/event-stream:
+            schema:
+              type: string
+            examples:
+              snapshot:
+                summary: Initial account snapshot event
+                value: |
+                  id: 8f2b07de-64a3-4f22-9d5f-1ccfb54684f6
+                  event: account_snapshot
+                  data: {"id":"8f2b07de-64a3-4f22-9d5f-1ccfb54684f6","type":"account_snapshot","userId":"11111111-1111-1111-1111-111111111111","currency":"USD","emittedAt":"2026-04-21T22:00:00.000Z","data":{"portfolioSummary":{"currency":"USD"},"recentFills":[],"recentSettlements":[]}}
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
 fills:
   get:
     operationId: listPortfolioFills

@@ -1,0 +1,5 @@
+- [x] Add a ledger invariant scan service under operations.
+- [x] Add an internal bootstrap-protected scan endpoint.
+- [x] Persist alerts for imbalanced transactions and negative wallet balances.
+- [x] Document the endpoint in OpenAPI and guides.
+- [x] Add API coverage for scan results and persisted alerts.

@@ -26,3 +26,7 @@ export const listAlertsQuerySchema = z.object({
   status: z.enum(['open', 'acknowledged', 'resolved']).optional(),
   sourceType: z.string().min(1).max(64).optional(),
 });
+
+export const ledgerInvariantScanBodySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+});

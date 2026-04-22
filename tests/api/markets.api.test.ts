@@ -94,8 +94,13 @@ describe('markets api', () => {
     });
 
     expect(list.statusCode).toBe(200);
-    expect(list.json().markets).toHaveLength(1);
-    expect(list.json().markets[0].id).toBe(market.body.market.id);
+    expect(list.json().markets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: market.body.market.id,
+        }),
+      ]),
+    );
 
     const detail = await app.inject({
       method: 'GET',

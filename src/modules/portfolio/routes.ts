@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   FastifyInstance,
   FastifyPluginOptions,
@@ -5,12 +6,14 @@ import type {
 } from 'fastify';
 import { AppError } from '../../lib/errors';
 import { IdentityService } from '../identity/service';
+import { accountRealtimeService } from './account-realtime.service';
 import {
   createExportBodySchema,
   exportJobParamsSchema,
   exportJobsQuerySchema,
   fillsQuerySchema,
   portfolioQuerySchema,
+  portfolioStreamQuerySchema,
   settlementsQuerySchema,
 } from './schema';
 import { PortfolioService } from './service';
@@ -38,6 +41,58 @@ async function portfolioRoutes(
     const user = await identityService.getUserFromSessionToken(sessionToken);
 
     return portfolioService.getPortfolioSummary(user.id, query.currency);
+  });
+
+  app.get('/portfolio/stream', async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const query = portfolioStreamQuerySchema.parse(request.query);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const [portfolioSummary, fills, settlements] = await Promise.all([
+      portfolioService.getPortfolioSummary(user.id, query.currency),
+      portfolioService.listFills(user.id, 20, query.currency),
+      portfolioService.listSettlements(user.id, 20, query.currency),
+    ]);
+
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
+    });
+    reply.raw.write(
+      accountRealtimeService.toSseFrame({
+        id: randomUUID(),
+        type: 'account_snapshot',
+        userId: user.id,
+        currency: query.currency,
+        emittedAt: new Date().toISOString(),
+        data: {
+          portfolioSummary,
+          recentFills: fills.fills,
+          recentSettlements: settlements.settlements,
+        },
+      }),
+    );
+
+    const unsubscribe = accountRealtimeService.subscribe(
+      user.id,
+      query.currency,
+      (event) => {
+        reply.raw.write(accountRealtimeService.toSseFrame(event));
+      },
+    );
+    const heartbeat = setInterval(() => {
+      reply.raw.write(': heartbeat\n\n');
+    }, 15000);
+
+    const cleanup = () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    };
+
+    request.raw.on('close', cleanup);
+    reply.raw.on('close', cleanup);
   });
 
   app.get('/portfolio/fills', async (request) => {

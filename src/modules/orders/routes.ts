@@ -5,9 +5,11 @@ import type {
 } from 'fastify';
 import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
+import { FundingService } from '../funding/service';
 import { IdentityService } from '../identity/service';
 import { marketRealtimeService } from '../markets/market-realtime.service';
 import { MarketsService } from '../markets/service';
+import { accountRealtimeService } from '../portfolio/account-realtime.service';
 import {
   amendOrderBodySchema,
   createOrderBodySchema,
@@ -46,6 +48,7 @@ async function orderRoutes(
   const identityService = new IdentityService();
   const ordersService = new OrdersService();
   const marketsService = new MarketsService();
+  const fundingService = new FundingService();
 
   app.post('/orders', async (request, reply) => {
     const sessionToken = getSessionTokenFromRequest(request);
@@ -90,6 +93,32 @@ async function orderRoutes(
       },
     });
 
+    const balance = await fundingService.getWalletBalance(
+      user.id,
+      result.order.currency,
+    );
+
+    accountRealtimeService.publish({
+      userId: user.id,
+      currency: result.order.currency,
+      type: 'order_updated',
+      data: {
+        order: result.order,
+        idempotentReplay: result.idempotentReplay,
+      },
+    });
+    accountRealtimeService.publish({
+      userId: user.id,
+      currency: result.order.currency,
+      type: 'balance_updated',
+      data: {
+        balance,
+        trigger: result.idempotentReplay
+          ? 'order_create_replay'
+          : 'order_create',
+      },
+    });
+
     reply.status(result.idempotentReplay ? 200 : 201).send(result);
   });
 
@@ -122,6 +151,32 @@ async function orderRoutes(
           : 'order_cancel',
         orderBook,
         latestSequence: orderBook.snapshot.sequence,
+      },
+    });
+
+    const balance = await fundingService.getWalletBalance(
+      user.id,
+      result.order.currency,
+    );
+
+    accountRealtimeService.publish({
+      userId: user.id,
+      currency: result.order.currency,
+      type: 'order_updated',
+      data: {
+        order: result.order,
+        alreadyCancelled: result.alreadyCancelled,
+      },
+    });
+    accountRealtimeService.publish({
+      userId: user.id,
+      currency: result.order.currency,
+      type: 'balance_updated',
+      data: {
+        balance,
+        trigger: result.alreadyCancelled
+          ? 'order_cancel_replay'
+          : 'order_cancel',
       },
     });
 
@@ -160,6 +215,30 @@ async function orderRoutes(
         trigger: result.alreadyApplied ? 'order_amend_replay' : 'order_amend',
         orderBook,
         latestSequence: orderBook.snapshot.sequence,
+      },
+    });
+
+    const balance = await fundingService.getWalletBalance(
+      user.id,
+      result.order.currency,
+    );
+
+    accountRealtimeService.publish({
+      userId: user.id,
+      currency: result.order.currency,
+      type: 'order_updated',
+      data: {
+        order: result.order,
+        alreadyApplied: result.alreadyApplied,
+      },
+    });
+    accountRealtimeService.publish({
+      userId: user.id,
+      currency: result.order.currency,
+      type: 'balance_updated',
+      data: {
+        balance,
+        trigger: result.alreadyApplied ? 'order_amend_replay' : 'order_amend',
       },
     });
 

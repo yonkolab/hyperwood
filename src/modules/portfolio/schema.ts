@@ -14,6 +14,10 @@ export const portfolioQuerySchema = z.object({
   currency: z.enum(['USD', 'BRL']).default('USD'),
 });
 
+export const portfolioStreamQuerySchema = z.object({
+  currency: z.enum(['USD', 'BRL']).default('USD'),
+});
+
 export const exportJobsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(25),
   currency: z.enum(['USD', 'BRL']).default('USD'),

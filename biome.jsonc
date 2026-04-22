@@ -27,5 +27,12 @@
     "formatter": {
       "quoteStyle": "single"
     }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
   }
 }

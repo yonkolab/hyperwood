@@ -7,7 +7,10 @@ import type {
 import { env } from '../../config/env';
 import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
+import { FundingService } from '../funding/service';
 import { MatchingService } from '../matching/service';
+import { accountRealtimeService } from '../portfolio/account-realtime.service';
+import { PortfolioService } from '../portfolio/service';
 import { marketRealtimeService } from './market-realtime.service';
 import {
   createEventBodySchema,
@@ -75,6 +78,8 @@ async function marketRoutes(
 ) {
   const marketsService = new MarketsService();
   const matchingService = new MatchingService();
+  const fundingService = new FundingService();
+  const portfolioService = new PortfolioService();
 
   app.get('/markets', async (request) => {
     const query = listMarketsQuerySchema.parse(request.query);
@@ -249,6 +254,49 @@ async function marketRoutes(
         result.marketId,
         'matching_completed',
       );
+
+      const affectedUsers = Array.from(
+        new Map(
+          result.orders.map((order) => [
+            order.userId,
+            { userId: order.userId, currency: order.currency as 'USD' | 'BRL' },
+          ]),
+        ).values(),
+      );
+
+      for (const affectedUser of affectedUsers) {
+        const [fills, balance] = await Promise.all([
+          portfolioService.listFills(
+            affectedUser.userId,
+            20,
+            affectedUser.currency,
+          ),
+          fundingService.getWalletBalance(
+            affectedUser.userId,
+            affectedUser.currency,
+          ),
+        ]);
+
+        accountRealtimeService.publish({
+          userId: affectedUser.userId,
+          currency: affectedUser.currency,
+          type: 'fill_batch',
+          data: {
+            marketId: result.marketId,
+            trades: result.trades,
+            fills: fills.fills,
+          },
+        });
+        accountRealtimeService.publish({
+          userId: affectedUser.userId,
+          currency: affectedUser.currency,
+          type: 'balance_updated',
+          data: {
+            trigger: 'matching_completed',
+            balance,
+          },
+        });
+      }
     }
 
     return result;
@@ -362,6 +410,35 @@ async function marketRoutes(
       result.marketId,
       'market_settled',
     );
+
+    for (const payout of result.payouts) {
+      const currency = payout.currency as 'USD' | 'BRL';
+      const [settlements, balance] = await Promise.all([
+        portfolioService.listSettlements(payout.userId, 20, currency),
+        fundingService.getWalletBalance(payout.userId, currency),
+      ]);
+
+      accountRealtimeService.publish({
+        userId: payout.userId,
+        currency,
+        type: 'settlement_updated',
+        data: {
+          marketId: result.marketId,
+          settlement: result.settlement,
+          payout,
+          settlements: settlements.settlements,
+        },
+      });
+      accountRealtimeService.publish({
+        userId: payout.userId,
+        currency,
+        type: 'balance_updated',
+        data: {
+          trigger: 'market_settled',
+          balance,
+        },
+      });
+    }
 
     reply.status(result.alreadySettled ? 200 : 201).send(result);
   });

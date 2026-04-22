@@ -17,6 +17,7 @@ info:
     - External API routes are rate-limited. Public auth routes use a stricter bucket than general API traffic.
     - Funding provider webhooks are signed and documented as HTTP callback endpoints.
     - Public market realtime delivery is exposed as Server-Sent Events under `/api/v1/markets/{marketId}/stream`.
+    - Authenticated account realtime delivery is exposed as Server-Sent Events under `/api/v1/portfolio/stream`.
   license:
     name: Proprietary
 servers:
@@ -154,6 +155,8 @@ paths:
     $ref: ./paths/orders.yaml#/orderById
   /api/v1/portfolio:
     $ref: ./paths/portfolio.yaml#/portfolio
+  /api/v1/portfolio/stream:
+    $ref: ./paths/portfolio.yaml#/stream
   /api/v1/portfolio/fills:
     $ref: ./paths/portfolio.yaml#/fills
   /api/v1/portfolio/settlements:
@@ -170,6 +173,8 @@ paths:
     $ref: ./paths/operations.yaml#/rateLimitEvents
   /api/v1/internal/operations/alerts:
     $ref: ./paths/operations.yaml#/alerts
+  /api/v1/internal/operations/ledger-invariant-scan:
+    $ref: ./paths/operations.yaml#/ledgerInvariantScan
 components:
   securitySchemes:
     SessionBearer:

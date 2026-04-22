@@ -1,5 +1,12 @@
+import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { db } from '../../src/db/client';
+import {
+  ledgerEntries,
+  ledgerTransactions,
+  walletAccounts,
+} from '../../src/db/schema';
 import { buildTestApp } from '../helpers/app';
 import { createVerifiedSession, registerUser } from '../helpers/auth';
 import {
@@ -231,5 +238,125 @@ describe('operations api', () => {
       provider: 'test-bank',
       transferId: deposit.json().deposit.id,
     });
+  });
+
+  it('scans ledger invariants and persists alerts for broken transactions and negative wallets', async () => {
+    const session = await createVerifiedSession(app);
+    await seedWallet(app, session.body.user.id as string, {
+      amountMinor: 500,
+      currency: 'USD',
+    });
+
+    const walletRows = await db
+      .select({
+        id: walletAccounts.id,
+      })
+      .from(walletAccounts)
+      .where(
+        and(
+          eq(walletAccounts.ownerUserId, session.body.user.id as string),
+          eq(walletAccounts.type, 'user_cash'),
+          eq(walletAccounts.currency, 'USD'),
+        ),
+      )
+      .limit(1);
+    const wallet = walletRows[0];
+
+    expect(wallet).toBeDefined();
+
+    if (!wallet) {
+      throw new Error(
+        'expected seeded USD cash wallet for invariant scan test',
+      );
+    }
+
+    const transactionRows = await db
+      .insert(ledgerTransactions)
+      .values({
+        referenceType: 'test_invariant_failure',
+        referenceId: `wallet-${wallet.id}`,
+      })
+      .returning({ id: ledgerTransactions.id });
+    const transaction = transactionRows[0];
+
+    expect(transaction).toBeDefined();
+
+    if (!transaction) {
+      throw new Error(
+        'expected test invariant transaction insert to return one id',
+      );
+    }
+
+    await db.insert(ledgerEntries).values({
+      transactionId: transaction.id,
+      walletAccountId: wallet.id,
+      side: 'debit',
+      amountMinor: 1_000,
+      currency: 'USD',
+    });
+
+    const scan = await app.inject({
+      method: 'POST',
+      url: '/api/v1/internal/operations/ledger-invariant-scan',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+      payload: {
+        limit: 10,
+      },
+    });
+
+    expect(scan.statusCode).toBe(200);
+    expect(scan.json().alertsCreated).toBeGreaterThanOrEqual(2);
+    expect(scan.json().imbalancedTransactions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          transactionId: transaction.id,
+          debitTotalMinor: 1_000,
+          creditTotalMinor: 0,
+        }),
+      ]),
+    );
+    expect(scan.json().negativeWalletBalances).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          walletAccountId: wallet.id,
+          balanceMinor: -500,
+          currency: 'USD',
+        }),
+      ]),
+    );
+
+    const alerts = await app.inject({
+      method: 'GET',
+      url:
+        '/api/v1/internal/operations/alerts' +
+        '?limit=10&category=ledger_invariant&severity=critical&status=open',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+    });
+
+    expect(alerts.statusCode).toBe(200);
+    expect(alerts.json().alerts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'ledger_invariant',
+          severity: 'critical',
+          sourceType: 'ledger_transaction',
+          sourceId: transaction.id,
+          message: 'ledger transaction debits and credits are not balanced',
+        }),
+        expect.objectContaining({
+          category: 'ledger_invariant',
+          severity: 'critical',
+          sourceType: 'wallet_account',
+          sourceId: wallet.id,
+          message: 'user wallet balance is negative',
+        }),
+      ]),
+    );
   });
 });

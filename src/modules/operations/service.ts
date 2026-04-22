@@ -9,11 +9,14 @@ import {
 } from '../../db/schema';
 import { OperationsAlertService } from './alerts';
 import { AdminAuditService } from './audit';
+import { LedgerInvariantAlertService } from './ledger-invariant-alert.service';
 import { RateLimitEventService } from './rate-limit';
 
 export class OperationsService {
   private readonly operationsAlertService = new OperationsAlertService();
   private readonly adminAuditService = new AdminAuditService();
+  private readonly ledgerInvariantAlertService =
+    new LedgerInvariantAlertService();
   private readonly rateLimitEventService = new RateLimitEventService();
 
   async listActiveReviewQueue(input: { limit: number }) {
@@ -263,5 +266,11 @@ export class OperationsService {
         ...(input.sourceType ? { sourceType: input.sourceType } : {}),
       }),
     };
+  }
+
+  async scanLedgerInvariants(input: { limit: number }) {
+    return this.ledgerInvariantAlertService.scan({
+      limit: Math.min(input.limit, 100),
+    });
   }
 }

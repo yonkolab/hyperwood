@@ -291,3 +291,66 @@ OperationsAlertListResponse:
       type: array
       items:
         $ref: '#/OperationsAlert'
+
+ImbalancedLedgerTransaction:
+  type: object
+  required:
+    [transactionId, currency, currencyCount, debitTotalMinor, creditTotalMinor, createdAt]
+  properties:
+    transactionId:
+      type: string
+      format: uuid
+    currency:
+      type: string
+      nullable: true
+    currencyCount:
+      type: integer
+    debitTotalMinor:
+      type: integer
+    creditTotalMinor:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+
+NegativeWalletBalance:
+  type: object
+  required:
+    [walletAccountId, ownerUserId, walletAccountType, currency, balanceMinor, createdAt]
+  properties:
+    walletAccountId:
+      type: string
+      format: uuid
+    ownerUserId:
+      type: string
+      format: uuid
+      nullable: true
+    walletAccountType:
+      type: string
+    currency:
+      type: string
+      enum: [USD, BRL]
+    balanceMinor:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+
+LedgerInvariantScanResponse:
+  type: object
+  required:
+    [generatedAt, alertsCreated, imbalancedTransactions, negativeWalletBalances]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    alertsCreated:
+      type: integer
+    imbalancedTransactions:
+      type: array
+      items:
+        $ref: '#/ImbalancedLedgerTransaction'
+    negativeWalletBalances:
+      type: array
+      items:
+        $ref: '#/NegativeWalletBalance'

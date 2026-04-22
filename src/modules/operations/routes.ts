@@ -6,6 +6,7 @@ import type {
 import { env } from '../../config/env';
 import { AppError } from '../../lib/errors';
 import {
+  ledgerInvariantScanBodySchema,
   listAlertsQuerySchema,
   listAuditEventsQuerySchema,
   listRateLimitEventsQuerySchema,
@@ -75,6 +76,15 @@ async function operationsRoutes(
       ...(query.severity ? { severity: query.severity } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.sourceType ? { sourceType: query.sourceType } : {}),
+    });
+  });
+
+  app.post('/internal/operations/ledger-invariant-scan', async (request) => {
+    assertBootstrapToken(request);
+    const body = ledgerInvariantScanBodySchema.parse(request.body ?? {});
+
+    return operationsService.scanLedgerInvariants({
+      limit: body.limit,
     });
   });
 }

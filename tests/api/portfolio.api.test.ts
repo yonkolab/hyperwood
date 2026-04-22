@@ -2,8 +2,59 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../helpers/app';
 import { createVerifiedSession } from '../helpers/auth';
-import { resolveMarket, seedWallet, settleMarket } from '../helpers/bootstrap';
+import {
+  createMarket,
+  createMarketEvent,
+  resolveMarket,
+  seedWallet,
+  settleMarket,
+  upsertApprovedComplianceProfile,
+  upsertExchangeSchedule,
+} from '../helpers/bootstrap';
 import { createMatchedMarketScenario } from '../helpers/trading';
+
+async function readSseEvent(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  eventName: string,
+  timeoutMs = 5000,
+) {
+  const decoder = new TextDecoder();
+  const timeoutAt = Date.now() + timeoutMs;
+  let buffer = '';
+
+  while (Date.now() < timeoutAt) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split('\n\n');
+    buffer = chunks.pop() ?? '';
+
+    for (const chunk of chunks) {
+      if (!chunk.includes(`event: ${eventName}`)) {
+        continue;
+      }
+
+      const dataLine = chunk
+        .split('\n')
+        .find((line) => line.startsWith('data: '));
+
+      if (!dataLine) {
+        continue;
+      }
+
+      return JSON.parse(dataLine.slice('data: '.length)) as Record<
+        string,
+        unknown
+      >;
+    }
+  }
+
+  throw new Error(`timed out waiting for SSE event ${eventName}`);
+}
 
 describe('portfolio api', () => {
   let app: FastifyInstance;
@@ -54,6 +105,125 @@ describe('portfolio api', () => {
       currency: 'USD',
       fills: [],
     });
+  });
+
+  it('streams an authenticated account snapshot and subsequent order updates', async () => {
+    const streamApp = await buildTestApp();
+    const session = await createVerifiedSession(streamApp);
+    const weekdayNames = [
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+    ] as const;
+    const currentWeekday = weekdayNames[new Date().getUTCDay()];
+
+    await upsertApprovedComplianceProfile(
+      streamApp,
+      session.body.user.id as string,
+    );
+    await seedWallet(streamApp, session.body.user.id as string, {
+      amountMinor: 10_000,
+      currency: 'USD',
+      referenceId: 'account-stream-seed',
+    });
+    await upsertExchangeSchedule(streamApp, {
+      name: 'Account stream open schedule',
+      timezone: 'UTC',
+      weeklyWindows: [
+        {
+          weekday: currentWeekday,
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+      ],
+      maintenanceWindows: [],
+      notes: 'Keeps exchange open during private account realtime test.',
+    });
+    const event = await createMarketEvent(streamApp);
+    const market = await createMarket(
+      streamApp,
+      event.body.event.id as string,
+      {
+        currency: 'USD',
+        status: 'active',
+        yesPriceBps: 5200,
+        noPriceBps: 4800,
+      },
+    );
+    const baseUrl = await streamApp.listen({ host: '127.0.0.1', port: 0 });
+    const controller = new AbortController();
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/v1/portfolio/stream?currency=USD`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.sessionToken}`,
+          },
+          signal: controller.signal,
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain(
+        'text/event-stream',
+      );
+
+      const reader = response.body?.getReader();
+
+      expect(reader).toBeDefined();
+
+      if (!reader) {
+        throw new Error('expected stream reader for account realtime response');
+      }
+
+      const snapshot = await readSseEvent(reader, 'account_snapshot');
+      expect(snapshot.userId).toBe(session.body.user.id);
+      expect(snapshot.currency).toBe('USD');
+      expect(snapshot.data).toMatchObject({
+        portfolioSummary: {
+          currency: 'USD',
+        },
+      });
+
+      const orderResponse = await streamApp.inject({
+        method: 'POST',
+        url: '/api/v1/orders',
+        headers: {
+          authorization: `Bearer ${session.sessionToken}`,
+          'idempotency-key': 'account-stream-order',
+        },
+        payload: {
+          marketId: market.body.market.id,
+          type: 'limit',
+          side: 'buy',
+          outcome: 'yes',
+          quantity: 10,
+          limitPriceBps: 5200,
+        },
+      });
+
+      expect(orderResponse.statusCode).toBe(201);
+
+      const orderUpdated = await readSseEvent(reader, 'order_updated');
+      expect(orderUpdated.userId).toBe(session.body.user.id);
+      expect(orderUpdated.currency).toBe('USD');
+      expect(orderUpdated.data).toMatchObject({
+        order: {
+          marketId: market.body.market.id,
+          status: 'queued_for_matching',
+        },
+      });
+
+      controller.abort();
+    } finally {
+      controller.abort();
+      await streamApp.close();
+    }
   });
 
   it('returns settlement history and clears open positions after settlement', async () => {

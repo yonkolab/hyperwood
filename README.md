@@ -205,6 +205,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/historical/markets/:marketId/trades`
 - `GET /api/v1/markets/:marketId/announcements`
 - `GET /api/v1/portfolio`
+- `GET /api/v1/portfolio/stream`
 - `GET /api/v1/portfolio/fills`
 - `GET /api/v1/portfolio/settlements`
 - `POST /api/v1/portfolio/exports`
@@ -238,6 +239,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/internal/operations/audit-events`
 - `GET /api/v1/internal/operations/rate-limit-events`
 - `GET /api/v1/internal/operations/alerts`
+- `POST /api/v1/internal/operations/ledger-invariant-scan`
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`
