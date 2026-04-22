@@ -38,6 +38,25 @@ services:
       - hyperwood-node-modules:/app/node_modules
     command: sh ./scripts/docker/dev-entrypoint.sh
 
+  docs:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app/docs/developer
+    environment:
+      DOCS_DEV_HOST: ${DOCS_DEV_HOST:-0.0.0.0}
+      DOCS_DEV_PORT: ${DOCS_DEV_PORT:-3001}
+      DOCS_API_REFERENCE_URL: ${DOCS_API_REFERENCE_URL:-http://localhost:8081/reference/}
+    ports:
+      - "${DOCS_DEV_PORT:-3001}:${DOCS_DEV_PORT:-3001}"
+    volumes:
+      - .:/app
+      - hyperwood-docs-node-modules:/app/docs/developer/node_modules
+    command:
+      - sh
+      - -c
+      - npm install && npm run start -- --host ${DOCS_DEV_HOST:-0.0.0.0} --port ${DOCS_DEV_PORT:-3001}
+
 volumes:
   hyperwood-postgres-data:
   hyperwood-node-modules:
+  hyperwood-docs-node-modules:

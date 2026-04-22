@@ -48,6 +48,7 @@ Every HTTP response also includes `X-Request-Id`. Clients may send `x-request-id
 3. The API will be available at `http://localhost:3000` and PostgreSQL at `localhost:5432`.
 
 The local Docker stack uses `docker-compose.local.yml`, starts PostgreSQL 17, overrides `DATABASE_URL` to the internal `db` service, and runs `npm run db:migrate` before the development server starts.
+The same stack also runs the Docusaurus developer-doc app on `http://localhost:3001`.
 
 ## API Docs
 
@@ -57,9 +58,10 @@ The API documentation source lives in:
 - `docs/openapi/paths/`
 - `docs/openapi/components/`
 - `docs/guides/`
+- `docs/developer/`
 
-OpenAPI is the source of truth for HTTP reference documentation. Human guides live alongside it under `docs/guides`.
-The interactive reference is rendered with Scalar.
+OpenAPI is the source of truth for HTTP reference documentation. Developer onboarding, architecture, business rules, and module documentation now live in the Docusaurus app under `docs/developer`. Narrower integration guides still live under `docs/guides` and are mounted inside that Docusaurus site.
+The interactive API reference is rendered with Scalar.
 
 Useful commands:
 
@@ -72,12 +74,18 @@ Useful commands:
 - `npm run docs:lint`
 - `npm run docs:build`
 - `npm run docs:preview`
+- `npm run docs:dev:install`
+- `npm run docs:dev:start`
+- `npm run docs:dev:build`
+- `npm run docs:dev:serve`
 
 `docs:preview` starts a small Fastify server with Scalar at `/reference`.
 `docs:build` generates a static Scalar reference into `docs/reference/`.
+`docs:dev:start` starts the Docusaurus developer-doc site on port `3001` by default.
 
 Relevant guides:
 
+- `docs/developer/docs/`
 - `docs/guides/getting-started.md`
 - `docs/guides/auth-access-matrix.md`
 - `docs/guides/authentication.md`
@@ -96,8 +104,9 @@ When adding or changing endpoints:
 1. update the relevant route and service code
 2. update the matching OpenAPI path and component files
 3. add or update API and integration coverage for the new behavior
-4. update or add guides if the behavior affects client integration
-5. run `npm run check:biome`, `npm run docs:lint`, `npm run test:api`, and the relevant integration tests
+4. update the Docusaurus developer docs if the change affects architecture, business rules, module responsibilities, or local workflow
+5. update or add guides if the behavior affects client integration
+6. run `npm run check:biome`, `npm run docs:lint`, `npm run test:api`, and the relevant integration tests
 
 Realtime stream health scans use `REALTIME_STREAM_STALE_SECONDS` to decide when an
 active SSE subscription is stale enough to create an operational alert.
@@ -165,6 +174,10 @@ Notes:
 - `npm run test:integration`
 - `npm run test:coverage`
 - `npm run test:openapi`
+- `npm run docs:dev:start`
+- `npm run docs:dev:install`
+- `npm run docs:dev:build`
+- `npm run docs:dev:serve`
 - `npm run db:generate`
 - `npm run db:migrate`
 - `npm run docker:local:up`
