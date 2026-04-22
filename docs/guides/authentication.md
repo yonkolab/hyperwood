@@ -30,6 +30,13 @@ Session management endpoints:
 - `DELETE /api/v1/auth/sessions/current`
 - `DELETE /api/v1/auth/sessions/{sessionId}`
 
+Session hardening behavior:
+
+- sessions have an absolute expiry from `SESSION_TTL_HOURS`
+- sessions also have an inactivity expiry from `SESSION_IDLE_TTL_HOURS`
+- authenticated requests refresh `lastSeenAt`
+- `GET /api/v1/auth/sessions` returns `idleExpiresAt` so clients can reason about inactivity expiry
+
 ## 2. MFA step-up authorization
 
 Some sensitive actions require a short-lived step-up token when the user has active MFA configured.

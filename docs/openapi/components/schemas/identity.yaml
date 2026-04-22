@@ -142,7 +142,7 @@ AuthMeResponse:
 
 SessionSummary:
   type: object
-  required: [id, current, expiresAt, ipAddress, userAgent, lastSeenAt, revokedAt, createdAt]
+  required: [id, current, expiresAt, idleExpiresAt, ipAddress, userAgent, lastSeenAt, revokedAt, createdAt]
   properties:
     id:
       type: string
@@ -150,6 +150,9 @@ SessionSummary:
     current:
       type: boolean
     expiresAt:
+      type: string
+      format: date-time
+    idleExpiresAt:
       type: string
       format: date-time
     ipAddress:

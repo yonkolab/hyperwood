@@ -1,5 +1,8 @@
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { db } from '../../src/db/client';
+import { userSessions } from '../../src/db/schema';
 import { hmacSha256Hex } from '../../src/lib/crypto';
 import { buildApiHmacPayload } from '../../src/modules/identity/identity-workflow-support';
 import { buildTestApp } from '../helpers/app';
@@ -158,6 +161,41 @@ describe('identity api', () => {
     expect(currentSessionAccess.statusCode).toBe(401);
     expect(currentSessionAccess.json()).toMatchObject({
       error: 'invalid_session',
+    });
+  });
+
+  it('rejects sessions that exceeded the inactivity timeout', async () => {
+    const session = await createVerifiedSession(app);
+    const sessions = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/sessions',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+    });
+
+    expect(sessions.statusCode).toBe(200);
+    const sessionId = sessions.json().sessions[0].id as string;
+    const staleLastSeenAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
+
+    await db
+      .update(userSessions)
+      .set({
+        lastSeenAt: staleLastSeenAt,
+      })
+      .where(eq(userSessions.id, sessionId));
+
+    const me = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+    });
+
+    expect(me.statusCode).toBe(401);
+    expect(me.json()).toMatchObject({
+      error: 'session_idle_expired',
     });
   });
 

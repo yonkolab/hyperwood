@@ -1,9 +1,14 @@
-import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { env } from '../../config/env';
 import { db } from '../../db/client';
 import { userSessions, users } from '../../db/schema';
 import { createOpaqueToken, sha256Hex } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
+import {
+  calculateSessionIdleExpiresAt,
+  isSessionIdleExpired,
+  shouldTouchSessionActivity,
+} from './session-policy';
 import type { RevokeSessionInput } from './types';
 
 export class IdentitySessionService {
@@ -66,6 +71,10 @@ export class IdentitySessionService {
         id: session.id,
         current: session.tokenHash === currentTokenHash,
         expiresAt: session.expiresAt.toISOString(),
+        idleExpiresAt: calculateSessionIdleExpiresAt(
+          session.lastSeenAt,
+          env.SESSION_IDLE_TTL_HOURS,
+        ).toISOString(),
         ipAddress: session.ipAddress,
         userAgent: session.userAgent,
         lastSeenAt: session.lastSeenAt.toISOString(),
@@ -82,27 +91,7 @@ export class IdentitySessionService {
    * `await identitySessionService.getSessionFromToken(sessionToken)`
    */
   async getSessionFromToken(sessionToken: string) {
-    const tokenHash = sha256Hex(sessionToken);
-    const [session] = await db
-      .select({
-        id: userSessions.id,
-        userId: userSessions.userId,
-        expiresAt: userSessions.expiresAt,
-        revokedAt: userSessions.revokedAt,
-      })
-      .from(userSessions)
-      .where(eq(userSessions.tokenHash, tokenHash))
-      .limit(1);
-
-    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
-      throw new AppError(
-        401,
-        'invalid_session',
-        'session is invalid or expired',
-      );
-    }
-
-    return session;
+    return this.resolveActiveSession(sessionToken, { touchActivity: true });
   }
 
   /**
@@ -162,25 +151,48 @@ export class IdentitySessionService {
    * `await identitySessionService.getUserFromSessionToken(sessionToken)`
    */
   async getUserFromSessionToken(sessionToken: string) {
-    const tokenHash = sha256Hex(sessionToken);
+    const session = await this.resolveActiveSession(sessionToken, {
+      touchActivity: true,
+    });
 
     const rows = await db
       .select({
         user: users,
       })
-      .from(userSessions)
-      .innerJoin(users, eq(users.id, userSessions.userId))
-      .where(
-        and(
-          eq(userSessions.tokenHash, tokenHash),
-          isNull(userSessions.revokedAt),
-          gt(userSessions.expiresAt, new Date()),
-        ),
-      )
+      .from(users)
+      .where(eq(users.id, session.userId))
       .limit(1);
-    const session = rows[0];
+    const user = rows[0]?.user;
 
-    if (!session) {
+    if (!user) {
+      throw new AppError(
+        401,
+        'invalid_session',
+        `session ${session.id} resolved to a missing user ${session.userId}`,
+      );
+    }
+
+    return user;
+  }
+
+  private async resolveActiveSession(
+    sessionToken: string,
+    input: { touchActivity: boolean },
+  ) {
+    const tokenHash = sha256Hex(sessionToken);
+    const [session] = await db
+      .select({
+        id: userSessions.id,
+        userId: userSessions.userId,
+        expiresAt: userSessions.expiresAt,
+        lastSeenAt: userSessions.lastSeenAt,
+        revokedAt: userSessions.revokedAt,
+      })
+      .from(userSessions)
+      .where(eq(userSessions.tokenHash, tokenHash))
+      .limit(1);
+
+    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
       throw new AppError(
         401,
         'invalid_session',
@@ -188,6 +200,42 @@ export class IdentitySessionService {
       );
     }
 
-    return session.user;
+    const now = new Date();
+
+    if (
+      isSessionIdleExpired(session.lastSeenAt, now, env.SESSION_IDLE_TTL_HOURS)
+    ) {
+      await db
+        .update(userSessions)
+        .set({
+          revokedAt: now,
+        })
+        .where(eq(userSessions.id, session.id));
+
+      throw new AppError(
+        401,
+        'session_idle_expired',
+        `session ${session.id} exceeded idle timeout; lastSeenAt=${session.lastSeenAt.toISOString()} expected_activity_within_hours=${env.SESSION_IDLE_TTL_HOURS}`,
+      );
+    }
+
+    if (
+      input.touchActivity &&
+      shouldTouchSessionActivity(session.lastSeenAt, now)
+    ) {
+      await db
+        .update(userSessions)
+        .set({
+          lastSeenAt: now,
+        })
+        .where(eq(userSessions.id, session.id));
+
+      return {
+        ...session,
+        lastSeenAt: now,
+      };
+    }
+
+    return session;
   }
 }

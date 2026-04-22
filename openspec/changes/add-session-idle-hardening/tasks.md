@@ -1,0 +1,5 @@
+- [x] add inactivity expiry policy for bearer sessions
+- [x] refresh session activity timestamps during authenticated use
+- [x] expose inactivity expiry in the session listing response
+- [x] add unit and API regression coverage
+- [x] validate the OpenSpec change

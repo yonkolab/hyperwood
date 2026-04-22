@@ -22,6 +22,11 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(24 * 30),
+  SESSION_IDLE_TTL_HOURS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(24 * 7),
   EMAIL_VERIFICATION_TTL_MINUTES: z.coerce
     .number()
     .int()
