@@ -175,6 +175,10 @@ paths:
     $ref: ./paths/operations.yaml#/alerts
   /api/v1/internal/operations/ledger-invariant-scan:
     $ref: ./paths/operations.yaml#/ledgerInvariantScan
+  /api/v1/internal/operations/settlement-failure-scan:
+    $ref: ./paths/operations.yaml#/settlementFailureScan
+  /api/v1/internal/operations/trading-condition-scan:
+    $ref: ./paths/operations.yaml#/tradingConditionScan
 components:
   securitySchemes:
     SessionBearer:

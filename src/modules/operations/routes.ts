@@ -11,6 +11,8 @@ import {
   listAuditEventsQuerySchema,
   listRateLimitEventsQuerySchema,
   listReviewQueueQuerySchema,
+  settlementFailureScanBodySchema,
+  tradingConditionScanBodySchema,
 } from './schema';
 import { OperationsService } from './service';
 
@@ -84,6 +86,24 @@ async function operationsRoutes(
     const body = ledgerInvariantScanBodySchema.parse(request.body ?? {});
 
     return operationsService.scanLedgerInvariants({
+      limit: body.limit,
+    });
+  });
+
+  app.post('/internal/operations/settlement-failure-scan', async (request) => {
+    assertBootstrapToken(request);
+    const body = settlementFailureScanBodySchema.parse(request.body ?? {});
+
+    return operationsService.scanSettlementFailures({
+      limit: body.limit,
+    });
+  });
+
+  app.post('/internal/operations/trading-condition-scan', async (request) => {
+    assertBootstrapToken(request);
+    const body = tradingConditionScanBodySchema.parse(request.body ?? {});
+
+    return operationsService.scanTradingConditions({
       limit: body.limit,
     });
   });

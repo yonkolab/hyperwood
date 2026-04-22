@@ -11,6 +11,8 @@ import { OperationsAlertService } from './alerts';
 import { AdminAuditService } from './audit';
 import { LedgerInvariantAlertService } from './ledger-invariant-alert.service';
 import { RateLimitEventService } from './rate-limit';
+import { SettlementFailureAlertService } from './settlement-failure-alert.service';
+import { TradingConditionAlertService } from './trading-condition-alert.service';
 
 export class OperationsService {
   private readonly operationsAlertService = new OperationsAlertService();
@@ -18,6 +20,10 @@ export class OperationsService {
   private readonly ledgerInvariantAlertService =
     new LedgerInvariantAlertService();
   private readonly rateLimitEventService = new RateLimitEventService();
+  private readonly settlementFailureAlertService =
+    new SettlementFailureAlertService();
+  private readonly tradingConditionAlertService =
+    new TradingConditionAlertService();
 
   async listActiveReviewQueue(input: { limit: number }) {
     const limit = Math.min(input.limit, 100);
@@ -270,6 +276,18 @@ export class OperationsService {
 
   async scanLedgerInvariants(input: { limit: number }) {
     return this.ledgerInvariantAlertService.scan({
+      limit: Math.min(input.limit, 100),
+    });
+  }
+
+  async scanSettlementFailures(input: { limit: number }) {
+    return this.settlementFailureAlertService.scan({
+      limit: Math.min(input.limit, 100),
+    });
+  }
+
+  async scanTradingConditions(input: { limit: number }) {
+    return this.tradingConditionAlertService.scan({
       limit: Math.min(input.limit, 100),
     });
   }

@@ -1,0 +1,5 @@
+- [x] Add a settlement failure scan service under operations.
+- [x] Add an internal bootstrap-protected scan endpoint.
+- [x] Persist alerts for resolved-but-unsettled markets beyond the configured threshold.
+- [x] Document the endpoint in OpenAPI and guides.
+- [x] Add API coverage for scan results and persisted alerts.

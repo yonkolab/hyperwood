@@ -30,3 +30,11 @@ export const listAlertsQuerySchema = z.object({
 export const ledgerInvariantScanBodySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(25),
 });
+
+export const settlementFailureScanBodySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+});
+
+export const tradingConditionScanBodySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+});

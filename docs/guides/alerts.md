@@ -24,6 +24,8 @@ Current categories:
 - `funding_reconciliation`
 - `funding_callback_delay`
 - `ledger_invariant`
+- `market_settlement_failure`
+- `unusual_trading_condition`
 
 Current limitations:
 
@@ -34,8 +36,18 @@ Current limitations:
 Internal scan paths now include:
 
 - `POST /api/v1/internal/operations/ledger-invariant-scan`
+- `POST /api/v1/internal/operations/settlement-failure-scan`
+- `POST /api/v1/internal/operations/trading-condition-scan`
 
 The ledger invariant scan currently flags:
 
 - imbalanced ledger transactions
 - negative non-platform wallet balances
+
+The settlement failure scan currently flags:
+
+- resolved markets still waiting for settlement beyond `MARKET_SETTLEMENT_FAILURE_MINUTES`
+
+The trading-condition scan currently flags:
+
+- active markets with crossed resting books where the best bid is greater than or equal to the best ask for the same outcome

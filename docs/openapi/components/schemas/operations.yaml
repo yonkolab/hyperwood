@@ -354,3 +354,90 @@ LedgerInvariantScanResponse:
       type: array
       items:
         $ref: '#/NegativeWalletBalance'
+
+SettlementFailureCandidate:
+  type: object
+  required:
+    [marketId, marketTitle, marketCurrency, marketStatus, resolutionId, outcome, approvedAt]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    marketTitle:
+      type: string
+    marketCurrency:
+      type: string
+      enum: [USD, BRL]
+    marketStatus:
+      type: string
+    resolutionId:
+      type: string
+      format: uuid
+    outcome:
+      type: string
+      enum: [yes, no, void]
+    approvedAt:
+      type: string
+      format: date-time
+
+SettlementFailureScanResponse:
+  type: object
+  required: [generatedAt, thresholdMinutes, alertsCreated, stalledSettlements]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    thresholdMinutes:
+      type: integer
+    alertsCreated:
+      type: integer
+    stalledSettlements:
+      type: array
+      items:
+        $ref: '#/SettlementFailureCandidate'
+
+CrossedOutcome:
+  type: object
+  required: [outcome, bestBidPriceBps, bestAskPriceBps]
+  properties:
+    outcome:
+      type: string
+      enum: [yes, no]
+    bestBidPriceBps:
+      type: integer
+    bestAskPriceBps:
+      type: integer
+
+TradingConditionCandidate:
+  type: object
+  required:
+    [marketId, marketTitle, marketCurrency, marketStatus, crossedOutcomes]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    marketTitle:
+      type: string
+    marketCurrency:
+      type: string
+      enum: [USD, BRL]
+    marketStatus:
+      type: string
+    crossedOutcomes:
+      type: array
+      items:
+        $ref: '#/CrossedOutcome'
+
+TradingConditionScanResponse:
+  type: object
+  required: [generatedAt, alertsCreated, affectedMarkets]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    alertsCreated:
+      type: integer
+    affectedMarkets:
+      type: array
+      items:
+        $ref: '#/TradingConditionCandidate'

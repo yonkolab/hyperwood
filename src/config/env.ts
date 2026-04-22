@@ -56,6 +56,11 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(30),
+  MARKET_SETTLEMENT_FAILURE_MINUTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30),
   INTERNAL_BOOTSTRAP_TOKEN: z.string().min(1),
 });
 

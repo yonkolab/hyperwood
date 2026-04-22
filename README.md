@@ -240,6 +240,8 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/internal/operations/rate-limit-events`
 - `GET /api/v1/internal/operations/alerts`
 - `POST /api/v1/internal/operations/ledger-invariant-scan`
+- `POST /api/v1/internal/operations/settlement-failure-scan`
+- `POST /api/v1/internal/operations/trading-condition-scan`
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`

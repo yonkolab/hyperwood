@@ -5,6 +5,7 @@ import { db } from '../../src/db/client';
 import {
   ledgerEntries,
   ledgerTransactions,
+  marketResolutions,
   walletAccounts,
 } from '../../src/db/schema';
 import { buildTestApp } from '../helpers/app';
@@ -13,9 +14,11 @@ import {
   createMarket,
   createMarketEvent,
   linkFundingMethod,
+  resolveMarket,
   seedWallet,
   transitionMarketStatus,
   upsertApprovedComplianceProfile,
+  upsertExchangeSchedule,
 } from '../helpers/bootstrap';
 
 describe('operations api', () => {
@@ -358,5 +361,264 @@ describe('operations api', () => {
         }),
       ]),
     );
+  });
+
+  it('scans stalled settlements and persists alerts for resolved markets that were not settled', async () => {
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string, {
+      status: 'active',
+      currency: 'USD',
+    });
+
+    const resolution = await resolveMarket(
+      app,
+      market.body.market.id as string,
+      {
+        outcome: 'yes',
+        evidenceSummary: 'Settlement failure alert test resolution.',
+        evidenceSources: ['https://example.com/settlement-failure-test'],
+        approvedBy: 'ops-alert-test',
+      },
+    );
+
+    const oldApprovedAt = new Date(Date.now() - 31 * 60_000);
+
+    await db
+      .update(marketResolutions)
+      .set({
+        approvedAt: oldApprovedAt,
+        updatedAt: oldApprovedAt,
+      })
+      .where(eq(marketResolutions.id, resolution.body.resolution.id as string));
+
+    const scan = await app.inject({
+      method: 'POST',
+      url: '/api/v1/internal/operations/settlement-failure-scan',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+      payload: {
+        limit: 10,
+      },
+    });
+
+    expect(scan.statusCode).toBe(200);
+    expect(scan.json().alertsCreated).toBeGreaterThanOrEqual(1);
+    expect(scan.json().stalledSettlements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          marketId: market.body.market.id,
+          marketCurrency: 'USD',
+          marketStatus: 'awaiting_resolution',
+          resolutionId: resolution.body.resolution.id,
+          outcome: 'yes',
+        }),
+      ]),
+    );
+
+    const alerts = await app.inject({
+      method: 'GET',
+      url:
+        '/api/v1/internal/operations/alerts' +
+        '?limit=10&category=market_settlement_failure&severity=critical&status=open&sourceType=market',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+    });
+
+    expect(alerts.statusCode).toBe(200);
+    expect(alerts.json().alerts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'market_settlement_failure',
+          severity: 'critical',
+          sourceType: 'market',
+          sourceId: market.body.market.id,
+          message:
+            'resolved market has not been settled within the configured threshold',
+        }),
+      ]),
+    );
+    expect(alerts.json().alerts[0].metadata).toMatchObject({
+      marketTitle: market.body.market.title,
+      marketCurrency: 'USD',
+      marketStatus: 'awaiting_resolution',
+      resolutionId: resolution.body.resolution.id,
+      outcome: 'yes',
+      thresholdMinutes: 30,
+    });
+  });
+
+  it('scans unusual trading conditions and persists alerts for crossed active books', async () => {
+    const buyer = await createVerifiedSession(app);
+    const seller = await createVerifiedSession(app);
+    await upsertApprovedComplianceProfile(app, buyer.body.user.id as string);
+    await upsertApprovedComplianceProfile(app, seller.body.user.id as string);
+    await seedWallet(app, buyer.body.user.id as string, {
+      amountMinor: 10_000,
+      currency: 'USD',
+    });
+    await seedWallet(app, seller.body.user.id as string, {
+      amountMinor: 10_000,
+      currency: 'USD',
+    });
+    await upsertExchangeSchedule(app, {
+      name: 'Trading condition open schedule',
+      timezone: 'UTC',
+      weeklyWindows: [
+        {
+          weekday: 'monday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'tuesday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'wednesday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'thursday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'friday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'saturday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+        {
+          weekday: 'sunday',
+          opensAt: '00:00',
+          closesAt: '23:59',
+        },
+      ],
+      maintenanceWindows: [],
+      notes: 'Keeps exchange open during trading condition alert test.',
+    });
+
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string, {
+      status: 'active',
+      currency: 'USD',
+      yesPriceBps: 5000,
+      noPriceBps: 5000,
+    });
+
+    const buyOrder = await app.inject({
+      method: 'POST',
+      url: '/api/v1/orders',
+      headers: {
+        authorization: `Bearer ${buyer.sessionToken}`,
+        'idempotency-key': 'trading-condition-buy-order',
+      },
+      payload: {
+        marketId: market.body.market.id,
+        type: 'limit',
+        side: 'buy',
+        outcome: 'yes',
+        quantity: 10,
+        limitPriceBps: 5600,
+      },
+    });
+
+    expect(buyOrder.statusCode).toBe(201);
+
+    const sellOrder = await app.inject({
+      method: 'POST',
+      url: '/api/v1/orders',
+      headers: {
+        authorization: `Bearer ${seller.sessionToken}`,
+        'idempotency-key': 'trading-condition-sell-order',
+      },
+      payload: {
+        marketId: market.body.market.id,
+        type: 'limit',
+        side: 'sell',
+        outcome: 'yes',
+        quantity: 10,
+        limitPriceBps: 5400,
+      },
+    });
+
+    expect(sellOrder.statusCode).toBe(201);
+
+    const scan = await app.inject({
+      method: 'POST',
+      url: '/api/v1/internal/operations/trading-condition-scan',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+      payload: {
+        limit: 10,
+      },
+    });
+
+    expect(scan.statusCode).toBe(200);
+    expect(scan.json().alertsCreated).toBeGreaterThanOrEqual(1);
+    expect(scan.json().affectedMarkets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          marketId: market.body.market.id,
+          marketCurrency: 'USD',
+          marketStatus: 'active',
+          crossedOutcomes: [
+            expect.objectContaining({
+              outcome: 'yes',
+              bestBidPriceBps: 5600,
+              bestAskPriceBps: 5400,
+            }),
+          ],
+        }),
+      ]),
+    );
+
+    const alerts = await app.inject({
+      method: 'GET',
+      url:
+        '/api/v1/internal/operations/alerts' +
+        '?limit=10&category=unusual_trading_condition&severity=critical&status=open&sourceType=market',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+    });
+
+    expect(alerts.statusCode).toBe(200);
+    expect(alerts.json().alerts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'unusual_trading_condition',
+          severity: 'critical',
+          sourceType: 'market',
+          sourceId: market.body.market.id,
+          message: 'active market has a crossed resting book',
+        }),
+      ]),
+    );
+    expect(alerts.json().alerts[0].metadata).toMatchObject({
+      marketTitle: market.body.market.title,
+      marketCurrency: 'USD',
+      marketStatus: 'active',
+      crossedOutcomes: [
+        expect.objectContaining({
+          outcome: 'yes',
+          bestBidPriceBps: 5600,
+          bestAskPriceBps: 5400,
+        }),
+      ],
+    });
   });
 });

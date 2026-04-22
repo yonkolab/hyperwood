@@ -160,3 +160,61 @@ ledgerInvariantScan:
               $ref: ../components/schemas/operations.yaml#/LedgerInvariantScanResponse
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
+
+settlementFailureScan:
+  post:
+    operationId: runSettlementFailureScan
+    tags: [Operations, Internal]
+    summary: Scan for stalled market settlements and persist critical alerts
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              limit:
+                type: integer
+                minimum: 1
+                maximum: 100
+                default: 25
+    responses:
+      '200':
+        description: Scan result with resolved-but-unsettled markets and created alert count.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/operations.yaml#/SettlementFailureScanResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+tradingConditionScan:
+  post:
+    operationId: runTradingConditionScan
+    tags: [Operations, Internal]
+    summary: Scan active markets for unusual trading conditions and persist critical alerts
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              limit:
+                type: integer
+                minimum: 1
+                maximum: 100
+                default: 25
+    responses:
+      '200':
+        description: Scan result with affected markets and created alert count.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/operations.yaml#/TradingConditionScanResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
