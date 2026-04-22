@@ -36,7 +36,7 @@ curl -X POST http://localhost:3000/api/v1/portfolio/exports \
   }'
 ```
 
-If the body is omitted, the API defaults to `USD`.
+If the body is omitted, the API defaults to the configured platform primary currency.
 
 ## List existing exports
 

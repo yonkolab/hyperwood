@@ -1,3 +1,4 @@
+import { primaryMarketCurrency } from '../../config/currency';
 import { PortfolioExportService } from './portfolio-export.service';
 import { PortfolioFillQueryService } from './portfolio-fill-query.service';
 import { PortfolioOrderHistoryQueryService } from './portfolio-order-history-query.service';
@@ -27,7 +28,10 @@ export class PortfolioService {
     this.portfolioSettlementQueryService,
   );
 
-  async getPortfolioSummary(userId: string, currency: MarketCurrency = 'USD') {
+  async getPortfolioSummary(
+    userId: string,
+    currency: MarketCurrency = primaryMarketCurrency,
+  ) {
     return this.portfolioSummaryQueryService.getPortfolioSummary(
       userId,
       currency,
@@ -37,7 +41,7 @@ export class PortfolioService {
   async listFills(
     userId: string,
     limit: number,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     return this.portfolioFillQueryService.listFills(userId, limit, currency);
   }
@@ -45,7 +49,7 @@ export class PortfolioService {
   async listHistoricalOrders(
     userId: string,
     limit: number,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     return this.portfolioOrderHistoryQueryService.listOrders(
       userId,
@@ -57,7 +61,7 @@ export class PortfolioService {
   async listHistoricalFills(
     userId: string,
     limit: number,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     return this.portfolioFillQueryService.listFills(userId, limit, currency);
   }
@@ -65,7 +69,7 @@ export class PortfolioService {
   async listSettlements(
     userId: string,
     limit: number,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     return this.portfolioSettlementQueryService.listSettlements(
       userId,
@@ -76,7 +80,7 @@ export class PortfolioService {
 
   async createAccountHistoryExport(
     userId: string,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     return this.portfolioExportService.createAccountHistoryExport(
       userId,
@@ -87,7 +91,7 @@ export class PortfolioService {
   async listAccountHistoryExports(
     userId: string,
     limit: number,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     return this.portfolioExportService.listAccountHistoryExports(
       userId,

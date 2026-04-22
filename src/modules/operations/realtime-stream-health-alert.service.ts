@@ -1,3 +1,4 @@
+import type { MarketCurrency } from '../../config/currency';
 import { env } from '../../config/env';
 import { marketRealtimeService } from '../markets/market-realtime.service';
 import { accountRealtimeService } from '../portfolio/account-realtime.service';
@@ -8,7 +9,7 @@ type StaleRealtimeStream = {
   streamType: 'market' | 'account';
   marketId: string | null;
   userId: string | null;
-  currency: 'USD' | 'BRL' | null;
+  currency: MarketCurrency | null;
   connectedAt: string;
   lastDeliveredAt: string;
   idleSeconds: number;

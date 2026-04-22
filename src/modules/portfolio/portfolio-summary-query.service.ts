@@ -1,3 +1,4 @@
+import { primaryMarketCurrency } from '../../config/currency';
 import type { PortfolioFillQueryService } from './portfolio-fill-query.service';
 import type { PortfolioSupportService } from './portfolio-support';
 import type { MarketCurrency, PositionRecord } from './types';
@@ -17,7 +18,10 @@ export class PortfolioSummaryQueryService {
    * Example:
    * `await portfolioSummaryQueryService.getPortfolioSummary(userId, 'USD')`
    */
-  async getPortfolioSummary(userId: string, currency: MarketCurrency = 'USD') {
+  async getPortfolioSummary(
+    userId: string,
+    currency: MarketCurrency = primaryMarketCurrency,
+  ) {
     const cash = await this.getCashSummary(userId, currency);
     const positions = await this.getDerivedPositions(userId, currency);
     const recentFills = await this.portfolioFillQueryService.listFills(

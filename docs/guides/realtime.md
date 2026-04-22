@@ -8,7 +8,7 @@ Current public realtime endpoint:
 
 Current authenticated account realtime endpoint:
 
-- `GET /api/v1/portfolio/stream?currency=USD|BRL`
+- `GET /api/v1/portfolio/stream?currency=<supported-market-currency>`
 
 Current recovery endpoints:
 

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { MarketCurrency } from '../../src/config/currency';
 import { createVerifiedSession } from './auth';
 import {
   createMarket,
@@ -12,7 +13,7 @@ import {
 export async function createMatchedMarketScenario(
   app: FastifyInstance,
   overrides: Partial<{
-    currency: 'USD' | 'BRL';
+    currency: MarketCurrency;
     quantity: number;
     limitPriceBps: number;
     match: boolean;

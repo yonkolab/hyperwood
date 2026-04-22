@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { MarketCurrency } from '../../config/currency';
 import { db } from '../../db/client';
 import { markets } from '../../db/schema';
 import { MarketsService } from '../markets/service';
@@ -13,7 +14,7 @@ type CrossedOutcome = {
 type UnusualTradingConditionCandidate = {
   marketId: string;
   marketTitle: string;
-  marketCurrency: 'USD' | 'BRL';
+  marketCurrency: MarketCurrency;
   marketStatus: string;
   crossedOutcomes: CrossedOutcome[];
 };

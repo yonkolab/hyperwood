@@ -4,6 +4,7 @@ import type {
   FastifyPluginOptions,
   FastifyRequest,
 } from 'fastify';
+import type { MarketCurrency } from '../../config/currency';
 import { env } from '../../config/env';
 import { db } from '../../db/client';
 import { fundingTransfers } from '../../db/schema';
@@ -36,8 +37,6 @@ import {
   walletBalanceQuerySchema,
 } from './schema';
 import { FundingService } from './service';
-
-type FundingCurrency = 'USD' | 'BRL';
 
 function getWebhookTimestampFromRequest(request: FastifyRequest) {
   const header = request.headers['x-webhook-timestamp'];
@@ -108,7 +107,7 @@ async function getFundingTransferOwner(transferId: string) {
 
   return {
     userId: transfer.userId,
-    currency: transfer.currency as FundingCurrency,
+    currency: transfer.currency as MarketCurrency,
   };
 }
 
@@ -116,7 +115,7 @@ async function publishTransferAndBalanceEvent(
   fundingService: FundingService,
   input: {
     userId: string;
-    currency: FundingCurrency;
+    currency: MarketCurrency;
     transfer: Record<string, unknown>;
     trigger: string;
   },
@@ -218,7 +217,7 @@ async function fundingRoutes(
 
       await publishTransferAndBalanceEvent(fundingService, {
         userId: auth.user.id,
-        currency: result.deposit.currency as 'USD' | 'BRL',
+        currency: result.deposit.currency as MarketCurrency,
         transfer: result.deposit,
         trigger: 'deposit_created',
       });
@@ -265,7 +264,7 @@ async function fundingRoutes(
 
       await publishTransferAndBalanceEvent(fundingService, {
         userId: auth.user.id,
-        currency: result.withdrawal.currency as 'USD' | 'BRL',
+        currency: result.withdrawal.currency as MarketCurrency,
         transfer: result.withdrawal,
         trigger: 'withdrawal_created',
       });

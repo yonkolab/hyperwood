@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import type { MarketCurrency } from '../../config/currency';
 import { logWorkflowEvent } from '../../lib/observability';
 import { FundingService } from '../funding/service';
 import { requireInternalAuth } from '../identity/auth-guards';
@@ -273,7 +274,7 @@ async function marketRoutes(
               order.userId,
               {
                 userId: order.userId,
-                currency: order.currency as 'USD' | 'BRL',
+                currency: order.currency as MarketCurrency,
               },
             ]),
           ).values(),
@@ -436,7 +437,7 @@ async function marketRoutes(
       );
 
       for (const payout of result.payouts) {
-        const currency = payout.currency as 'USD' | 'BRL';
+        const currency = payout.currency as MarketCurrency;
         const [settlements, balance] = await Promise.all([
           portfolioService.listSettlements(payout.userId, 20, currency),
           fundingService.getWalletBalance(payout.userId, currency),

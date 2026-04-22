@@ -1,12 +1,10 @@
 Currency:
   name: currency
   in: query
-  description: Currency scope for the request.
+  description: Currency scope for the request. Defaults to the configured platform primary currency when omitted.
   required: false
   schema:
-    type: string
-    enum: [USD, BRL]
-    default: USD
+    $ref: ../schemas/common.yaml#/CurrencyCode
 
 OptionalCurrency:
   name: currency
@@ -14,8 +12,7 @@ OptionalCurrency:
   description: Optional currency filter.
   required: false
   schema:
-    type: string
-    enum: [USD, BRL]
+    $ref: ../schemas/common.yaml#/CurrencyCode
 
 Limit25:
   name: limit

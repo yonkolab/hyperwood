@@ -1,3 +1,4 @@
+import { primaryMarketCurrency } from '../../config/currency';
 import type { PortfolioSupportService } from './portfolio-support';
 import type { MarketCurrency } from './types';
 
@@ -15,7 +16,7 @@ export class PortfolioFillQueryService {
   async listFills(
     userId: string,
     limit: number,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     await this.portfolioSupportService.assertUserExists(userId);
 

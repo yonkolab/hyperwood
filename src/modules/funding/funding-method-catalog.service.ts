@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { primaryMarketCurrency } from '../../config/currency';
 import { db } from '../../db/client';
 import { fundingMethods } from '../../db/schema';
 import { AppError } from '../../lib/errors';
@@ -64,7 +65,7 @@ export class FundingMethodCatalogService {
    */
   async listEligibleFundingMethods(
     userId: string,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     await this.walletLedgerService.assertUserExists(userId);
 

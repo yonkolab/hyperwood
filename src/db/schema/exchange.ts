@@ -9,7 +9,6 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { marketCurrencyEnum } from './markets';
 
 export type ExchangeScheduleWindow = {
   closesAt: string;
@@ -60,7 +59,7 @@ export const exchangeFeeSchedules = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: varchar('name', { length: 160 }).notNull(),
-    currency: marketCurrencyEnum('currency').notNull(),
+    currency: varchar('currency', { length: 3 }).notNull(),
     makerFeeBps: integer('maker_fee_bps').notNull(),
     takerFeeBps: integer('taker_fee_bps').notNull(),
     effectiveFrom: timestamp('effective_from', {

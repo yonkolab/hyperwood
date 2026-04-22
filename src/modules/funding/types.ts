@@ -1,3 +1,4 @@
+import type { MarketCurrency } from '../../config/currency';
 import type { db } from '../../db/client';
 import type {
   fundingDiscrepancySeverityEnum,
@@ -7,7 +8,6 @@ import type {
   fundingReconciliationRunStatusEnum,
   fundingTransferStatusEnum,
   fundingTransferTypeEnum,
-  marketCurrencyEnum,
   walletAccountTypeEnum,
 } from '../../db/schema';
 
@@ -26,7 +26,7 @@ export type FundingDiscrepancySeverity =
   (typeof fundingDiscrepancySeverityEnum.enumValues)[number];
 export type WalletAccountType =
   (typeof walletAccountTypeEnum.enumValues)[number];
-export type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
+export type { MarketCurrency };
 export type DbExecutor =
   | typeof db
   | Parameters<Parameters<typeof db.transaction>[0]>[0];

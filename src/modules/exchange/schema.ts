@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { marketCurrencySchema } from '../../config/currency';
 
 export const weekdaySchema = z.enum([
   'monday',
@@ -35,7 +36,7 @@ export const upsertExchangeScheduleBodySchema = z.object({
   notes: z.string().min(3).max(4000).optional(),
 });
 
-const currencySchema = z.enum(['USD', 'BRL']);
+const currencySchema = marketCurrencySchema;
 
 export const publishExchangeFeeScheduleBodySchema = z
   .object({

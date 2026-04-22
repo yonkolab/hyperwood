@@ -1,14 +1,14 @@
+import type { MarketCurrency } from '../../config/currency';
 import type { db } from '../../db/client';
 import type {
   ExchangeScheduleMaintenance,
   ExchangeScheduleWindow,
 } from '../../db/schema/exchange';
-import type { marketCurrencyEnum } from '../../db/schema/markets';
 
 export type DbExecutor =
   | typeof db
   | Parameters<Parameters<typeof db.transaction>[0]>[0];
-export type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
+export type { MarketCurrency };
 export type ExchangeStatus = 'open' | 'closed' | 'maintenance';
 export type ExchangeStatusReason =
   | 'within_scheduled_hours'

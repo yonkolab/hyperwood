@@ -1,7 +1,7 @@
 import type { fundingRailEnum } from '../../db/schema';
 
 type FundingRail = (typeof fundingRailEnum.enumValues)[number];
-type FundingRailCurrency = 'USD' | 'BRL' | 'GBP';
+type FundingRailCurrency = string;
 
 const DEFAULT_COUNTRY_RAILS: FundingRail[] = ['wire'];
 

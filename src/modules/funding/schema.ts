@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  marketCurrencySchema,
+  marketCurrencyWithPrimaryDefaultSchema,
+} from '../../config/currency';
 
 export const fundingMethodBodySchema = z.object({
   rail: z.enum(['ach', 'fps', 'pix', 'wire', 'debit_card', 'crypto_wallet']),
@@ -12,34 +16,34 @@ export const fundingMethodBodySchema = z.object({
 });
 
 export const fundingMethodsQuerySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).default('USD'),
+  currency: marketCurrencyWithPrimaryDefaultSchema,
 });
 
 export const createDepositBodySchema = z.object({
   fundingMethodId: z.string().uuid(),
   amountMinor: z.number().int().positive(),
-  currency: z.enum(['USD', 'BRL']),
+  currency: marketCurrencySchema,
 });
 
 export const createWithdrawalBodySchema = z.object({
   fundingMethodId: z.string().uuid(),
   amountMinor: z.number().int().positive(),
-  currency: z.enum(['USD', 'BRL']),
+  currency: marketCurrencySchema,
 });
 
 export const listDepositsQuerySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).optional(),
+  currency: marketCurrencySchema.optional(),
   limit: z.coerce.number().int().positive().max(100).default(25),
 });
 
 export const listWithdrawalsQuerySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).optional(),
+  currency: marketCurrencySchema.optional(),
   limit: z.coerce.number().int().positive().max(100).default(25),
 });
 
 export const seedWalletBodySchema = z.object({
   amountMinor: z.number().int().positive(),
-  currency: z.enum(['USD', 'BRL']),
+  currency: marketCurrencySchema,
   referenceId: z.string().min(1).max(255).optional(),
 });
 
@@ -97,5 +101,5 @@ export const reconciliationDiscrepanciesQuerySchema = z.object({
 });
 
 export const walletBalanceQuerySchema = z.object({
-  currency: z.enum(['USD', 'BRL']).default('USD'),
+  currency: marketCurrencyWithPrimaryDefaultSchema,
 });

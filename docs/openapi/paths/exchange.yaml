@@ -37,13 +37,7 @@ fees:
     summary: List active exchange fee schedules
     security: []
     parameters:
-      - name: currency
-        in: query
-        required: false
-        schema:
-          type: string
-          enum: [USD, BRL]
-        example: BRL
+      - $ref: ../components/parameters/common.yaml#/OptionalCurrency
     responses:
       '200':
         description: Active exchange fee schedules.

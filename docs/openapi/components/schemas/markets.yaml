@@ -46,8 +46,7 @@ CreateMarketRequest:
     summary:
       type: string
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     status:
       type: string
       enum: [draft, scheduled, active, halted, trading_closed, awaiting_resolution, settled, cancelled, disputed, voided]
@@ -357,8 +356,7 @@ InternalMarketState:
       type: string
       enum: [draft, scheduled, active, halted, trading_closed, awaiting_resolution, settled, cancelled, disputed, voided]
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     tags:
       type: array
       items:
@@ -531,8 +529,7 @@ SettlementPayout:
     netPnlMinor:
       type: integer
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
 
 SettleMarketResponse:
   type: object
@@ -682,8 +679,7 @@ OrderBookDeltaResponse:
               reservedAmountMinor:
                 type: integer
               currency:
-                type: string
-                enum: [USD, BRL]
+                $ref: ./common.yaml#/CurrencyCode
               stateAtSequence:
                 type: string
           trade:

@@ -101,8 +101,7 @@ LedgerActivity:
           walletAccountType:
             type: string
           currency:
-            type: string
-            enum: [USD, BRL]
+            $ref: ./common.yaml#/CurrencyCode
           amountMinor:
             type: integer
 
@@ -111,8 +110,7 @@ PortfolioSummaryResponse:
   required: [currency, cash, positions, recentFills, recentLedgerActivity]
   properties:
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     cash:
       allOf:
         - $ref: ./common.yaml#/WalletBalance
@@ -139,8 +137,7 @@ FillListResponse:
   required: [currency, fills]
   properties:
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     fills:
       type: array
       items:
@@ -216,8 +213,7 @@ HistoricalOrderListResponse:
   required: [currency, orders]
   properties:
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     orders:
       type: array
       items:
@@ -267,8 +263,7 @@ SettlementListResponse:
   required: [currency, settlements]
   properties:
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     settlements:
       type: array
       items:
@@ -291,8 +286,7 @@ HistoricalExportJob:
       type: string
       enum: [json]
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     createdAt:
       type: string
       format: date-time
@@ -304,9 +298,9 @@ CreateHistoricalExportRequest:
   type: object
   properties:
     currency:
-      type: string
-      enum: [USD, BRL]
-      default: USD
+      allOf:
+        - $ref: ./common.yaml#/CurrencyCode
+      description: Defaults to the configured platform primary currency when omitted.
 
 HistoricalExportJobResponse:
   type: object
@@ -320,8 +314,7 @@ HistoricalExportJobListResponse:
   required: [currency, exportJobs]
   properties:
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     exportJobs:
       type: array
       items:

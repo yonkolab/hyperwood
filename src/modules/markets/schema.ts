@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { marketCurrencyWithPrimaryDefaultSchema } from '../../config/currency';
 
 const marketStatusSchema = z.enum([
   'draft',
@@ -27,7 +28,7 @@ export const createMarketBodySchema = z.object({
   slug: z.string().min(3).max(128),
   title: z.string().min(3).max(160),
   summary: z.string().min(3).max(2000).optional(),
-  currency: z.enum(['USD', 'BRL']).default('USD'),
+  currency: marketCurrencyWithPrimaryDefaultSchema,
   status: marketStatusSchema,
   tags: z.array(z.string().min(1).max(64)).max(16).optional(),
   resolutionRules: z.string().min(3).max(4000),

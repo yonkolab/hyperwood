@@ -32,6 +32,13 @@ Prediction market API skeleton focused on the day-1 `identity-and-access` founda
 
 If you need browser-based clients such as the Scalar docs preview to call the API from a different origin, set `CORS_ALLOWED_ORIGINS` to a comma-separated allowlist. In development, Hyperwood also accepts localhost and private-network origins by default so WSL-hosted docs previews can reach the API.
 
+Primary currency behavior is configurable:
+
+- `PRIMARY_MARKET_CURRENCY` controls the default currency used when external requests omit `currency`
+- `SUPPORTED_MARKET_CURRENCIES` controls which market/account currencies the API accepts at runtime
+
+The current database schema stores market, order, and exchange-fee currencies as `varchar(3)` so adding a new code no longer requires a PostgreSQL enum change.
+
 Hyperwood applies default external API throttles:
 
 - public auth routes: `AUTH_RATE_LIMIT_MAX_REQUESTS` within `AUTH_RATE_LIMIT_WINDOW_SECONDS`

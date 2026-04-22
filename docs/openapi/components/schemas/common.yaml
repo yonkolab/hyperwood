@@ -9,6 +9,14 @@ ErrorResponse:
       type: string
       example: session is invalid or expired
 
+CurrencyCode:
+  type: string
+  pattern: '^[A-Z]{3}$'
+  example: BRL
+  description: >
+    Three-letter market currency code. Accepted values are controlled at runtime
+    by `SUPPORTED_MARKET_CURRENCIES`.
+
 HealthStatus:
   type: object
   required: [status, service]
@@ -88,8 +96,7 @@ TransferSummary:
     amountMinor:
       type: integer
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: '#/CurrencyCode'
     fundingMethod:
       $ref: '#/FundingMethodSummary'
     requestedAt:
@@ -138,8 +145,7 @@ WalletBalance:
       type: string
       format: uuid
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: '#/CurrencyCode'
     balanceMinor:
       type: integer
     availableBalanceMinor:
@@ -212,8 +218,7 @@ MarketRecord:
       type: string
       enum: [draft, scheduled, active, halted, trading_closed, awaiting_resolution, settled, cancelled, disputed, voided]
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: '#/CurrencyCode'
     tags:
       type: array
       items:
@@ -307,8 +312,7 @@ OrderSummary:
     reservedAmountMinor:
       type: integer
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: '#/CurrencyCode'
     selfTradePrevention:
       type: string
       enum: [decrement_and_cancel, cancel_oldest, cancel_newest]

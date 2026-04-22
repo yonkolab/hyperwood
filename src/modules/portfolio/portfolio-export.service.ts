@@ -1,4 +1,5 @@
 import { and, desc, eq } from 'drizzle-orm';
+import { primaryMarketCurrency } from '../../config/currency';
 import { db } from '../../db/client';
 import { historicalExportJobs } from '../../db/schema';
 import { AppError } from '../../lib/errors';
@@ -24,7 +25,7 @@ export class PortfolioExportService {
    */
   async createAccountHistoryExport(
     userId: string,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     await this.portfolioSupportService.assertUserExists(userId);
 
@@ -88,7 +89,7 @@ export class PortfolioExportService {
   async listAccountHistoryExports(
     userId: string,
     limit: number,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     await this.portfolioSupportService.assertUserExists(userId);
 

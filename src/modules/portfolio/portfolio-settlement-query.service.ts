@@ -1,4 +1,5 @@
 import { and, desc, eq } from 'drizzle-orm';
+import { primaryMarketCurrency } from '../../config/currency';
 import { db } from '../../db/client';
 import {
   marketSettlementPayouts,
@@ -22,7 +23,7 @@ export class PortfolioSettlementQueryService {
   async listSettlements(
     userId: string,
     limit: number,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     await this.portfolioSupportService.assertUserExists(userId);
 

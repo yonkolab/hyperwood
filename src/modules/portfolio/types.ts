@@ -1,7 +1,7 @@
-import type { marketCurrencyEnum } from '../../db/schema';
+import type { MarketCurrency } from '../../config/currency';
 
 export type FillRole = 'maker' | 'taker';
-export type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
+export type { MarketCurrency };
 export type WalletAccountType =
   | 'user_cash'
   | 'user_order_reserved'

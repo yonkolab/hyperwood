@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { MarketCurrency } from '../../src/config/currency';
 
 const bootstrapHeaders = () => ({
   'x-bootstrap-token':
@@ -106,7 +107,7 @@ export async function seedWallet(
   userId: string,
   overrides: Partial<{
     amountMinor: number;
-    currency: 'USD' | 'BRL';
+    currency: MarketCurrency;
     referenceId: string;
   }> = {},
 ) {
@@ -208,7 +209,7 @@ export async function createMarket(
     slug: string;
     title: string;
     summary: string;
-    currency: 'USD' | 'BRL';
+    currency: MarketCurrency;
     status:
       | 'draft'
       | 'scheduled'

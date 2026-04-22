@@ -24,8 +24,7 @@ FundingMethod:
         supportedCurrencies:
           type: array
           items:
-            type: string
-            enum: [USD, BRL]
+            $ref: ./common.yaml#/CurrencyCode
 
 FundingMethodCreateRequest:
   type: object
@@ -100,8 +99,7 @@ EligibleFundingMethodsResponse:
       items:
         type: string
     requestedCurrency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     fundingMethods:
       type: array
       items:
@@ -118,8 +116,7 @@ CreateTransferRequest:
       type: integer
       minimum: 1
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
 
 DepositResponse:
   type: object
@@ -164,8 +161,7 @@ WalletSeedRequest:
     amountMinor:
       type: integer
     currency:
-      type: string
-      enum: [USD, BRL]
+      $ref: ./common.yaml#/CurrencyCode
     referenceId:
       type: string
 
@@ -408,8 +404,7 @@ FundingCallbackDelayScanResponse:
           amountMinor:
             type: integer
           currency:
-            type: string
-            enum: [USD, BRL]
+            $ref: ./common.yaml#/CurrencyCode
           requestedAt:
             type: string
             format: date-time

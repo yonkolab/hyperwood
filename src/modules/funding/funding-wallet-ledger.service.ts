@@ -1,4 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
+import { primaryMarketCurrency } from '../../config/currency';
 import { db } from '../../db/client';
 import {
   fundingMethods,
@@ -31,7 +32,10 @@ export class FundingWalletLedgerService {
    * Example:
    * `await walletLedgerService.getWalletBalance(userId, 'BRL')`
    */
-  async getWalletBalance(userId: string, currency: MarketCurrency = 'USD') {
+  async getWalletBalance(
+    userId: string,
+    currency: MarketCurrency = primaryMarketCurrency,
+  ) {
     await this.assertUserExists(userId);
 
     const wallet = await this.getOrCreateWalletAccount({

@@ -1,6 +1,6 @@
+import type { MarketCurrency } from '../../config/currency';
 import type { db } from '../../db/client';
 import type {
-  marketCurrencyEnum,
   marketResolutionOutcomeEnum,
   marketStatusEnum,
   orderOutcomeEnum,
@@ -10,12 +10,12 @@ import type {
 } from '../../db/schema';
 
 export type MarketStatus = (typeof marketStatusEnum.enumValues)[number];
-export type MarketCurrency = (typeof marketCurrencyEnum.enumValues)[number];
 export type MarketResolutionOutcome =
   (typeof marketResolutionOutcomeEnum.enumValues)[number];
 export type OrderOutcome = (typeof orderOutcomeEnum.enumValues)[number];
 export type OrderSide = (typeof orderSideEnum.enumValues)[number];
 export type OrderType = (typeof orderTypeEnum.enumValues)[number];
+export type { MarketCurrency };
 export type WalletAccountType =
   (typeof walletAccountTypeEnum.enumValues)[number];
 export type DbExecutor =

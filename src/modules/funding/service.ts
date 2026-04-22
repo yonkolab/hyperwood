@@ -1,3 +1,4 @@
+import { primaryMarketCurrency } from '../../config/currency';
 import { ComplianceService } from '../compliance/service';
 import { OperationsAlertService } from '../operations/alerts';
 import { AdminAuditService } from '../operations/audit';
@@ -54,7 +55,7 @@ export class FundingService {
 
   async listEligibleFundingMethods(
     userId: string,
-    currency: MarketCurrency = 'USD',
+    currency: MarketCurrency = primaryMarketCurrency,
   ) {
     return this.fundingMethodCatalogService.listEligibleFundingMethods(
       userId,
@@ -62,7 +63,10 @@ export class FundingService {
     );
   }
 
-  async getWalletBalance(userId: string, currency: MarketCurrency = 'USD') {
+  async getWalletBalance(
+    userId: string,
+    currency: MarketCurrency = primaryMarketCurrency,
+  ) {
     return this.walletLedgerService.getWalletBalance(userId, currency);
   }
 
