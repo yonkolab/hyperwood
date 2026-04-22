@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   doesFundingRailSupportCurrency,
-  getAllowedFundingRailsForCountry,
+  getSupportedPaymentMethodsForCountry,
   getSupportedCurrenciesForFundingRail,
-  isFundingRailAllowedForCountry,
+  isPaymentMethodAllowedForCountry,
 } from '../../../../src/modules/funding/policy';
 
 describe('funding policy', () => {
   it('returns country-specific rails with wire fallback', () => {
-    expect(getAllowedFundingRailsForCountry('BR')).toEqual(['pix', 'wire']);
-    expect(getAllowedFundingRailsForCountry('unknown')).toEqual(['wire']);
+    expect(getSupportedPaymentMethodsForCountry('BR')).toEqual(['pix', 'wire']);
+    expect(getSupportedPaymentMethodsForCountry('unknown')).toEqual(['wire']);
   });
 
   it('exposes supported currencies per rail', () => {
@@ -18,8 +18,8 @@ describe('funding policy', () => {
   });
 
   it('checks country and currency compatibility', () => {
-    expect(isFundingRailAllowedForCountry('pix', 'BR')).toBe(true);
-    expect(isFundingRailAllowedForCountry('pix', 'US')).toBe(false);
+    expect(isPaymentMethodAllowedForCountry('pix', 'BR')).toBe(true);
+    expect(isPaymentMethodAllowedForCountry('pix', 'US')).toBe(false);
     expect(doesFundingRailSupportCurrency('wire', 'brl')).toBe(true);
     expect(doesFundingRailSupportCurrency('ach', 'BRL')).toBe(false);
   });
