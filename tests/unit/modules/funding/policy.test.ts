@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   doesFundingRailSupportCurrency,
-  getSupportedPaymentMethodsForCountry,
   getSupportedCurrenciesForFundingRail,
+  getSupportedPaymentMethodsForCountry,
   isPaymentMethodAllowedForCountry,
 } from '../../../../src/modules/funding/policy';
 

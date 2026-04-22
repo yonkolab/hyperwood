@@ -67,6 +67,7 @@ Useful commands:
 - `npm run format`
 - `npm run format:check`
 - `npm run check:biome`
+- `npm run check:biome:fix`
 - `npm run docs:lint`
 - `npm run docs:build`
 - `npm run docs:preview`
@@ -114,6 +115,7 @@ Useful commands:
 - `npm run format`
 - `npm run format:check`
 - `npm run check:biome`
+- `npm run check:biome:fix`
 
 ## Testing
 
