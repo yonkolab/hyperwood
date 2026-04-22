@@ -33,6 +33,26 @@ export type UserFillRow = {
   executedAt: Date;
 };
 
+export type UserOrderRow = {
+  orderId: string;
+  marketId: string;
+  marketSlug: string;
+  marketTitle: string;
+  marketStatus: string;
+  type: 'limit' | 'market';
+  side: 'buy' | 'sell';
+  outcome: 'yes' | 'no';
+  status: 'queued_for_matching' | 'partially_filled' | 'filled' | 'cancelled';
+  quantity: number;
+  filledQuantity: number;
+  limitPriceBps: number | null;
+  referencePriceBps: number;
+  reservedAmountMinor: number;
+  createdAt: Date;
+  updatedAt: Date;
+  cancelledAt: Date | null;
+};
+
 export class PortfolioSupportService {
   /**
    * Ensure one user exists before building portfolio views.
@@ -212,6 +232,42 @@ export class PortfolioSupportService {
   }
 
   /**
+   * Load all user orders for one market currency.
+   *
+   * Example:
+   * `await portfolioSupportService.loadUserOrderRows(userId, 'USD')`
+   */
+  async loadUserOrderRows(userId: string, currency: MarketCurrency) {
+    const marketTable = alias(markets, 'portfolio_order_markets');
+
+    const rows = await db
+      .select({
+        orderId: orders.id,
+        marketId: orders.marketId,
+        marketSlug: marketTable.slug,
+        marketTitle: marketTable.title,
+        marketStatus: marketTable.status,
+        type: orders.type,
+        side: orders.side,
+        outcome: orders.outcome,
+        status: orders.status,
+        quantity: orders.quantity,
+        filledQuantity: orders.filledQuantity,
+        limitPriceBps: orders.limitPriceBps,
+        referencePriceBps: orders.referencePriceBps,
+        reservedAmountMinor: orders.reservedAmountMinor,
+        createdAt: orders.createdAt,
+        updatedAt: orders.updatedAt,
+        cancelledAt: orders.cancelledAt,
+      })
+      .from(orders)
+      .innerJoin(marketTable, eq(marketTable.id, orders.marketId))
+      .where(and(eq(orders.userId, userId), eq(orders.currency, currency)));
+
+    return rows as UserOrderRow[];
+  }
+
+  /**
    * Normalize one fill into long exposure semantics.
    *
    * Example:
@@ -269,6 +325,34 @@ export class PortfolioSupportService {
       quantity: fill.quantity,
       costBasisMinor: normalized.costBasisMinor,
       executedAt: fill.executedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Shape one historical order response row from the shared order model.
+   *
+   * Example:
+   * `portfolioSupportService.mapOrder(orderRow)`
+   */
+  mapOrder(order: UserOrderRow) {
+    return {
+      orderId: order.orderId,
+      marketId: order.marketId,
+      marketSlug: order.marketSlug,
+      marketTitle: order.marketTitle,
+      marketStatus: order.marketStatus,
+      type: order.type,
+      side: order.side,
+      outcome: order.outcome,
+      status: order.status,
+      quantity: order.quantity,
+      filledQuantity: order.filledQuantity,
+      limitPriceBps: order.limitPriceBps,
+      referencePriceBps: order.referencePriceBps,
+      reservedAmountMinor: order.reservedAmountMinor,
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString(),
+      cancelledAt: order.cancelledAt?.toISOString() ?? null,
     };
   }
 

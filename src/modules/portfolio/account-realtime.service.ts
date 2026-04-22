@@ -21,6 +21,14 @@ export type PrivateAccountStreamEvent = {
 
 type AccountStreamListener = (event: PrivateAccountStreamEvent) => void;
 
+export type PrivateAccountStreamSubscription = {
+  subscriptionId: string;
+  userId: string;
+  currency: MarketCurrency;
+  connectedAt: string;
+  lastDeliveredAt: string;
+};
+
 function getAccountStreamKey(userId: string, currency: MarketCurrency) {
   return `${userId}:${currency}`;
 }
@@ -29,6 +37,10 @@ export class AccountRealtimeService {
   private readonly listenersByAccountKey = new Map<
     string,
     Set<AccountStreamListener>
+  >();
+  private readonly subscriptionsByAccountKey = new Map<
+    string,
+    Map<AccountStreamListener, PrivateAccountStreamSubscription>
   >();
 
   /**
@@ -44,20 +56,37 @@ export class AccountRealtimeService {
   ) {
     const key = getAccountStreamKey(userId, currency);
     const listeners = this.listenersByAccountKey.get(key) ?? new Set();
+    const subscriptions = this.subscriptionsByAccountKey.get(key) ?? new Map();
+    const now = new Date().toISOString();
+
     listeners.add(listener);
     this.listenersByAccountKey.set(key, listeners);
+    subscriptions.set(listener, {
+      subscriptionId: randomUUID(),
+      userId,
+      currency,
+      connectedAt: now,
+      lastDeliveredAt: now,
+    });
+    this.subscriptionsByAccountKey.set(key, subscriptions);
 
     return () => {
       const currentListeners = this.listenersByAccountKey.get(key);
+      const currentSubscriptions = this.subscriptionsByAccountKey.get(key);
 
       if (!currentListeners) {
         return;
       }
 
       currentListeners.delete(listener);
+      currentSubscriptions?.delete(listener);
 
       if (currentListeners.size === 0) {
         this.listenersByAccountKey.delete(key);
+      }
+
+      if (currentSubscriptions?.size === 0) {
+        this.subscriptionsByAccountKey.delete(key);
       }
     };
   }
@@ -90,10 +119,51 @@ export class AccountRealtimeService {
       emittedAt: new Date().toISOString(),
       data: input.data,
     };
+    const subscriptions = this.subscriptionsByAccountKey.get(
+      getAccountStreamKey(input.userId, input.currency),
+    );
 
     for (const listener of listeners) {
+      const subscription = subscriptions?.get(listener);
+
+      if (subscription) {
+        subscription.lastDeliveredAt = event.emittedAt;
+      }
+
       listener(event);
     }
+  }
+
+  /**
+   * Mark one account stream subscription as having delivered a heartbeat or snapshot.
+   *
+   * Example:
+   * `accountRealtimeService.markSubscriptionActivity(userId, 'USD', listener)`
+   */
+  markSubscriptionActivity(
+    userId: string,
+    currency: MarketCurrency,
+    listener: AccountStreamListener,
+  ) {
+    const subscription = this.subscriptionsByAccountKey
+      .get(getAccountStreamKey(userId, currency))
+      ?.get(listener);
+
+    if (subscription) {
+      subscription.lastDeliveredAt = new Date().toISOString();
+    }
+  }
+
+  /**
+   * List live private account stream subscriptions for health scans.
+   *
+   * Example:
+   * `accountRealtimeService.listSubscriptions()`
+   */
+  listSubscriptions() {
+    return Array.from(this.subscriptionsByAccountKey.values()).flatMap(
+      (subscriptions) => Array.from(subscriptions.values()),
+    );
   }
 
   /**

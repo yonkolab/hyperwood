@@ -107,6 +107,71 @@ describe('portfolio api', () => {
     });
   });
 
+  it('returns historical account orders through the dedicated history path', async () => {
+    const scenario = await createMatchedMarketScenario(app, {
+      currency: 'USD',
+      quantity: 10,
+      limitPriceBps: 4800,
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/historical/portfolio/orders?currency=USD&limit=10',
+      headers: {
+        authorization: `Bearer ${scenario.buyer.sessionToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().currency).toBe('USD');
+    expect(response.json().orders).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          orderId: scenario.buyOrder.json().order.id,
+          marketId: scenario.market.body.market.id,
+          marketStatus: 'active',
+          side: 'buy',
+          outcome: 'yes',
+          quantity: 10,
+          filledQuantity: 10,
+          status: 'filled',
+        }),
+      ]),
+    );
+  });
+
+  it('returns historical fills through the dedicated history path', async () => {
+    const scenario = await createMatchedMarketScenario(app, {
+      currency: 'USD',
+      quantity: 10,
+      limitPriceBps: 4800,
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/historical/portfolio/fills?currency=USD&limit=10',
+      headers: {
+        authorization: `Bearer ${scenario.buyer.sessionToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().currency).toBe('USD');
+    expect(response.json().fills).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          marketId: scenario.market.body.market.id,
+          orderId: scenario.buyOrder.json().order.id,
+          role: 'maker',
+          side: 'buy',
+          outcome: 'yes',
+          priceBps: 4800,
+          quantity: 10,
+        }),
+      ]),
+    );
+  });
+
   it('streams an authenticated account snapshot and subsequent order updates', async () => {
     const streamApp = await buildTestApp();
     const session = await createVerifiedSession(streamApp);

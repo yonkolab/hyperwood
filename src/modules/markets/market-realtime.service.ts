@@ -17,10 +17,21 @@ export type PublicMarketStreamEvent = {
 
 type MarketStreamListener = (event: PublicMarketStreamEvent) => void;
 
+export type PublicMarketStreamSubscription = {
+  subscriptionId: string;
+  marketId: string;
+  connectedAt: string;
+  lastDeliveredAt: string;
+};
+
 export class MarketRealtimeService {
   private readonly listenersByMarketId = new Map<
     string,
     Set<MarketStreamListener>
+  >();
+  private readonly subscriptionsByMarketId = new Map<
+    string,
+    Map<MarketStreamListener, PublicMarketStreamSubscription>
   >();
 
   /**
@@ -31,20 +42,37 @@ export class MarketRealtimeService {
    */
   subscribe(marketId: string, listener: MarketStreamListener) {
     const listeners = this.listenersByMarketId.get(marketId) ?? new Set();
+    const subscriptions =
+      this.subscriptionsByMarketId.get(marketId) ?? new Map();
+    const now = new Date().toISOString();
+
     listeners.add(listener);
     this.listenersByMarketId.set(marketId, listeners);
+    subscriptions.set(listener, {
+      subscriptionId: randomUUID(),
+      marketId,
+      connectedAt: now,
+      lastDeliveredAt: now,
+    });
+    this.subscriptionsByMarketId.set(marketId, subscriptions);
 
     return () => {
       const currentListeners = this.listenersByMarketId.get(marketId);
+      const currentSubscriptions = this.subscriptionsByMarketId.get(marketId);
 
       if (!currentListeners) {
         return;
       }
 
       currentListeners.delete(listener);
+      currentSubscriptions?.delete(listener);
 
       if (currentListeners.size === 0) {
         this.listenersByMarketId.delete(marketId);
+      }
+
+      if (currentSubscriptions?.size === 0) {
+        this.subscriptionsByMarketId.delete(marketId);
       }
     };
   }
@@ -73,10 +101,45 @@ export class MarketRealtimeService {
       emittedAt: new Date().toISOString(),
       data: input.data,
     };
+    const subscriptions = this.subscriptionsByMarketId.get(input.marketId);
 
     for (const listener of listeners) {
+      const subscription = subscriptions?.get(listener);
+
+      if (subscription) {
+        subscription.lastDeliveredAt = event.emittedAt;
+      }
+
       listener(event);
     }
+  }
+
+  /**
+   * Mark one market stream subscription as having delivered a heartbeat or snapshot.
+   *
+   * Example:
+   * `marketRealtimeService.markSubscriptionActivity(marketId, listener)`
+   */
+  markSubscriptionActivity(marketId: string, listener: MarketStreamListener) {
+    const subscription = this.subscriptionsByMarketId
+      .get(marketId)
+      ?.get(listener);
+
+    if (subscription) {
+      subscription.lastDeliveredAt = new Date().toISOString();
+    }
+  }
+
+  /**
+   * List live public market stream subscriptions for health scans.
+   *
+   * Example:
+   * `marketRealtimeService.listSubscriptions()`
+   */
+  listSubscriptions() {
+    return Array.from(this.subscriptionsByMarketId.values()).flatMap(
+      (subscriptions) => Array.from(subscriptions.values()),
+    );
   }
 
   /**

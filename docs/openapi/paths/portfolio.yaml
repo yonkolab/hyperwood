@@ -76,6 +76,57 @@ fills:
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
 
+historicalOrders:
+  get:
+    operationId: listHistoricalPortfolioOrders
+    tags: [Portfolio]
+    summary: List historical orders for the authenticated user
+    description: |
+      Returns the authenticated user's order history for one currency, ordered
+      newest first. This is a dedicated historical review path and is not limited
+      to archived markets.
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit50
+      - $ref: ../components/parameters/common.yaml#/Currency
+    responses:
+      '200':
+        description: Historical order records for the requested currency.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/portfolio.yaml#/HistoricalOrderListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
+historicalFills:
+  get:
+    operationId: listHistoricalPortfolioFills
+    tags: [Portfolio]
+    summary: List historical fills for the authenticated user
+    description: |
+      Returns the authenticated user's fill history through a dedicated historical
+      route. The payload shape matches the primary fills response.
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit50
+      - $ref: ../components/parameters/common.yaml#/Currency
+    responses:
+      '200':
+        description: Historical fills for the requested currency.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/portfolio.yaml#/FillListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
 settlements:
   get:
     operationId: listPortfolioSettlements

@@ -97,6 +97,9 @@ When adding or changing endpoints:
 4. update or add guides if the behavior affects client integration
 5. run `npm run check:biome`, `npm run docs:lint`, `npm run test:api`, and the relevant integration tests
 
+Realtime stream health scans use `REALTIME_STREAM_STALE_SECONDS` to decide when an
+active SSE subscription is stale enough to create an operational alert.
+
 ## Linting and Formatting
 
 Hyperwood uses Biome for formatting and linting.
@@ -203,10 +206,13 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/markets/:marketId/order-book/deltas`
 - `GET /api/v1/markets/:marketId/trades`
 - `GET /api/v1/historical/markets/:marketId/trades`
+- `GET /api/v1/historical/markets/:marketId/candles`
 - `GET /api/v1/markets/:marketId/announcements`
 - `GET /api/v1/portfolio`
 - `GET /api/v1/portfolio/stream`
 - `GET /api/v1/portfolio/fills`
+- `GET /api/v1/historical/portfolio/orders`
+- `GET /api/v1/historical/portfolio/fills`
 - `GET /api/v1/portfolio/settlements`
 - `POST /api/v1/portfolio/exports`
 - `GET /api/v1/portfolio/exports`
@@ -242,6 +248,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/internal/operations/ledger-invariant-scan`
 - `POST /api/v1/internal/operations/settlement-failure-scan`
 - `POST /api/v1/internal/operations/trading-condition-scan`
+- `POST /api/v1/internal/operations/realtime-stream-health-scan`
 - `POST /api/v1/internal/markets/events`
 - `POST /api/v1/internal/markets`
 - `POST /api/v1/internal/markets/:marketId/match`

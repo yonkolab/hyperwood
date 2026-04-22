@@ -349,6 +349,41 @@ describe('markets api', () => {
     });
   });
 
+  it('serves archived market candles through the historical path after settlement', async () => {
+    const scenario = await createMatchedMarketScenario(app, {
+      currency: 'USD',
+      quantity: 10,
+      limitPriceBps: 4800,
+    });
+
+    await resolveMarket(app, scenario.market.body.market.id as string, {
+      outcome: 'yes',
+      evidenceSummary: 'Official election authority certified the result.',
+      evidenceSources: ['https://example.com/election-result'],
+    });
+    await settleMarket(app, scenario.market.body.market.id as string);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/historical/markets/${scenario.market.body.market.id}/candles?interval=1h&limit=10`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      marketId: scenario.market.body.market.id,
+      interval: '1h',
+    });
+    expect(response.json().candles).toHaveLength(1);
+    expect(response.json().candles[0]).toMatchObject({
+      openPriceBps: 4800,
+      highPriceBps: 4800,
+      lowPriceBps: 4800,
+      closePriceBps: 4800,
+      volume: 10,
+      tradeCount: 1,
+    });
+  });
+
   it('halts a market, records transition history, and blocks new order entry until resumed', async () => {
     const session = await createVerifiedSession(app);
     await upsertApprovedComplianceProfile(app, session.body.user.id as string);

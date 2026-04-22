@@ -12,6 +12,8 @@ import {
   exportJobParamsSchema,
   exportJobsQuerySchema,
   fillsQuerySchema,
+  historicalFillsQuerySchema,
+  historicalOrdersQuerySchema,
   portfolioQuerySchema,
   portfolioStreamQuerySchema,
   settlementsQuerySchema,
@@ -75,14 +77,22 @@ async function portfolioRoutes(
       }),
     );
 
+    const onAccountEvent = (
+      event: Parameters<typeof accountRealtimeService.toSseFrame>[0],
+    ) => {
+      reply.raw.write(accountRealtimeService.toSseFrame(event));
+    };
     const unsubscribe = accountRealtimeService.subscribe(
       user.id,
       query.currency,
-      (event) => {
-        reply.raw.write(accountRealtimeService.toSseFrame(event));
-      },
+      onAccountEvent,
     );
     const heartbeat = setInterval(() => {
+      accountRealtimeService.markSubscriptionActivity(
+        user.id,
+        query.currency,
+        onAccountEvent,
+      );
       reply.raw.write(': heartbeat\n\n');
     }, 15000);
 
@@ -101,6 +111,30 @@ async function portfolioRoutes(
     const user = await identityService.getUserFromSessionToken(sessionToken);
 
     return portfolioService.listFills(user.id, query.limit, query.currency);
+  });
+
+  app.get('/historical/portfolio/orders', async (request) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const query = historicalOrdersQuerySchema.parse(request.query);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+
+    return portfolioService.listHistoricalOrders(
+      user.id,
+      query.limit,
+      query.currency,
+    );
+  });
+
+  app.get('/historical/portfolio/fills', async (request) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const query = historicalFillsQuerySchema.parse(request.query);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+
+    return portfolioService.listHistoricalFills(
+      user.id,
+      query.limit,
+      query.currency,
+    );
   });
 
   app.get('/portfolio/settlements', async (request) => {

@@ -56,6 +56,11 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(30),
+  REALTIME_STREAM_STALE_SECONDS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(45),
   MARKET_SETTLEMENT_FAILURE_MINUTES: z.coerce
     .number()
     .int()

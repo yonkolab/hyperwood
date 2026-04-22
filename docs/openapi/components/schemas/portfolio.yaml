@@ -146,6 +146,83 @@ FillListResponse:
       items:
         $ref: '#/Fill'
 
+HistoricalOrder:
+  type: object
+  required:
+    - orderId
+    - marketId
+    - marketSlug
+    - marketTitle
+    - marketStatus
+    - type
+    - side
+    - outcome
+    - status
+    - quantity
+    - filledQuantity
+    - referencePriceBps
+    - reservedAmountMinor
+    - createdAt
+    - updatedAt
+  properties:
+    orderId:
+      type: string
+      format: uuid
+    marketId:
+      type: string
+      format: uuid
+    marketSlug:
+      type: string
+    marketTitle:
+      type: string
+    marketStatus:
+      type: string
+    type:
+      type: string
+      enum: [limit, market]
+    side:
+      type: string
+      enum: [buy, sell]
+    outcome:
+      type: string
+      enum: [yes, no]
+    status:
+      type: string
+      enum: [queued_for_matching, partially_filled, filled, cancelled]
+    quantity:
+      type: integer
+    filledQuantity:
+      type: integer
+    limitPriceBps:
+      type: integer
+      nullable: true
+    referencePriceBps:
+      type: integer
+    reservedAmountMinor:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    cancelledAt:
+      type: string
+      format: date-time
+      nullable: true
+
+HistoricalOrderListResponse:
+  type: object
+  required: [currency, orders]
+  properties:
+    currency:
+      type: string
+      enum: [USD, BRL]
+    orders:
+      type: array
+      items:
+        $ref: '#/HistoricalOrder'
+
 Settlement:
   type: object
   required:

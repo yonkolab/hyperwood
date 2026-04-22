@@ -210,6 +210,52 @@ MarketAnnouncementListResponse:
       items:
         $ref: '#/MarketAnnouncement'
 
+HistoricalCandle:
+  type: object
+  required:
+    - bucketStart
+    - bucketEnd
+    - openPriceBps
+    - highPriceBps
+    - lowPriceBps
+    - closePriceBps
+    - volume
+    - tradeCount
+  properties:
+    bucketStart:
+      type: string
+      format: date-time
+    bucketEnd:
+      type: string
+      format: date-time
+    openPriceBps:
+      type: integer
+    highPriceBps:
+      type: integer
+    lowPriceBps:
+      type: integer
+    closePriceBps:
+      type: integer
+    volume:
+      type: integer
+    tradeCount:
+      type: integer
+
+HistoricalCandleListResponse:
+  type: object
+  required: [marketId, interval, candles]
+  properties:
+    marketId:
+      type: string
+      format: uuid
+    interval:
+      type: string
+      enum: [1h, 1d]
+    candles:
+      type: array
+      items:
+        $ref: '#/HistoricalCandle'
+
 PublishMarketAnnouncementRequest:
   type: object
   required: [title, message]

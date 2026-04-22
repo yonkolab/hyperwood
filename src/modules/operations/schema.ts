@@ -38,3 +38,8 @@ export const settlementFailureScanBodySchema = z.object({
 export const tradingConditionScanBodySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(25),
 });
+
+export const realtimeStreamHealthScanBodySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+  maxIdleSeconds: z.coerce.number().int().nonnegative().max(3600).optional(),
+});

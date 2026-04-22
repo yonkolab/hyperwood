@@ -1,5 +1,6 @@
 import { AdminAuditService } from '../operations/audit';
 import { MarketAnnouncementService } from './market-announcement.service';
+import { MarketCandleHistoryService } from './market-candle-history.service';
 import { MarketCatalogQueryService } from './market-catalog-query.service';
 import { MarketLifecycleService } from './market-lifecycle.service';
 import { MarketOrderBookQueryService } from './market-order-book-query.service';
@@ -33,6 +34,8 @@ export class MarketsService {
   private readonly marketOrderBookQueryService =
     new MarketOrderBookQueryService();
   private readonly marketTradeHistoryService = new MarketTradeHistoryService();
+  private readonly marketCandleHistoryService =
+    new MarketCandleHistoryService();
 
   async createEvent(input: CreateMarketEventInput) {
     return this.marketLifecycleService.createEvent(input);
@@ -60,6 +63,16 @@ export class MarketsService {
 
   async listHistoricalTrades(marketId: string, limit: number) {
     return this.marketTradeHistoryService.listHistoricalTrades(marketId, limit);
+  }
+
+  async listHistoricalCandles(
+    marketId: string,
+    input: { interval: '1h' | '1d'; limit: number },
+  ) {
+    return this.marketCandleHistoryService.listHistoricalCandles(
+      marketId,
+      input,
+    );
   }
 
   async publishMarketAnnouncement(

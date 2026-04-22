@@ -75,4 +75,13 @@ The current repository still does not implement:
 
 The authenticated account stream now exists, but it is still single-process SSE without multi-node fanout.
 
+## Stream health monitoring
+
+Hyperwood now exposes an internal scan for stale realtime subscriptions:
+
+- `POST /api/v1/internal/operations/realtime-stream-health-scan`
+
+The scan evaluates active SSE subscriptions against `REALTIME_STREAM_STALE_SECONDS`
+and creates operational alerts for subscriptions whose last delivery is too old.
+
 If those surfaces are added later, AsyncAPI is still the right long-term documentation format for transport-level stream contracts.

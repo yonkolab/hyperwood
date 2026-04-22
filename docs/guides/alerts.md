@@ -25,19 +25,20 @@ Current categories:
 - `funding_callback_delay`
 - `ledger_invariant`
 - `market_settlement_failure`
+- `realtime_stream_outage`
 - `unusual_trading_condition`
 
 Current limitations:
 
 - alerts are persisted for operator polling, not pushed to PagerDuty, email, or chat systems
 - alert acknowledgement and resolution workflows are not implemented yet
-- settlement failures and realtime outages are still future alert sources
 
 Internal scan paths now include:
 
 - `POST /api/v1/internal/operations/ledger-invariant-scan`
 - `POST /api/v1/internal/operations/settlement-failure-scan`
 - `POST /api/v1/internal/operations/trading-condition-scan`
+- `POST /api/v1/internal/operations/realtime-stream-health-scan`
 
 The ledger invariant scan currently flags:
 
@@ -51,3 +52,8 @@ The settlement failure scan currently flags:
 The trading-condition scan currently flags:
 
 - active markets with crossed resting books where the best bid is greater than or equal to the best ask for the same outcome
+
+The realtime stream health scan currently flags:
+
+- public market SSE subscriptions with stale delivery timestamps
+- authenticated account SSE subscriptions with stale delivery timestamps

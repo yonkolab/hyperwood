@@ -80,3 +80,8 @@ export const orderBookDeltasQuerySchema = z.object({
 export const recentTradesQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(50),
 });
+
+export const historicalCandlesQuerySchema = z.object({
+  interval: z.enum(['1h', '1d']).default('1h'),
+  limit: z.coerce.number().int().positive().max(200).default(100),
+});

@@ -2,6 +2,17 @@
 
 Hyperwood separates live operational market reads from archived market-history reads.
 
+## Historical account records
+
+Authenticated account history is also available through dedicated review paths:
+
+- `GET /api/v1/historical/portfolio/orders`
+- `GET /api/v1/historical/portfolio/fills`
+
+These endpoints are currency-scoped and return the authenticated user's records
+newest first. They are intended for client history review and export-adjacent use
+cases, not only for archived markets.
+
 ## Archived market trades
 
 For active operational markets, use:
@@ -11,6 +22,7 @@ For active operational markets, use:
 For archived markets, use:
 
 - `GET /api/v1/historical/markets/:marketId/trades`
+- `GET /api/v1/historical/markets/:marketId/candles`
 
 Archived markets currently include:
 
@@ -37,3 +49,8 @@ curl "http://localhost:3000/api/v1/historical/markets/MARKET_ID/trades?limit=50"
 ```
 
 The historical trades response uses the same trade payload shape as the live trades route.
+
+Candles are derived from archived trades and support:
+
+- `interval=1h`
+- `interval=1d`

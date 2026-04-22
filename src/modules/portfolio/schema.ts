@@ -5,6 +5,16 @@ export const fillsQuerySchema = z.object({
   currency: z.enum(['USD', 'BRL']).default('USD'),
 });
 
+export const historicalOrdersQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(50),
+  currency: z.enum(['USD', 'BRL']).default('USD'),
+});
+
+export const historicalFillsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(50),
+  currency: z.enum(['USD', 'BRL']).default('USD'),
+});
+
 export const settlementsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(50),
   currency: z.enum(['USD', 'BRL']).default('USD'),

@@ -218,3 +218,37 @@ tradingConditionScan:
               $ref: ../components/schemas/operations.yaml#/TradingConditionScanResponse
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
+
+realtimeStreamHealthScan:
+  post:
+    operationId: runRealtimeStreamHealthScan
+    tags: [Operations, Internal]
+    summary: Scan live realtime streams for stale subscriptions and persist critical alerts
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              limit:
+                type: integer
+                minimum: 1
+                maximum: 100
+                default: 25
+              maxIdleSeconds:
+                type: integer
+                minimum: 0
+                maximum: 3600
+                description: Optional override for the configured staleness threshold.
+    responses:
+      '200':
+        description: Scan result with stale subscriptions and created alert count.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/operations.yaml#/RealtimeStreamHealthScanResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized

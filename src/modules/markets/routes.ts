@@ -15,6 +15,7 @@ import { marketRealtimeService } from './market-realtime.service';
 import {
   createEventBodySchema,
   createMarketBodySchema,
+  historicalCandlesQuerySchema,
   listMarketsQuerySchema,
   marketParamsSchema,
   orderBookDeltasQuerySchema,
@@ -130,13 +131,20 @@ async function marketRoutes(
       }),
     );
 
+    const onMarketEvent = (
+      event: Parameters<typeof marketRealtimeService.toSseFrame>[0],
+    ) => {
+      reply.raw.write(marketRealtimeService.toSseFrame(event));
+    };
     const unsubscribe = marketRealtimeService.subscribe(
       params.marketId,
-      (event) => {
-        reply.raw.write(marketRealtimeService.toSseFrame(event));
-      },
+      onMarketEvent,
     );
     const heartbeat = setInterval(() => {
+      marketRealtimeService.markSubscriptionActivity(
+        params.marketId,
+        onMarketEvent,
+      );
       reply.raw.write(': heartbeat\n\n');
     }, 15000);
 
@@ -177,6 +185,16 @@ async function marketRoutes(
     const query = recentTradesQuerySchema.parse(request.query);
 
     return marketsService.listHistoricalTrades(params.marketId, query.limit);
+  });
+
+  app.get('/historical/markets/:marketId/candles', async (request) => {
+    const params = marketParamsSchema.parse(request.params);
+    const query = historicalCandlesQuerySchema.parse(request.query);
+
+    return marketsService.listHistoricalCandles(params.marketId, {
+      interval: query.interval,
+      limit: query.limit,
+    });
   });
 
   app.get('/markets/:marketId/announcements', async (request) => {

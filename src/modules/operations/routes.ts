@@ -11,6 +11,7 @@ import {
   listAuditEventsQuerySchema,
   listRateLimitEventsQuerySchema,
   listReviewQueueQuerySchema,
+  realtimeStreamHealthScanBodySchema,
   settlementFailureScanBodySchema,
   tradingConditionScanBodySchema,
 } from './schema';
@@ -107,6 +108,21 @@ async function operationsRoutes(
       limit: body.limit,
     });
   });
+
+  app.post(
+    '/internal/operations/realtime-stream-health-scan',
+    async (request) => {
+      assertBootstrapToken(request);
+      const body = realtimeStreamHealthScanBodySchema.parse(request.body ?? {});
+
+      return operationsService.scanRealtimeStreamHealth({
+        limit: body.limit,
+        ...(body.maxIdleSeconds !== undefined
+          ? { maxIdleSeconds: body.maxIdleSeconds }
+          : {}),
+      });
+    },
+  );
 }
 
 export async function registerOperationsRoutes(

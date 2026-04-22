@@ -1,0 +1,5 @@
+- [x] Add historical account orders endpoint.
+- [x] Add historical account fills endpoint.
+- [x] Add archived market candles endpoint.
+- [x] Document the new historical access paths in OpenAPI and guides.
+- [x] Add API coverage for historical account records and candle aggregation.

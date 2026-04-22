@@ -133,6 +133,8 @@ paths:
     $ref: ./paths/markets.yaml#/trades
   /api/v1/historical/markets/{marketId}/trades:
     $ref: ./paths/markets.yaml#/historicalTrades
+  /api/v1/historical/markets/{marketId}/candles:
+    $ref: ./paths/markets.yaml#/historicalCandles
   /api/v1/markets/{marketId}/announcements:
     $ref: ./paths/markets.yaml#/announcements
   /api/v1/internal/markets/events:
@@ -159,6 +161,10 @@ paths:
     $ref: ./paths/portfolio.yaml#/stream
   /api/v1/portfolio/fills:
     $ref: ./paths/portfolio.yaml#/fills
+  /api/v1/historical/portfolio/orders:
+    $ref: ./paths/portfolio.yaml#/historicalOrders
+  /api/v1/historical/portfolio/fills:
+    $ref: ./paths/portfolio.yaml#/historicalFills
   /api/v1/portfolio/settlements:
     $ref: ./paths/portfolio.yaml#/settlements
   /api/v1/portfolio/exports:
@@ -179,6 +185,8 @@ paths:
     $ref: ./paths/operations.yaml#/settlementFailureScan
   /api/v1/internal/operations/trading-condition-scan:
     $ref: ./paths/operations.yaml#/tradingConditionScan
+  /api/v1/internal/operations/realtime-stream-health-scan:
+    $ref: ./paths/operations.yaml#/realtimeStreamHealthScan
 components:
   securitySchemes:
     SessionBearer:

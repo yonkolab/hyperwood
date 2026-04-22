@@ -621,4 +621,100 @@ describe('operations api', () => {
       ],
     });
   });
+
+  it('scans stale realtime streams and persists alerts for idle SSE subscriptions', async () => {
+    const streamApp = await buildTestApp();
+    const event = await createMarketEvent(streamApp);
+    const market = await createMarket(
+      streamApp,
+      event.body.event.id as string,
+      {
+        status: 'active',
+        currency: 'USD',
+      },
+    );
+    const baseUrl = await streamApp.listen({ host: '127.0.0.1', port: 0 });
+    const controller = new AbortController();
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/v1/markets/${market.body.market.id}/stream`,
+        {
+          signal: controller.signal,
+        },
+      );
+
+      expect(response.status).toBe(200);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      const scan = await streamApp.inject({
+        method: 'POST',
+        url: '/api/v1/internal/operations/realtime-stream-health-scan',
+        headers: {
+          'x-bootstrap-token':
+            process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+        },
+        payload: {
+          limit: 10,
+          maxIdleSeconds: 0,
+        },
+      });
+
+      expect(scan.statusCode).toBe(200);
+      expect(scan.json().alertsCreated).toBeGreaterThanOrEqual(1);
+      expect(scan.json().thresholdSeconds).toBe(0);
+      expect(scan.json().staleStreams).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            streamType: 'market',
+            marketId: market.body.market.id,
+            idleSeconds: expect.any(Number),
+          }),
+        ]),
+      );
+
+      const staleStream = scan
+        .json()
+        .staleStreams.find(
+          (entry: { marketId?: string; streamType?: string }) =>
+            entry.marketId === market.body.market.id &&
+            entry.streamType === 'market',
+        );
+
+      expect(staleStream).toBeDefined();
+
+      const alerts = await streamApp.inject({
+        method: 'GET',
+        url:
+          '/api/v1/internal/operations/alerts' +
+          '?limit=10&category=realtime_stream_outage&severity=critical&status=open&sourceType=realtime_market_stream',
+        headers: {
+          'x-bootstrap-token':
+            process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+        },
+      });
+
+      expect(alerts.statusCode).toBe(200);
+      expect(alerts.json().alerts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            category: 'realtime_stream_outage',
+            severity: 'critical',
+            sourceType: 'realtime_market_stream',
+            sourceId: staleStream.subscriptionId,
+          }),
+        ]),
+      );
+      expect(alerts.json().alerts[0].metadata).toMatchObject({
+        streamType: 'market',
+        marketId: market.body.market.id,
+        thresholdSeconds: 0,
+      });
+
+      controller.abort();
+    } finally {
+      controller.abort();
+      await streamApp.close();
+    }
+  });
 });

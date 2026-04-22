@@ -1,0 +1,5 @@
+- [x] Track SSE subscription health metadata for market and account streams.
+- [x] Add internal realtime stream health scan endpoint.
+- [x] Persist alerts for stale realtime streams.
+- [x] Document the scan path and alert category in OpenAPI and guides.
+- [x] Add API coverage for stale realtime stream alert creation.

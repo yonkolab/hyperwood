@@ -441,3 +441,58 @@ TradingConditionScanResponse:
       type: array
       items:
         $ref: '#/TradingConditionCandidate'
+
+RealtimeStreamHealthFailure:
+  type: object
+  required:
+    - subscriptionId
+    - streamType
+    - marketId
+    - userId
+    - currency
+    - connectedAt
+    - lastDeliveredAt
+    - idleSeconds
+  properties:
+    subscriptionId:
+      type: string
+      format: uuid
+    streamType:
+      type: string
+      enum: [market, account]
+    marketId:
+      type: string
+      format: uuid
+      nullable: true
+    userId:
+      type: string
+      format: uuid
+      nullable: true
+    currency:
+      type: string
+      enum: [USD, BRL]
+      nullable: true
+    connectedAt:
+      type: string
+      format: date-time
+    lastDeliveredAt:
+      type: string
+      format: date-time
+    idleSeconds:
+      type: integer
+
+RealtimeStreamHealthScanResponse:
+  type: object
+  required: [generatedAt, thresholdSeconds, alertsCreated, staleStreams]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    thresholdSeconds:
+      type: integer
+    alertsCreated:
+      type: integer
+    staleStreams:
+      type: array
+      items:
+        $ref: '#/RealtimeStreamHealthFailure'

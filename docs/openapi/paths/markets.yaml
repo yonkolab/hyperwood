@@ -152,6 +152,41 @@ historicalTrades:
       '409':
         $ref: ../components/responses/common.yaml#/Conflict
 
+historicalCandles:
+  get:
+    operationId: listHistoricalMarketCandles
+    tags: [Markets]
+    summary: List archived candles for a historical market
+    security: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+      - in: query
+        name: interval
+        required: false
+        schema:
+          type: string
+          enum: [1h, 1d]
+          default: 1h
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 100
+    responses:
+      '200':
+        description: Archived OHLCV candles for one historical market.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/HistoricalCandleListResponse
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
 announcements:
   get:
     operationId: listMarketAnnouncements

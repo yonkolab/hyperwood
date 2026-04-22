@@ -11,6 +11,7 @@ import { OperationsAlertService } from './alerts';
 import { AdminAuditService } from './audit';
 import { LedgerInvariantAlertService } from './ledger-invariant-alert.service';
 import { RateLimitEventService } from './rate-limit';
+import { RealtimeStreamHealthAlertService } from './realtime-stream-health-alert.service';
 import { SettlementFailureAlertService } from './settlement-failure-alert.service';
 import { TradingConditionAlertService } from './trading-condition-alert.service';
 
@@ -20,6 +21,8 @@ export class OperationsService {
   private readonly ledgerInvariantAlertService =
     new LedgerInvariantAlertService();
   private readonly rateLimitEventService = new RateLimitEventService();
+  private readonly realtimeStreamHealthAlertService =
+    new RealtimeStreamHealthAlertService();
   private readonly settlementFailureAlertService =
     new SettlementFailureAlertService();
   private readonly tradingConditionAlertService =
@@ -289,6 +292,18 @@ export class OperationsService {
   async scanTradingConditions(input: { limit: number }) {
     return this.tradingConditionAlertService.scan({
       limit: Math.min(input.limit, 100),
+    });
+  }
+
+  async scanRealtimeStreamHealth(input: {
+    limit: number;
+    maxIdleSeconds?: number;
+  }) {
+    return this.realtimeStreamHealthAlertService.scan({
+      limit: Math.min(input.limit, 100),
+      ...(input.maxIdleSeconds !== undefined
+        ? { maxIdleSeconds: input.maxIdleSeconds }
+        : {}),
     });
   }
 }
