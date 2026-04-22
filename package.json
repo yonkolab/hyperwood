@@ -28,6 +28,8 @@
     "docs:dev:start": "npm --prefix docs/developer run start -- --host ${DOCS_DEV_HOST:-0.0.0.0} --port ${DOCS_DEV_PORT:-3001}",
     "docs:dev:build": "npm --prefix docs/developer run build",
     "docs:dev:serve": "npm --prefix docs/developer run serve -- --host ${DOCS_DEV_HOST:-0.0.0.0} --port ${DOCS_DEV_PORT:-3001}",
+    "docker:prod:up": "docker compose up --build -d",
+    "docker:prod:down": "docker compose down",
     "docker:local:up": "docker compose -f docker-compose.local.yml up --build",
     "docker:local:down": "docker compose -f docker-compose.local.yml down"
   },

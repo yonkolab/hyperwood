@@ -50,6 +50,14 @@ Every HTTP response also includes `X-Request-Id`. Clients may send `x-request-id
 The local Docker stack uses `docker-compose.local.yml`, starts PostgreSQL 17, overrides `DATABASE_URL` to the internal `db` service, and runs `npm run db:migrate` before the development server starts.
 The same stack also runs the Docusaurus developer-doc app on `http://localhost:3001`.
 
+## Production Docker
+
+1. Copy `.env.example` to `.env`.
+2. Start the stack with `npm run docker:prod:up`.
+3. The API will be available at `http://localhost:${API_PORT:-3000}` and PostgreSQL at `localhost:${POSTGRES_PORT:-5432}`.
+
+The production stack uses `docker-compose.yml`, starts only `db` and `api`, runs database migrations on container start, builds the TypeScript app inside the container image, and then runs `npm start`.
+
 ## API Docs
 
 The API documentation source lives in:
@@ -78,6 +86,8 @@ Useful commands:
 - `npm run docs:dev:start`
 - `npm run docs:dev:build`
 - `npm run docs:dev:serve`
+- `npm run docker:prod:up`
+- `npm run docker:prod:down`
 
 `docs:preview` starts a small Fastify server with Scalar at `/reference`.
 `docs:build` generates a static Scalar reference into `docs/reference/`.
@@ -178,6 +188,8 @@ Notes:
 - `npm run docs:dev:install`
 - `npm run docs:dev:build`
 - `npm run docs:dev:serve`
+- `npm run docker:prod:up`
+- `npm run docker:prod:down`
 - `npm run db:generate`
 - `npm run db:migrate`
 - `npm run docker:local:up`
