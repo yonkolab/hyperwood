@@ -15,7 +15,8 @@ info:
     - Internal endpoints use the `x-bootstrap-token` header.
     - All HTTP responses include `X-Request-Id`, and callers may supply `x-request-id` to preserve their own correlation identifier.
     - External API routes are rate-limited. Public auth routes use a stricter bucket than general API traffic.
-    - Funding provider webhooks are signed and documented as HTTP callback endpoints. Realtime transports are still future work.
+    - Funding provider webhooks are signed and documented as HTTP callback endpoints.
+    - Public market realtime delivery is exposed as Server-Sent Events under `/api/v1/markets/{marketId}/stream`.
   license:
     name: Proprietary
 servers:
@@ -121,6 +122,8 @@ paths:
     $ref: ./paths/markets.yaml#/markets
   /api/v1/markets/{marketId}:
     $ref: ./paths/markets.yaml#/marketById
+  /api/v1/markets/{marketId}/stream:
+    $ref: ./paths/markets.yaml#/marketStream
   /api/v1/markets/{marketId}/order-book:
     $ref: ./paths/markets.yaml#/orderBook
   /api/v1/markets/{marketId}/order-book/deltas:

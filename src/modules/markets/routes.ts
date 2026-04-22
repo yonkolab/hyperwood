@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   FastifyInstance,
   FastifyPluginOptions,
@@ -7,6 +8,7 @@ import { env } from '../../config/env';
 import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
 import { MatchingService } from '../matching/service';
+import { marketRealtimeService } from './market-realtime.service';
 import {
   createEventBodySchema,
   createMarketBodySchema,
@@ -19,6 +21,41 @@ import {
   updateMarketStatusBodySchema,
 } from './schema';
 import { MarketsService } from './service';
+
+async function publishOrderBookUpdate(
+  marketsService: MarketsService,
+  marketId: string,
+  trigger: string,
+) {
+  const orderBook = await marketsService.getOrderBookSnapshot(marketId);
+
+  marketRealtimeService.publish({
+    marketId,
+    type: 'order_book_updated',
+    data: {
+      trigger,
+      orderBook,
+      latestSequence: orderBook.snapshot.sequence,
+    },
+  });
+}
+
+async function publishStatusChange(
+  marketsService: MarketsService,
+  marketId: string,
+  trigger: string,
+) {
+  const detail = await marketsService.getMarketDetail(marketId);
+
+  marketRealtimeService.publish({
+    marketId,
+    type: 'status_changed',
+    data: {
+      trigger,
+      market: detail.market,
+    },
+  });
+}
 
 function assertBootstrapToken(request: FastifyRequest) {
   const bootstrapToken = request.headers['x-bootstrap-token'];
@@ -56,6 +93,55 @@ async function marketRoutes(
     const params = marketParamsSchema.parse(request.params);
 
     return marketsService.getMarketDetail(params.marketId);
+  });
+
+  app.get('/markets/:marketId/stream', async (request, reply) => {
+    const params = marketParamsSchema.parse(request.params);
+    const [detail, orderBook, recentTrades] = await Promise.all([
+      marketsService.getMarketDetail(params.marketId),
+      marketsService.getOrderBookSnapshot(params.marketId),
+      marketsService.listRecentTrades(params.marketId, 20),
+    ]);
+
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
+    });
+    reply.raw.write(
+      marketRealtimeService.toSseFrame({
+        id: randomUUID(),
+        type: 'snapshot',
+        marketId: params.marketId,
+        emittedAt: new Date().toISOString(),
+        data: {
+          market: detail.market,
+          orderBook,
+          recentTrades: recentTrades.trades,
+          latestSequence: orderBook.snapshot.sequence,
+        },
+      }),
+    );
+
+    const unsubscribe = marketRealtimeService.subscribe(
+      params.marketId,
+      (event) => {
+        reply.raw.write(marketRealtimeService.toSseFrame(event));
+      },
+    );
+    const heartbeat = setInterval(() => {
+      reply.raw.write(': heartbeat\n\n');
+    }, 15000);
+
+    const cleanup = () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    };
+
+    request.raw.on('close', cleanup);
+    reply.raw.on('close', cleanup);
   });
 
   app.get('/markets/:marketId/order-book', async (request) => {
@@ -149,6 +235,22 @@ async function marketRoutes(
       latestSequence: result.summary.latestSequence,
     });
 
+    if (result.trades.length > 0) {
+      marketRealtimeService.publish({
+        marketId: result.marketId,
+        type: 'trade_batch',
+        data: {
+          trades: result.trades,
+          latestSequence: result.summary.latestSequence,
+        },
+      });
+      await publishOrderBookUpdate(
+        marketsService,
+        result.marketId,
+        'matching_completed',
+      );
+    }
+
     return result;
   });
 
@@ -173,6 +275,15 @@ async function marketRoutes(
         marketStatus: result.market.status,
       });
 
+      marketRealtimeService.publish({
+        marketId: result.market.id,
+        type: 'announcement_published',
+        data: {
+          market: result.market,
+          announcement: result.announcement,
+        },
+      });
+
       reply.status(201).send(result);
     },
   );
@@ -193,6 +304,12 @@ async function marketRoutes(
       alreadyApplied: result.alreadyApplied,
       transitionId: result.transition?.id ?? null,
     });
+
+    await publishStatusChange(
+      marketsService,
+      result.market.id,
+      'market_status_updated',
+    );
 
     reply.status(200).send(result);
   });
@@ -217,6 +334,12 @@ async function marketRoutes(
       status: result.market.status,
     });
 
+    await publishStatusChange(
+      marketsService,
+      result.market.id,
+      'market_resolved',
+    );
+
     reply.status(200).send(result);
   });
 
@@ -233,6 +356,12 @@ async function marketRoutes(
       payoutCount: result.payouts.length,
       totalPayoutMinor: result.settlement.totalPayoutMinor,
     });
+
+    await publishStatusChange(
+      marketsService,
+      result.marketId,
+      'market_settled',
+    );
 
     reply.status(result.alreadySettled ? 200 : 201).send(result);
   });

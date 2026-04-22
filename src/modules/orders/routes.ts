@@ -6,6 +6,8 @@ import type {
 import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
 import { IdentityService } from '../identity/service';
+import { marketRealtimeService } from '../markets/market-realtime.service';
+import { MarketsService } from '../markets/service';
 import {
   amendOrderBodySchema,
   createOrderBodySchema,
@@ -43,6 +45,7 @@ async function orderRoutes(
 ) {
   const identityService = new IdentityService();
   const ordersService = new OrdersService();
+  const marketsService = new MarketsService();
 
   app.post('/orders', async (request, reply) => {
     const sessionToken = getSessionTokenFromRequest(request);
@@ -72,6 +75,21 @@ async function orderRoutes(
       marketCommandSequence: result.marketCommand?.sequence ?? null,
     });
 
+    const orderBook = await marketsService.getOrderBookSnapshot(
+      result.order.marketId,
+    );
+    marketRealtimeService.publish({
+      marketId: result.order.marketId,
+      type: 'order_book_updated',
+      data: {
+        trigger: result.idempotentReplay
+          ? 'order_create_replay'
+          : 'order_create',
+        orderBook,
+        latestSequence: orderBook.snapshot.sequence,
+      },
+    });
+
     reply.status(result.idempotentReplay ? 200 : 201).send(result);
   });
 
@@ -90,6 +108,21 @@ async function orderRoutes(
       marketId: result.order.marketId,
       alreadyCancelled: result.alreadyCancelled,
       marketCommandSequence: result.marketCommand?.sequence ?? null,
+    });
+
+    const orderBook = await marketsService.getOrderBookSnapshot(
+      result.order.marketId,
+    );
+    marketRealtimeService.publish({
+      marketId: result.order.marketId,
+      type: 'order_book_updated',
+      data: {
+        trigger: result.alreadyCancelled
+          ? 'order_cancel_replay'
+          : 'order_cancel',
+        orderBook,
+        latestSequence: orderBook.snapshot.sequence,
+      },
     });
 
     reply.status(200).send(result);
@@ -115,6 +148,19 @@ async function orderRoutes(
       marketId: result.order.marketId,
       alreadyApplied: result.alreadyApplied,
       marketCommandSequence: result.marketCommand?.sequence ?? null,
+    });
+
+    const orderBook = await marketsService.getOrderBookSnapshot(
+      result.order.marketId,
+    );
+    marketRealtimeService.publish({
+      marketId: result.order.marketId,
+      type: 'order_book_updated',
+      data: {
+        trigger: result.alreadyApplied ? 'order_amend_replay' : 'order_amend',
+        orderBook,
+        latestSequence: orderBook.snapshot.sequence,
+      },
     });
 
     reply.status(200).send(result);

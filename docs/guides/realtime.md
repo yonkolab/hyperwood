@@ -1,21 +1,55 @@
 # Realtime
 
-Realtime and websocket APIs are not implemented in the current repository.
+Hyperwood now exposes a public market realtime stream over Server-Sent Events.
 
-The current market data model exposes replay-oriented HTTP endpoints instead:
+Current public realtime endpoint:
+
+- `GET /api/v1/markets/{marketId}/stream`
+
+Current recovery endpoints:
 
 - `GET /api/v1/markets/{marketId}/order-book`
 - `GET /api/v1/markets/{marketId}/order-book/deltas`
 - `GET /api/v1/markets/{marketId}/trades`
 
-These endpoints are enough for polling and snapshot-plus-delta recovery, but they are not websocket streams.
+## Stream model
 
-## Current recommendation
+The market stream is public and market-scoped.
 
-If realtime delivery is added later:
+The first event is always `snapshot`. It includes:
 
-- keep OpenAPI for HTTP snapshot and recovery endpoints
-- document websocket channels separately
-- consider AsyncAPI for long-term event and stream documentation
+- market detail
+- current order book snapshot
+- recent trades
+- latest known order book sequence
 
-This guide intentionally documents absence as well as presence so consumers do not assume a websocket API exists today.
+Subsequent events are typed public updates:
+
+- `order_book_updated`
+- `trade_batch`
+- `status_changed`
+- `announcement_published`
+
+## Recovery model
+
+The SSE stream is not the authoritative replay source.
+
+If a client reconnects or suspects drift:
+
+1. reconnect to the market stream
+2. read the fresh `snapshot` event
+3. if order book recovery is needed, call:
+   - `GET /api/v1/markets/{marketId}/order-book`
+   - `GET /api/v1/markets/{marketId}/order-book/deltas`
+
+This keeps the live transport lightweight while preserving deterministic order book recovery through the existing HTTP sequence endpoints.
+
+## What is still missing
+
+The current repository still does not implement:
+
+- private authenticated account streams
+- websocket transport
+- distributed multi-node stream fanout
+
+If those surfaces are added later, AsyncAPI is still the right long-term documentation format for transport-level stream contracts.

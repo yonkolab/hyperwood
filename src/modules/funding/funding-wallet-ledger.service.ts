@@ -10,7 +10,7 @@ import {
 import { AppError } from '../../lib/errors';
 import {
   doesFundingRailSupportCurrency,
-  isFundingRailAllowedForCountry,
+  isPaymentMethodAllowedForCountry,
 } from './policy';
 import type {
   DbExecutor,
@@ -210,7 +210,7 @@ export class FundingWalletLedgerService {
     }
 
     if (
-      !isFundingRailAllowedForCountry(
+      !isPaymentMethodAllowedForCountry(
         fundingMethod.rail,
         fundingMethod.countryCode,
       )

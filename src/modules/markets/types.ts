@@ -99,3 +99,9 @@ export type NormalizedPosition = {
   quantity: number;
   costBasisMinor: number;
 };
+
+export type PublicMarketStreamSnapshot = {
+  market: Record<string, unknown>;
+  orderBook: Record<string, unknown>;
+  recentTrades: Record<string, unknown>[];
+};

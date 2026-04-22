@@ -7,7 +7,7 @@ import type { FundingWalletLedgerService } from './funding-wallet-ledger.service
 import {
   doesFundingRailSupportCurrency,
   getSupportedCurrenciesForFundingRail,
-  isFundingRailAllowedForCountry,
+  isPaymentMethodAllowedForCountry,
 } from './policy';
 import type { LinkFundingMethodInput, MarketCurrency } from './types';
 
@@ -27,7 +27,7 @@ export class FundingMethodCatalogService {
     await this.walletLedgerService.assertUserExists(input.userId);
     const countryCode = input.countryCode.toUpperCase();
 
-    if (!isFundingRailAllowedForCountry(input.rail, countryCode)) {
+    if (!isPaymentMethodAllowedForCountry(input.rail, countryCode)) {
       throw new AppError(
         400,
         'funding_method_country_not_supported',
@@ -110,7 +110,7 @@ export class FundingMethodCatalogService {
         .filter(
           (method) =>
             allowedRails.has(method.rail) &&
-            isFundingRailAllowedForCountry(method.rail, method.countryCode) &&
+            isPaymentMethodAllowedForCountry(method.rail, method.countryCode) &&
             doesFundingRailSupportCurrency(method.rail, currency),
         )
         .map((method) => ({

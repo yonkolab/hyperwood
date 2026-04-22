@@ -6,7 +6,7 @@ import {
   users,
 } from '../../db/schema';
 import { AppError } from '../../lib/errors';
-import { getAllowedFundingRailsForCountry } from '../funding/policy';
+import { getSupportedPaymentMethodsForCountry } from '../funding/policy';
 import { AdminAuditService } from '../operations/audit';
 import type {
   ApplyAccountRestrictionInput,
@@ -250,6 +250,6 @@ export class ComplianceService {
   }
 
   private getFundingMethods(countryCode: string): FundingRail[] {
-    return getAllowedFundingRailsForCountry(countryCode);
+    return getSupportedPaymentMethodsForCountry(countryCode);
   }
 }

@@ -30,6 +30,49 @@ function getCurrentUtcWeekday() {
   return weekdayNames[new Date().getUTCDay()];
 }
 
+async function readSseEvent(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  eventName: string,
+  timeoutMs = 5000,
+) {
+  const decoder = new TextDecoder();
+  const timeoutAt = Date.now() + timeoutMs;
+  let buffer = '';
+
+  while (Date.now() < timeoutAt) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split('\n\n');
+    buffer = chunks.pop() ?? '';
+
+    for (const chunk of chunks) {
+      if (!chunk.includes(`event: ${eventName}`)) {
+        continue;
+      }
+
+      const dataLine = chunk
+        .split('\n')
+        .find((line) => line.startsWith('data: '));
+
+      if (!dataLine) {
+        continue;
+      }
+
+      return JSON.parse(dataLine.slice('data: '.length)) as Record<
+        string,
+        unknown
+      >;
+    }
+  }
+
+  throw new Error(`timed out waiting for SSE event ${eventName}`);
+}
+
 describe('markets api', () => {
   let app: FastifyInstance;
 
@@ -90,6 +133,67 @@ describe('markets api', () => {
 
     expect(deltas.statusCode).toBe(200);
     expect(deltas.json().deltas).toEqual([]);
+  });
+
+  it('streams a market snapshot and subsequent public status updates', async () => {
+    const streamApp = await buildTestApp();
+    const event = await createMarketEvent(streamApp);
+    const market = await createMarket(streamApp, event.body.event.id as string);
+    const baseUrl = await streamApp.listen({ host: '127.0.0.1', port: 0 });
+    const controller = new AbortController();
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/v1/markets/${market.body.market.id}/stream`,
+        {
+          signal: controller.signal,
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain(
+        'text/event-stream',
+      );
+
+      const reader = response.body?.getReader();
+
+      expect(reader).toBeDefined();
+
+      if (!reader) {
+        throw new Error('expected stream reader for market realtime response');
+      }
+
+      const snapshot = await readSseEvent(reader, 'snapshot');
+      expect(snapshot.marketId).toBe(market.body.market.id);
+      expect(snapshot.type).toBe('snapshot');
+      expect(snapshot.data).toMatchObject({
+        market: {
+          id: market.body.market.id,
+        },
+      });
+
+      await transitionMarketStatus(streamApp, market.body.market.id as string, {
+        status: 'halted',
+        reason: 'Realtime stream test transition.',
+        changedBy: 'ops-stream-test',
+      });
+
+      const statusChanged = await readSseEvent(reader, 'status_changed');
+      expect(statusChanged.marketId).toBe(market.body.market.id);
+      expect(statusChanged.type).toBe('status_changed');
+      expect(statusChanged.data).toMatchObject({
+        trigger: 'market_status_updated',
+        market: {
+          id: market.body.market.id,
+          status: 'halted',
+        },
+      });
+
+      controller.abort();
+    } finally {
+      controller.abort();
+      await streamApp.close();
+    }
   });
 
   it('publishes and lists market announcements', async () => {

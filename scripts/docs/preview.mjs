@@ -1,3 +1,4 @@
+import { networkInterfaces } from 'node:os';
 import ScalarApiReference from '@scalar/fastify-api-reference';
 import Fastify from 'fastify';
 import { bundleOpenApi, validateOpenApi } from './openapi.mjs';
@@ -9,6 +10,23 @@ await validateOpenApi();
 const bundledSpec = await bundleOpenApi();
 
 const app = Fastify({ logger: false });
+
+function getReachableUrls(portNumber) {
+  const interfaces = networkInterfaces();
+  const urls = new Set([`http://localhost:${portNumber}/reference/`]);
+
+  for (const addresses of Object.values(interfaces)) {
+    for (const address of addresses ?? []) {
+      if (address.family !== 'IPv4' || address.internal) {
+        continue;
+      }
+
+      urls.add(`http://${address.address}:${portNumber}/reference/`);
+    }
+  }
+
+  return Array.from(urls);
+}
 
 app.get('/openapi.json', async () => bundledSpec);
 
@@ -25,8 +43,12 @@ app.get('/', async (_request, reply) => {
 });
 
 try {
-  const address = await app.listen({ host, port });
-  console.log(`Docs preview available at ${address}/reference`);
+  await app.listen({ host, port });
+  console.log('Docs preview is running.');
+
+  for (const url of getReachableUrls(port)) {
+    console.log(`- ${url}`);
+  }
 } catch (error) {
   console.error('Failed to start Scalar docs preview.');
   console.error(error);

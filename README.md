@@ -85,6 +85,7 @@ Relevant guides:
 - `docs/guides/idempotency.md`
 - `docs/guides/observability.md`
 - `docs/guides/rate-limits.md`
+- `docs/guides/realtime.md`
 - `docs/guides/webhooks.md`
 
 When adding or changing endpoints:
@@ -195,6 +196,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/wallet/balance`
 - `GET /api/v1/markets`
 - `GET /api/v1/markets/:marketId`
+- `GET /api/v1/markets/:marketId/stream`
 - `GET /api/v1/markets/:marketId/order-book`
 - `GET /api/v1/markets/:marketId/order-book/deltas`
 - `GET /api/v1/markets/:marketId/trades`

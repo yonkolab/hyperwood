@@ -5,7 +5,7 @@ type FundingRailCurrency = 'USD' | 'BRL' | 'GBP';
 
 const DEFAULT_COUNTRY_RAILS: FundingRail[] = ['wire'];
 
-const FUNDING_RAILS_BY_COUNTRY: Record<string, FundingRail[]> = {
+const SUPPORTED_PAYMENT_METHODS_BY_COUNTRY: Record<string, FundingRail[]> = {
   BR: ['pix', 'wire'],
   GB: ['fps', 'wire'],
   US: ['ach', 'wire'],
@@ -21,9 +21,10 @@ const SUPPORTED_CURRENCIES_BY_RAIL: Record<FundingRail, FundingRailCurrency[]> =
     crypto_wallet: ['USD', 'BRL'],
   };
 
-export function getAllowedFundingRailsForCountry(countryCode: string) {
+export function getSupportedPaymentMethodsForCountry(countryCode: string) {
   return (
-    FUNDING_RAILS_BY_COUNTRY[countryCode.toUpperCase()] ?? DEFAULT_COUNTRY_RAILS
+    SUPPORTED_PAYMENT_METHODS_BY_COUNTRY[countryCode.toUpperCase()] ??
+    DEFAULT_COUNTRY_RAILS
   );
 }
 
@@ -31,11 +32,11 @@ export function getSupportedCurrenciesForFundingRail(rail: FundingRail) {
   return SUPPORTED_CURRENCIES_BY_RAIL[rail];
 }
 
-export function isFundingRailAllowedForCountry(
+export function isPaymentMethodAllowedForCountry(
   rail: FundingRail,
   countryCode: string,
 ) {
-  return getAllowedFundingRailsForCountry(countryCode).includes(rail);
+  return getSupportedPaymentMethodsForCountry(countryCode).includes(rail);
 }
 
 export function doesFundingRailSupportCurrency(
