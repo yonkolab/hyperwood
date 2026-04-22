@@ -13,6 +13,32 @@ The system SHALL provide streaming channels for public market data and authentic
 - **WHEN** an authenticated client subscribes to a private user stream
 - **THEN** the system streams order, fill, balance, transfer, and settlement updates authorized for that user
 
+### Requirement: Public market SSE stream
+The system SHALL provide a public streaming channel for one market scope using a documented realtime transport and recovery contract.
+
+#### Scenario: Client subscribes to a market SSE stream
+- **WHEN** a client connects to the public market stream for an existing market
+- **THEN** the system returns an initial snapshot containing market summary, current order book state, and recent trades
+- **AND** the stream remains open for subsequent public market events
+
+#### Scenario: Market stream emits public updates
+- **WHEN** market activity changes public state for the subscribed market
+- **THEN** the stream emits typed events for order book changes, trades, status changes, or announcements
+- **AND** the event payload contains the market identifier and enough state to update the client view without ambiguity
+
+### Requirement: Authenticated account SSE stream
+The system SHALL provide an authenticated SSE stream for one user and currency scope.
+
+#### Scenario: Client subscribes to an authenticated account stream
+- **WHEN** an authenticated client connects to the private account stream for a supported currency
+- **THEN** the system returns an initial account snapshot containing portfolio summary, recent fills, and recent settlements for that user and currency
+- **AND** the stream remains open for subsequent account events
+
+#### Scenario: Account stream emits private user updates
+- **WHEN** an authenticated user's orders, balances, transfers, fills, or settlements change
+- **THEN** the account stream emits typed events scoped to that user and currency
+- **AND** no other user's account updates are exposed through that stream
+
 ### Requirement: Realtime recovery with sequence checks
 The system MUST support snapshot-plus-delta recovery with sequence numbers so clients can detect gaps and resynchronize state.
 
@@ -45,4 +71,3 @@ The system MUST support archival policies, historical exports, and retained orde
 - **WHEN** an authenticated user requests an account history export for a supported currency
 - **THEN** the system creates an export job and completes it with a persisted artifact
 - **AND** the user can retrieve the resulting artifact through an authenticated historical export path
-

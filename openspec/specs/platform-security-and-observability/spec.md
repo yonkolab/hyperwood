@@ -60,3 +60,30 @@ The system MUST alert operators on balance invariant failures, settlement failur
 - **WHEN** monitoring detects a provider-backed funding transfer that has exceeded the configured callback delay threshold without reaching a terminal state
 - **THEN** the system creates a persisted operational alert linked to that transfer
 - **AND** operators can query the alert through an internal operations endpoint
+
+### Requirement: Internal ledger invariant scans create alerts
+The system MUST provide an internal scan path that detects ledger invariant failures and persists operational alerts for the offending source records.
+
+#### Scenario: Ledger invariant failure triggers alert
+- **WHEN** an internal operator runs a ledger invariant scan
+- **AND** the scan detects an imbalanced ledger transaction or a negative user wallet balance
+- **THEN** the system creates a persisted critical operational alert for each offending source
+- **AND** the scan response returns the detected failures and the number of newly created alerts
+
+### Requirement: Settlement failure scans create alerts
+The system MUST provide an internal scan path that detects resolved markets stalled before settlement and persists operational alerts for the affected market records.
+
+#### Scenario: Settlement failure triggers alert
+- **WHEN** an internal operator runs a settlement failure scan
+- **AND** the scan detects a resolved market that has exceeded the configured settlement failure threshold without a settlement record
+- **THEN** the system creates a persisted critical operational alert for that market
+- **AND** the scan response returns the detected failures and the number of newly created alerts
+
+### Requirement: Unusual trading condition scans create alerts
+The system MUST provide an internal scan path that detects abnormal trading conditions and persists operational alerts for the affected market records.
+
+#### Scenario: Crossed resting book triggers alert
+- **WHEN** an internal operator runs a trading-condition scan
+- **AND** the scan detects an active market with a crossed resting book where the best bid is greater than or equal to the best ask for the same outcome
+- **THEN** the system creates a persisted critical operational alert for that market
+- **AND** the scan response returns the detected failures and the number of newly created alerts
