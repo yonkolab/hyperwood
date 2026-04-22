@@ -1,10 +1,98 @@
 OperationsReviewQueueResponse:
   type: object
-  required: [generatedAt, withdrawalReviews, reconciliationInvestigations]
+  required:
+    [generatedAt, kycReviews, flaggedAccounts, withdrawalReviews, reconciliationInvestigations, settlementRetries]
   properties:
     generatedAt:
       type: string
       format: date-time
+    kycReviews:
+      type: array
+      items:
+        type: object
+        required: [user, profile]
+        properties:
+          user:
+            type: object
+            required: [id, email, region, kycStatus]
+            properties:
+              id:
+                type: string
+                format: uuid
+              email:
+                type: string
+                format: email
+              region:
+                type: string
+                nullable: true
+              kycStatus:
+                type: string
+                enum: [pending, approved, rejected, restricted]
+          profile:
+            type: object
+            required:
+              [countryCode, jurisdictionCode, legalEntity, sanctionsStatus, kycProvider, providerReference, metadata, updatedAt]
+            properties:
+              countryCode:
+                type: string
+              jurisdictionCode:
+                type: string
+              legalEntity:
+                type: string
+              sanctionsStatus:
+                type: string
+                enum: [clear, pending_review, restricted]
+              kycProvider:
+                type: string
+                nullable: true
+              providerReference:
+                type: string
+                nullable: true
+              metadata:
+                type: object
+                additionalProperties: true
+              updatedAt:
+                type: string
+                format: date-time
+    flaggedAccounts:
+      type: array
+      items:
+        type: object
+        required: [restrictionId, scope, reason, source, expiresAt, createdAt, user]
+        properties:
+          restrictionId:
+            type: string
+            format: uuid
+          scope:
+            type: string
+          reason:
+            type: string
+          source:
+            type: string
+            enum: [system, provider, admin]
+          expiresAt:
+            type: string
+            format: date-time
+            nullable: true
+          createdAt:
+            type: string
+            format: date-time
+          user:
+            type: object
+            required: [id, email, region, kycStatus]
+            properties:
+              id:
+                type: string
+                format: uuid
+              email:
+                type: string
+                format: email
+              region:
+                type: string
+                nullable: true
+              kycStatus:
+                type: string
+                enum: [pending, approved, rejected, restricted]
     withdrawalReviews:
       type: array
       items:
@@ -154,6 +242,38 @@ OperationsReviewQueueResponse:
                     type: string
                   displayName:
                     type: string
+    settlementRetries:
+      type: array
+      items:
+        type: object
+        required:
+          [marketId, marketTitle, marketCurrency, marketStatus, resolutionId, outcome, approvedAt, retryEligibleAt, thresholdMinutes]
+        properties:
+          marketId:
+            type: string
+            format: uuid
+          marketTitle:
+            type: string
+          marketCurrency:
+            type: string
+            enum: [USD, BRL]
+          marketStatus:
+            type: string
+            enum: [awaiting_resolution]
+          resolutionId:
+            type: string
+            format: uuid
+          outcome:
+            type: string
+            enum: [yes, no, void]
+          approvedAt:
+            type: string
+            format: date-time
+          retryEligibleAt:
+            type: string
+            format: date-time
+          thresholdMinutes:
+            type: integer
 
 AuditEvent:
   type: object

@@ -177,6 +177,61 @@ authMe:
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
 
+sessions:
+  get:
+    operationId: listSessions
+    tags: [Identity]
+    summary: List authenticated sessions
+    security:
+      - SessionBearer: []
+    responses:
+      '200':
+        description: Sessions owned by the current user.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/SessionListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+currentSession:
+  delete:
+    operationId: revokeCurrentSession
+    tags: [Identity]
+    summary: Revoke the current authenticated session
+    security:
+      - SessionBearer: []
+    responses:
+      '200':
+        description: Current session revoked.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/RevokeSessionResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+sessionById:
+  delete:
+    operationId: revokeSession
+    tags: [Identity]
+    summary: Revoke one authenticated session by id
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/SessionId
+    responses:
+      '200':
+        description: Session revoked.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/RevokeSessionResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+
 apiKeys:
   post:
     operationId: createApiKey
@@ -287,6 +342,37 @@ apiKeyById:
         $ref: ../components/responses/common.yaml#/Unauthorized
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
+
+apiKeyRotate:
+  post:
+    operationId: rotateApiKey
+    tags: [Identity]
+    summary: Rotate an API key secret
+    description: Replaces the raw secret material for an existing API key and immediately invalidates the previous raw key and HMAC secret.
+    security:
+      - SessionBearer: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/ApiKeyId
+      - $ref: ../components/parameters/common.yaml#/MfaAuthorization
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/RotateApiKeyRequest
+    responses:
+      '200':
+        description: API key secret rotated.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/RotateApiKeyResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
 
 totpSetup:
   post:

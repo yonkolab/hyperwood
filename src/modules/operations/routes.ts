@@ -13,6 +13,8 @@ import {
   listReviewQueueQuerySchema,
   realtimeStreamHealthScanBodySchema,
   settlementFailureScanBodySchema,
+  settlementRetryBodySchema,
+  settlementRetryParamsSchema,
   tradingConditionScanBodySchema,
 } from './schema';
 import { OperationsService } from './service';
@@ -99,6 +101,21 @@ async function operationsRoutes(
       limit: body.limit,
     });
   });
+
+  app.post(
+    '/internal/operations/settlement-retries/:marketId',
+    async (request, reply) => {
+      assertBootstrapToken(request);
+      const params = settlementRetryParamsSchema.parse(request.params);
+      const body = settlementRetryBodySchema.parse(request.body ?? {});
+      const result = await operationsService.retrySettlement({
+        marketId: params.marketId,
+        ...(body.requestedBy ? { requestedBy: body.requestedBy } : {}),
+      });
+
+      reply.status(result.alreadySettled ? 200 : 201).send(result);
+    },
+  );
 
   app.post('/internal/operations/trading-condition-scan', async (request) => {
     assertBootstrapToken(request);

@@ -61,6 +61,12 @@ paths:
     $ref: ./paths/identity.yaml#/authorizeTotp
   /api/v1/auth/me:
     $ref: ./paths/identity.yaml#/authMe
+  /api/v1/auth/sessions:
+    $ref: ./paths/identity.yaml#/sessions
+  /api/v1/auth/sessions/current:
+    $ref: ./paths/identity.yaml#/currentSession
+  /api/v1/auth/sessions/{sessionId}:
+    $ref: ./paths/identity.yaml#/sessionById
   /api/v1/auth/api-keys:
     $ref: ./paths/identity.yaml#/apiKeys
   /api/v1/auth/api-key/me:
@@ -69,6 +75,8 @@ paths:
     $ref: ./paths/identity.yaml#/apiKeyHmacMe
   /api/v1/auth/api-keys/{apiKeyId}:
     $ref: ./paths/identity.yaml#/apiKeyById
+  /api/v1/auth/api-keys/{apiKeyId}/rotate:
+    $ref: ./paths/identity.yaml#/apiKeyRotate
   /api/v1/auth/mfa/totp/setup:
     $ref: ./paths/identity.yaml#/totpSetup
   /api/v1/auth/mfa/totp/confirm:
@@ -183,6 +191,8 @@ paths:
     $ref: ./paths/operations.yaml#/ledgerInvariantScan
   /api/v1/internal/operations/settlement-failure-scan:
     $ref: ./paths/operations.yaml#/settlementFailureScan
+  /api/v1/internal/operations/settlement-retries/{marketId}:
+    $ref: ./paths/operations.yaml#/settlementRetry
   /api/v1/internal/operations/trading-condition-scan:
     $ref: ./paths/operations.yaml#/tradingConditionScan
   /api/v1/internal/operations/realtime-stream-health-scan:
@@ -214,6 +224,8 @@ components:
       $ref: ./components/parameters/common.yaml#/OrderId
     ApiKeyId:
       $ref: ./components/parameters/common.yaml#/ApiKeyId
+    SessionId:
+      $ref: ./components/parameters/common.yaml#/SessionId
     DepositId:
       $ref: ./components/parameters/common.yaml#/DepositId
     WithdrawalId:

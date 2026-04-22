@@ -11,6 +11,7 @@ import {
 import { buildTestApp } from '../helpers/app';
 import { createVerifiedSession, registerUser } from '../helpers/auth';
 import {
+  applyAccountRestriction,
   createMarket,
   createMarketEvent,
   linkFundingMethod,
@@ -76,6 +77,63 @@ describe('operations api', () => {
     expect(queue.json().withdrawalReviews).toHaveLength(1);
     expect(queue.json().withdrawalReviews[0].withdrawalId).toBe(
       withdrawal.json().withdrawal.id,
+    );
+  });
+
+  it('lists KYC review items and flagged accounts for internal operators', async () => {
+    const session = await createVerifiedSession(app);
+
+    await upsertApprovedComplianceProfile(app, session.body.user.id as string, {
+      kycStatus: 'pending',
+      sanctionsStatus: 'pending_review',
+    });
+    const restriction = await applyAccountRestriction(
+      app,
+      session.body.user.id as string,
+      {
+        scope: 'trading',
+        reason: 'Provider flagged unusual verification mismatch.',
+        source: 'provider',
+      },
+    );
+
+    expect(restriction.response.statusCode).toBe(201);
+
+    const queue = await app.inject({
+      method: 'GET',
+      url: '/api/v1/internal/operations/reviews?limit=10',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+    });
+
+    expect(queue.statusCode).toBe(200);
+    expect(queue.json().kycReviews).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          user: expect.objectContaining({
+            id: session.body.user.id,
+            kycStatus: 'pending',
+          }),
+          profile: expect.objectContaining({
+            sanctionsStatus: 'pending_review',
+          }),
+        }),
+      ]),
+    );
+    expect(queue.json().flaggedAccounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          restrictionId: restriction.body.restriction.id,
+          scope: 'trading',
+          reason: 'Provider flagged unusual verification mismatch.',
+          source: 'provider',
+          user: expect.objectContaining({
+            id: session.body.user.id,
+          }),
+        }),
+      ]),
     );
   });
 

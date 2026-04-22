@@ -18,10 +18,17 @@ Authorization: Bearer <sessionToken>
 Used by:
 
 - `/api/v1/auth/me`
+- `/api/v1/auth/sessions`
 - `/api/v1/compliance/me/capabilities`
 - `/api/v1/funding/*`
 - `/api/v1/orders`
 - `/api/v1/portfolio*`
+
+Session management endpoints:
+
+- `GET /api/v1/auth/sessions`
+- `DELETE /api/v1/auth/sessions/current`
+- `DELETE /api/v1/auth/sessions/{sessionId}`
 
 ## 2. MFA step-up authorization
 
@@ -42,6 +49,7 @@ Currently relevant for API key creation and revocation.
 ## 3. Raw API keys
 
 API keys are created with `POST /api/v1/auth/api-keys`.
+API keys are rotated with `POST /api/v1/auth/api-keys/{apiKeyId}/rotate`.
 
 The current reference endpoint for raw API key authentication is:
 
@@ -81,6 +89,7 @@ Important constraints from the current implementation:
 - the timestamp must be within `API_HMAC_MAX_SKEW_SECONDS`
 - the nonce is persisted and cannot be reused
 - the key must support HMAC signing, older legacy keys do not
+- rotating a key immediately invalidates the previous raw key and HMAC secret
 
 ## 5. Internal bootstrap token
 

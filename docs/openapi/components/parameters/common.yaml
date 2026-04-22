@@ -82,6 +82,14 @@ ApiKeyId:
     type: string
     format: uuid
 
+SessionId:
+  name: sessionId
+  in: path
+  required: true
+  schema:
+    type: string
+    format: uuid
+
 DepositId:
   name: depositId
   in: path

@@ -18,6 +18,8 @@ import type {
   RegisterInput,
   RequestEmailVerificationInput,
   RevokeApiKeyInput,
+  RevokeSessionInput,
+  RotateApiKeyInput,
   SetupTotpInput,
   VerifyEmailInput,
   VerifyTotpLoginInput,
@@ -52,6 +54,18 @@ export class IdentityService {
 
   async getUserFromSessionToken(sessionToken: string) {
     return this.sessionService.getUserFromSessionToken(sessionToken);
+  }
+
+  async getSessionFromToken(sessionToken: string) {
+    return this.sessionService.getSessionFromToken(sessionToken);
+  }
+
+  async listSessions(userId: string, currentSessionToken: string) {
+    return this.sessionService.listSessions(userId, currentSessionToken);
+  }
+
+  async revokeSession(input: RevokeSessionInput) {
+    return this.sessionService.revokeSession(input);
   }
 
   async requestEmailVerification(input: RequestEmailVerificationInput) {
@@ -96,6 +110,10 @@ export class IdentityService {
 
   async revokeApiKey(input: RevokeApiKeyInput) {
     return this.apiKeyLifecycleService.revokeApiKey(input);
+  }
+
+  async rotateApiKey(input: RotateApiKeyInput) {
+    return this.apiKeyLifecycleService.rotateApiKey(input);
   }
 
   async authenticateApiKey(input: AuthenticateApiKeyInput) {

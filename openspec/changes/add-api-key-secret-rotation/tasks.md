@@ -1,0 +1,5 @@
+- [x] add API key secret rotation to the identity lifecycle service
+- [x] add an authenticated rotate endpoint
+- [x] update OpenAPI and auth guide documentation
+- [x] add a regression test covering raw-key and HMAC invalidation after rotation
+- [x] validate the OpenSpec change

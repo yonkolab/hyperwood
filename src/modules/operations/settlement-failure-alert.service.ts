@@ -12,6 +12,8 @@ type SettlementFailureCandidate = {
   resolutionId: string;
   outcome: string;
   approvedAt: string;
+  retryEligibleAt: string;
+  thresholdMinutes: number;
 };
 
 export class SettlementFailureAlertService {
@@ -24,12 +26,12 @@ export class SettlementFailureAlertService {
    * `await settlementFailureAlertService.scan({ limit: 25 })`
    */
   async scan(input: { limit: number }) {
-    const thresholdMinutes = env.MARKET_SETTLEMENT_FAILURE_MINUTES;
-    const thresholdDate = new Date(Date.now() - thresholdMinutes * 60_000);
     const stalledSettlements = await this.listStalledSettlements({
       limit: input.limit,
-      thresholdDate,
     });
+    const thresholdMinutes =
+      stalledSettlements[0]?.thresholdMinutes ??
+      env.MARKET_SETTLEMENT_FAILURE_MINUTES;
 
     let alertsCreated = 0;
 
@@ -63,10 +65,10 @@ export class SettlementFailureAlertService {
     };
   }
 
-  private async listStalledSettlements(input: {
-    limit: number;
-    thresholdDate: Date;
-  }) {
+  async listStalledSettlements(input: { limit: number; thresholdDate?: Date }) {
+    const thresholdMinutes = env.MARKET_SETTLEMENT_FAILURE_MINUTES;
+    const thresholdDate =
+      input.thresholdDate ?? new Date(Date.now() - thresholdMinutes * 60_000);
     const rows = await db
       .select({
         marketId: markets.id,
@@ -84,7 +86,7 @@ export class SettlementFailureAlertService {
         and(
           eq(markets.status, 'awaiting_resolution'),
           isNull(marketSettlements.id),
-          lte(marketResolutions.approvedAt, input.thresholdDate),
+          lte(marketResolutions.approvedAt, thresholdDate),
         ),
       )
       .limit(Math.min(input.limit, 100));
@@ -98,6 +100,10 @@ export class SettlementFailureAlertService {
         resolutionId: row.resolutionId,
         outcome: row.outcome,
         approvedAt: row.approvedAt.toISOString(),
+        retryEligibleAt: new Date(
+          row.approvedAt.getTime() + thresholdMinutes * 60_000,
+        ).toISOString(),
+        thresholdMinutes,
       }),
     );
   }

@@ -14,6 +14,8 @@ import {
   loginBodySchema,
   registerBodySchema,
   requestEmailVerificationBodySchema,
+  rotateApiKeyBodySchema,
+  sessionParamsSchema,
   verifyEmailBodySchema,
   verifyTotpLoginBodySchema,
 } from './schema';
@@ -182,6 +184,37 @@ async function identityRoutes(
     return { user };
   });
 
+  app.get('/auth/sessions', async (request) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+
+    return identityService.listSessions(user.id, sessionToken);
+  });
+
+  app.delete('/auth/sessions/current', async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const session = await identityService.getSessionFromToken(sessionToken);
+    const result = await identityService.revokeSession({
+      userId: user.id,
+      sessionId: session.id,
+    });
+
+    reply.send(result);
+  });
+
+  app.delete('/auth/sessions/:sessionId', async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const params = sessionParamsSchema.parse(request.params);
+    const result = await identityService.revokeSession({
+      userId: user.id,
+      sessionId: params.sessionId,
+    });
+
+    reply.send(result);
+  });
+
   app.post('/auth/api-keys', async (request, reply) => {
     const body = createApiKeyBodySchema.parse(request.body);
     const sessionToken = getSessionTokenFromRequest(request);
@@ -231,6 +264,21 @@ async function identityRoutes(
     const user = await identityService.getUserFromSessionToken(sessionToken);
     const params = apiKeyParamsSchema.parse(request.params);
     const result = await identityService.revokeApiKey({
+      userId: user.id,
+      apiKeyId: params.apiKeyId,
+      mfaAuthorizationToken:
+        getOptionalMfaActionAuthorizationTokenFromRequest(request),
+    });
+
+    reply.send(result);
+  });
+
+  app.post('/auth/api-keys/:apiKeyId/rotate', async (request, reply) => {
+    const sessionToken = getSessionTokenFromRequest(request);
+    const user = await identityService.getUserFromSessionToken(sessionToken);
+    const params = apiKeyParamsSchema.parse(request.params);
+    rotateApiKeyBodySchema.parse(request.body ?? {});
+    const result = await identityService.rotateApiKey({
       userId: user.id,
       apiKeyId: params.apiKeyId,
       mfaAuthorizationToken:

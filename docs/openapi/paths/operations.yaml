@@ -9,7 +9,7 @@ reviews:
       - $ref: ../components/parameters/common.yaml#/Limit25
     responses:
       '200':
-        description: Withdrawal review queue and reconciliation investigation queue.
+        description: KYC reviews, flagged accounts, withdrawal reviews, reconciliation investigations, and settlement retry queue.
         content:
           application/json:
             schema:
@@ -189,6 +189,44 @@ settlementFailureScan:
               $ref: ../components/schemas/operations.yaml#/SettlementFailureScanResponse
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
+
+settlementRetry:
+  post:
+    operationId: retryMarketSettlement
+    tags: [Operations, Internal]
+    summary: Retry settlement for a resolved market
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              requestedBy:
+                type: string
+                minLength: 1
+                maxLength: 128
+    responses:
+      '200':
+        description: Market was already settled before the retry request.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/SettleMarketResponse
+      '201':
+        description: Settlement retry completed successfully.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/SettleMarketResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
 
 tradingConditionScan:
   post:

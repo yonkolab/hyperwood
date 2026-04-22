@@ -140,6 +140,60 @@ AuthMeResponse:
     user:
       $ref: ./common.yaml#/User
 
+SessionSummary:
+  type: object
+  required: [id, current, expiresAt, ipAddress, userAgent, lastSeenAt, revokedAt, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    current:
+      type: boolean
+    expiresAt:
+      type: string
+      format: date-time
+    ipAddress:
+      type: string
+      nullable: true
+    userAgent:
+      type: string
+      nullable: true
+    lastSeenAt:
+      type: string
+      format: date-time
+    revokedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+
+SessionListResponse:
+  type: object
+  required: [sessions]
+  properties:
+    sessions:
+      type: array
+      items:
+        $ref: '#/SessionSummary'
+
+RevokeSessionResponse:
+  type: object
+  required: [sessionId, revoked, alreadyRevoked]
+  properties:
+    sessionId:
+      type: string
+      format: uuid
+    revoked:
+      type: boolean
+      enum: [true]
+    alreadyRevoked:
+      type: boolean
+    revokedAt:
+      type: string
+      format: date-time
+
 CreateApiKeyRequest:
   type: object
   required: [scopes]
@@ -164,6 +218,29 @@ CreateApiKeyResponse:
       type: array
       items:
         type: string
+
+RotateApiKeyRequest:
+  type: object
+  additionalProperties: false
+
+RotateApiKeyResponse:
+  type: object
+  required: [apiKeyId, apiKey, keyPrefix, scopes, rotatedAt]
+  properties:
+    apiKeyId:
+      type: string
+      format: uuid
+    apiKey:
+      type: string
+    keyPrefix:
+      type: string
+    scopes:
+      type: array
+      items:
+        type: string
+    rotatedAt:
+      type: string
+      format: date-time
 
 ApiKeySummary:
   type: object

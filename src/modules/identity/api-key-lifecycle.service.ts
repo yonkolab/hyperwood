@@ -6,7 +6,11 @@ import { createOpaqueToken, sha256Hex } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
 import { encryptString } from '../../lib/secrets';
 import { requireSensitiveActionAuthorization } from './identity-workflow-support';
-import type { CreateApiKeyInput, RevokeApiKeyInput } from './types';
+import type {
+  CreateApiKeyInput,
+  RevokeApiKeyInput,
+  RotateApiKeyInput,
+} from './types';
 
 export class ApiKeyLifecycleService {
   async createApiKey(input: CreateApiKeyInput) {
@@ -116,6 +120,65 @@ export class ApiKeyLifecycleService {
         ...apiKey,
         revokedAt: apiKey.revokedAt ?? new Date(),
       },
+    };
+  }
+
+  async rotateApiKey(input: RotateApiKeyInput) {
+    await requireSensitiveActionAuthorization({
+      userId: input.userId,
+      action: 'api_keys_manage',
+      authorizationToken: input.mfaAuthorizationToken,
+    });
+
+    const rows = await db
+      .select({
+        id: apiKeys.id,
+        userId: apiKeys.userId,
+        keyPrefix: apiKeys.keyPrefix,
+        scopes: apiKeys.scopes,
+        revokedAt: apiKeys.revokedAt,
+      })
+      .from(apiKeys)
+      .where(
+        and(eq(apiKeys.id, input.apiKeyId), eq(apiKeys.userId, input.userId)),
+      )
+      .limit(1);
+    const apiKey = rows[0];
+
+    if (!apiKey) {
+      throw new AppError(
+        404,
+        'api_key_not_found',
+        `api key was not found for id ${input.apiKeyId}`,
+      );
+    }
+
+    if (apiKey.revokedAt) {
+      throw new AppError(
+        409,
+        'api_key_revoked',
+        `api key ${apiKey.keyPrefix} is revoked and cannot be rotated`,
+      );
+    }
+
+    const secret = createOpaqueToken(32);
+    const rawApiKey = `${apiKey.keyPrefix}.${secret}`;
+    const rotatedAt = new Date();
+
+    await db
+      .update(apiKeys)
+      .set({
+        secretHash: sha256Hex(rawApiKey),
+        secretEncrypted: encryptString(secret, env.API_KEY_ENCRYPTION_KEY),
+      })
+      .where(eq(apiKeys.id, apiKey.id));
+
+    return {
+      apiKeyId: apiKey.id,
+      apiKey: rawApiKey,
+      keyPrefix: apiKey.keyPrefix,
+      scopes: apiKey.scopes,
+      rotatedAt,
     };
   }
 }

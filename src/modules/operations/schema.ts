@@ -35,6 +35,14 @@ export const settlementFailureScanBodySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(25),
 });
 
+export const settlementRetryParamsSchema = z.object({
+  marketId: z.string().uuid(),
+});
+
+export const settlementRetryBodySchema = z.object({
+  requestedBy: z.string().trim().min(1).max(128).optional(),
+});
+
 export const tradingConditionScanBodySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(25),
 });

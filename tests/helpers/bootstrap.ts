@@ -38,6 +38,34 @@ export async function upsertApprovedComplianceProfile(
   };
 }
 
+export async function applyAccountRestriction(
+  app: FastifyInstance,
+  userId: string,
+  overrides: Partial<{
+    scope: 'all' | 'trading' | 'funding' | 'withdrawal';
+    reason: string;
+    source: 'system' | 'provider' | 'admin';
+    expiresAt: string;
+  }> = {},
+) {
+  const response = await app.inject({
+    method: 'POST',
+    url: `/api/v1/internal/compliance/users/${userId}/restrictions`,
+    headers: bootstrapHeaders(),
+    payload: {
+      scope: 'all',
+      reason: 'Manual review required.',
+      source: 'admin',
+      ...overrides,
+    },
+  });
+
+  return {
+    response,
+    body: response.json(),
+  };
+}
+
 export async function linkFundingMethod(
   app: FastifyInstance,
   userId: string,

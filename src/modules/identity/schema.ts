@@ -45,6 +45,12 @@ export const createApiKeyBodySchema = z.object({
   scopes: z.array(z.string().min(1)).min(1),
 });
 
+export const rotateApiKeyBodySchema = z.object({});
+
 export const apiKeyParamsSchema = z.object({
   apiKeyId: z.string().uuid(),
+});
+
+export const sessionParamsSchema = z.object({
+  sessionId: z.string().uuid(),
 });

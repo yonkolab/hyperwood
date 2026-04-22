@@ -45,6 +45,12 @@ export type RevokeApiKeyInput = {
   mfaAuthorizationToken: string | undefined;
 };
 
+export type RotateApiKeyInput = {
+  userId: string;
+  apiKeyId: string;
+  mfaAuthorizationToken: string | undefined;
+};
+
 export type AuthenticateApiKeyInput = {
   rawApiKey: string;
   requiredScopes?: string[];
@@ -89,4 +95,9 @@ export type AuthorizeSensitiveActionWithTotpInput = {
   userId: string;
   action: SensitiveAction;
   code: string;
+};
+
+export type RevokeSessionInput = {
+  userId: string;
+  sessionId: string;
 };

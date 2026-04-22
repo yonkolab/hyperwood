@@ -1,0 +1,5 @@
+- [x] add settlement retry items to the operations review queue
+- [x] add an internal settlement retry endpoint in operations routes
+- [x] document the new queue item and retry endpoint in OpenAPI and guides
+- [x] add API tests for review listing and settlement retry execution
+- [x] validate the new OpenSpec change

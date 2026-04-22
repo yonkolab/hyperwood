@@ -188,6 +188,9 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `POST /api/v1/auth/mfa/totp/verify`
 - `POST /api/v1/auth/mfa/totp/authorize`
 - `GET /api/v1/auth/me`
+- `GET /api/v1/auth/sessions`
+- `DELETE /api/v1/auth/sessions/current`
+- `DELETE /api/v1/auth/sessions/:sessionId`
 - `GET /api/v1/compliance/me/capabilities`
 - `GET /api/v1/funding/methods`
 - `GET /api/v1/exchange/schedule`
@@ -225,6 +228,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/auth/api-key/me`
 - `GET /api/v1/auth/api-key/hmac/me`
 - `DELETE /api/v1/auth/api-keys/:apiKeyId`
+- `POST /api/v1/auth/api-keys/:apiKeyId/rotate`
 - `POST /api/v1/auth/mfa/totp/setup`
 - `POST /api/v1/auth/mfa/totp/confirm`
 - `POST /api/v1/internal/auth/link-existing-user`
@@ -247,6 +251,7 @@ The first identity migration already exists under `drizzle/migrations/` and crea
 - `GET /api/v1/internal/operations/alerts`
 - `POST /api/v1/internal/operations/ledger-invariant-scan`
 - `POST /api/v1/internal/operations/settlement-failure-scan`
+- `POST /api/v1/internal/operations/settlement-retries/:marketId`
 - `POST /api/v1/internal/operations/trading-condition-scan`
 - `POST /api/v1/internal/operations/realtime-stream-health-scan`
 - `POST /api/v1/internal/markets/events`

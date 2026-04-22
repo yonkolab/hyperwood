@@ -1,0 +1,5 @@
+- [x] Add authenticated session listing endpoint.
+- [x] Add current-session revocation endpoint.
+- [x] Add targeted session revocation endpoint.
+- [x] Document the session-management surface in OpenAPI and guides.
+- [x] Add API coverage for listing and revoking sessions.

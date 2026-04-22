@@ -48,6 +48,7 @@ The ledger invariant scan currently flags:
 The settlement failure scan currently flags:
 
 - resolved markets still waiting for settlement beyond `MARKET_SETTLEMENT_FAILURE_MINUTES`
+- those markets also appear in the operations review queue and can be retried through `POST /api/v1/internal/operations/settlement-retries/:marketId`
 
 The trading-condition scan currently flags:
 
