@@ -45,6 +45,26 @@ The system MUST provide operational review workflows for KYC cases, flagged acco
 - **WHEN** a withdrawal request matches a review policy or manual hold
 - **THEN** the system exposes the request in an administrative review queue with supporting risk context
 
+#### Scenario: Pending or non-approved KYC case appears in the review queue
+- **WHEN** an internal operator queries the review queue
+- **AND** a user has a compliance profile whose KYC status is not approved or whose sanctions status is not clear
+- **THEN** the response includes a KYC review item with user and profile context
+
+#### Scenario: Unresolved account restriction appears in the review queue
+- **WHEN** an internal operator queries the review queue
+- **AND** a user has an unresolved account restriction
+- **THEN** the response includes a flagged-account review item with restriction scope, source, reason, and user context
+
+#### Scenario: Resolved market enters settlement retry queue
+- **WHEN** a market has been resolved but remains unsettled beyond the configured settlement failure threshold
+- **THEN** the system exposes the market in the internal operations review queue with the resolution, timing, and retry context needed for an operator to act
+
+#### Scenario: Operator retries a stalled market settlement
+- **WHEN** an authorized internal operator submits a settlement retry for a resolved market that remains unsettled
+- **THEN** the system reuses the normal settlement workflow
+- **AND** records an audit event for the retry request
+- **AND** returns the settlement result or a domain error if the market is not retryable
+
 ### Requirement: Auditable administrative actions
 The system SHALL record immutable audit events for sensitive administrative actions affecting users, balances, markets, or compliance outcomes.
 

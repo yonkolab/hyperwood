@@ -7,6 +7,41 @@ Define the platform-level security, auditability, logging, metrics, and alerting
 ### Requirement: API and credential security controls
 The system MUST support MFA, strong session management, scoped secrets, secret rotation, signed provider webhooks, and rate limiting for external access paths.
 
+#### Scenario: User lists active sessions
+- **WHEN** an authenticated user requests their session list
+- **THEN** the system returns session records owned by that user ordered from newest to oldest
+- **AND** the currently presented session is identified in the response
+
+#### Scenario: User revokes the current session
+- **WHEN** an authenticated user revokes the current session
+- **THEN** the system marks that session revoked
+- **AND** the same bearer token is rejected on subsequent authenticated requests
+
+#### Scenario: User revokes a specific session
+- **WHEN** an authenticated user revokes another owned session by session id
+- **THEN** the system marks that session revoked
+- **AND** no other user's session can be revoked through that path
+
+#### Scenario: Idle session is rejected
+- **WHEN** a bearer session exceeds the configured inactivity timeout
+- **THEN** the system rejects further use of that session
+- **AND** the session listing surface reflects inactivity expiry information
+
+#### Scenario: Authenticated session activity refreshes last seen time
+- **WHEN** a valid bearer session is used on an authenticated endpoint
+- **THEN** the system refreshes the session activity timestamp according to policy
+
+#### Scenario: Authenticated user rotates an API key secret
+- **WHEN** an authenticated user requests rotation for an owned API key
+- **THEN** the system preserves the key identity and scopes
+- **AND** replaces the underlying secret material
+- **AND** returns the new raw key exactly once
+
+#### Scenario: Rotated API key invalidates previous secret material
+- **WHEN** an API key secret has been rotated
+- **THEN** the previous raw API key is rejected
+- **AND** HMAC signatures produced with the previous secret are rejected
+
 #### Scenario: Signed webhook is verified
 - **WHEN** a provider callback is received on a signed webhook endpoint
 - **THEN** the system verifies the signature before applying side effects
@@ -60,6 +95,12 @@ The system MUST alert operators on balance invariant failures, settlement failur
 - **WHEN** monitoring detects a provider-backed funding transfer that has exceeded the configured callback delay threshold without reaching a terminal state
 - **THEN** the system creates a persisted operational alert linked to that transfer
 - **AND** operators can query the alert through an internal operations endpoint
+
+#### Scenario: Stale realtime stream triggers alert
+- **WHEN** an internal operator runs a realtime stream health scan
+- **AND** the scan detects a public or private realtime subscription whose last delivery exceeds the configured staleness threshold
+- **THEN** the system creates a persisted critical operational alert for that subscription
+- **AND** the scan response returns the stale stream details and the number of newly created alerts
 
 ### Requirement: Internal ledger invariant scans create alerts
 The system MUST provide an internal scan path that detects ledger invariant failures and persists operational alerts for the offending source records.

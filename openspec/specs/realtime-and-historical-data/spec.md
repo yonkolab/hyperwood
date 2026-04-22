@@ -60,6 +60,21 @@ The system SHALL expose historical data through dedicated historical access path
 - **THEN** the live market trades path rejects the request in favor of a historical path
 - **AND** the dedicated historical trades path returns the archived trades for that market
 
+#### Scenario: User requests historical account orders
+- **WHEN** an authenticated user requests the historical account orders path for a supported currency
+- **THEN** the system returns the user's order history ordered from newest to oldest
+- **AND** each record includes market and order state details needed for historical review
+
+#### Scenario: User requests historical account fills
+- **WHEN** an authenticated user requests the historical account fills path for a supported currency
+- **THEN** the system returns the user's fill history through a dedicated historical route
+- **AND** no other user's account history is exposed
+
+#### Scenario: Archived market candles are served through a historical path
+- **WHEN** a client requests candles for an archived market
+- **THEN** the system returns bucketed OHLCV candles derived from archived trades
+- **AND** the response identifies the requested interval and archived market scope
+
 ### Requirement: Historical exports and retention
 The system MUST support archival policies, historical exports, and retained order book or candlestick data suitable for compliance and analytics use cases.
 
