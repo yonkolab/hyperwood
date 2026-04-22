@@ -1,13 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  FastifyInstance,
-  FastifyPluginOptions,
-  FastifyRequest,
-} from 'fastify';
-import { env } from '../../config/env';
-import { AppError } from '../../lib/errors';
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { logWorkflowEvent } from '../../lib/observability';
 import { FundingService } from '../funding/service';
+import { requireInternalAuth } from '../identity/auth-guards';
 import { MatchingService } from '../matching/service';
 import { accountRealtimeService } from '../portfolio/account-realtime.service';
 import { PortfolioService } from '../portfolio/service';
@@ -61,18 +56,6 @@ async function publishStatusChange(
   });
 }
 
-function assertBootstrapToken(request: FastifyRequest) {
-  const bootstrapToken = request.headers['x-bootstrap-token'];
-
-  if (bootstrapToken !== env.INTERNAL_BOOTSTRAP_TOKEN) {
-    throw new AppError(
-      401,
-      'invalid_bootstrap_token',
-      'invalid bootstrap token',
-    );
-  }
-}
-
 async function marketRoutes(
   app: FastifyInstance,
   _options: FastifyPluginOptions,
@@ -81,6 +64,7 @@ async function marketRoutes(
   const matchingService = new MatchingService();
   const fundingService = new FundingService();
   const portfolioService = new PortfolioService();
+  const requireInternal = requireInternalAuth();
 
   app.get('/markets', async (request) => {
     const query = listMarketsQuerySchema.parse(request.query);
@@ -203,127 +187,141 @@ async function marketRoutes(
     return marketsService.listMarketAnnouncements(params.marketId);
   });
 
-  app.post('/internal/markets/events', async (request, reply) => {
-    assertBootstrapToken(request);
-    const body = createEventBodySchema.parse(request.body);
-    const result = await marketsService.createEvent({
-      slug: body.slug,
-      title: body.title,
-      category: body.category,
-      ...(body.summary ? { summary: body.summary } : {}),
-      ...(body.startsAt ? { startsAt: new Date(body.startsAt) } : {}),
-      ...(body.endsAt ? { endsAt: new Date(body.endsAt) } : {}),
-    });
-
-    reply.status(201).send(result);
-  });
-
-  app.post('/internal/markets', async (request, reply) => {
-    assertBootstrapToken(request);
-    const body = createMarketBodySchema.parse(request.body);
-    const result = await marketsService.createMarket({
-      eventId: body.eventId,
-      slug: body.slug,
-      title: body.title,
-      currency: body.currency,
-      status: body.status,
-      resolutionRules: body.resolutionRules,
-      yesPriceBps: body.yesPriceBps,
-      noPriceBps: body.noPriceBps,
-      ...(body.summary ? { summary: body.summary } : {}),
-      ...(body.tags ? { tags: body.tags } : {}),
-      ...(body.resolutionSources
-        ? { resolutionSources: body.resolutionSources }
-        : {}),
-      ...(body.volumeUsdMinor !== undefined
-        ? { volumeUsdMinor: body.volumeUsdMinor }
-        : {}),
-      ...(body.opensAt ? { opensAt: new Date(body.opensAt) } : {}),
-      ...(body.closesAt ? { closesAt: new Date(body.closesAt) } : {}),
-      ...(body.resolvesAt ? { resolvesAt: new Date(body.resolvesAt) } : {}),
-    });
-
-    reply.status(201).send(result);
-  });
-
-  app.post('/internal/markets/:marketId/match', async (request) => {
-    assertBootstrapToken(request);
-    const params = marketParamsSchema.parse(request.params);
-    const result = await matchingService.runLimitOrderMatching(params.marketId);
-
-    logWorkflowEvent(request, 'matching.run.completed', {
-      marketId: result.marketId,
-      matchedTradeCount: result.summary.matchedTradeCount,
-      touchedOrderCount: result.summary.touchedOrderCount,
-      latestSequence: result.summary.latestSequence,
-    });
-
-    if (result.trades.length > 0) {
-      marketRealtimeService.publish({
-        marketId: result.marketId,
-        type: 'trade_batch',
-        data: {
-          trades: result.trades,
-          latestSequence: result.summary.latestSequence,
-        },
+  app.post(
+    '/internal/markets/events',
+    { preHandler: requireInternal },
+    async (request, reply) => {
+      const body = createEventBodySchema.parse(request.body);
+      const result = await marketsService.createEvent({
+        slug: body.slug,
+        title: body.title,
+        category: body.category,
+        ...(body.summary ? { summary: body.summary } : {}),
+        ...(body.startsAt ? { startsAt: new Date(body.startsAt) } : {}),
+        ...(body.endsAt ? { endsAt: new Date(body.endsAt) } : {}),
       });
-      await publishOrderBookUpdate(
-        marketsService,
-        result.marketId,
-        'matching_completed',
+
+      reply.status(201).send(result);
+    },
+  );
+
+  app.post(
+    '/internal/markets',
+    { preHandler: requireInternal },
+    async (request, reply) => {
+      const body = createMarketBodySchema.parse(request.body);
+      const result = await marketsService.createMarket({
+        eventId: body.eventId,
+        slug: body.slug,
+        title: body.title,
+        currency: body.currency,
+        status: body.status,
+        resolutionRules: body.resolutionRules,
+        yesPriceBps: body.yesPriceBps,
+        noPriceBps: body.noPriceBps,
+        ...(body.summary ? { summary: body.summary } : {}),
+        ...(body.tags ? { tags: body.tags } : {}),
+        ...(body.resolutionSources
+          ? { resolutionSources: body.resolutionSources }
+          : {}),
+        ...(body.volumeUsdMinor !== undefined
+          ? { volumeUsdMinor: body.volumeUsdMinor }
+          : {}),
+        ...(body.opensAt ? { opensAt: new Date(body.opensAt) } : {}),
+        ...(body.closesAt ? { closesAt: new Date(body.closesAt) } : {}),
+        ...(body.resolvesAt ? { resolvesAt: new Date(body.resolvesAt) } : {}),
+      });
+
+      reply.status(201).send(result);
+    },
+  );
+
+  app.post(
+    '/internal/markets/:marketId/match',
+    { preHandler: requireInternal },
+    async (request) => {
+      const params = marketParamsSchema.parse(request.params);
+      const result = await matchingService.runLimitOrderMatching(
+        params.marketId,
       );
 
-      const affectedUsers = Array.from(
-        new Map(
-          result.orders.map((order) => [
-            order.userId,
-            { userId: order.userId, currency: order.currency as 'USD' | 'BRL' },
-          ]),
-        ).values(),
-      );
+      logWorkflowEvent(request, 'matching.run.completed', {
+        marketId: result.marketId,
+        matchedTradeCount: result.summary.matchedTradeCount,
+        touchedOrderCount: result.summary.touchedOrderCount,
+        latestSequence: result.summary.latestSequence,
+      });
 
-      for (const affectedUser of affectedUsers) {
-        const [fills, balance] = await Promise.all([
-          portfolioService.listFills(
-            affectedUser.userId,
-            20,
-            affectedUser.currency,
-          ),
-          fundingService.getWalletBalance(
-            affectedUser.userId,
-            affectedUser.currency,
-          ),
-        ]);
-
-        accountRealtimeService.publish({
-          userId: affectedUser.userId,
-          currency: affectedUser.currency,
-          type: 'fill_batch',
+      if (result.trades.length > 0) {
+        marketRealtimeService.publish({
+          marketId: result.marketId,
+          type: 'trade_batch',
           data: {
-            marketId: result.marketId,
             trades: result.trades,
-            fills: fills.fills,
+            latestSequence: result.summary.latestSequence,
           },
         });
-        accountRealtimeService.publish({
-          userId: affectedUser.userId,
-          currency: affectedUser.currency,
-          type: 'balance_updated',
-          data: {
-            trigger: 'matching_completed',
-            balance,
-          },
-        });
-      }
-    }
+        await publishOrderBookUpdate(
+          marketsService,
+          result.marketId,
+          'matching_completed',
+        );
 
-    return result;
-  });
+        const affectedUsers = Array.from(
+          new Map(
+            result.orders.map((order) => [
+              order.userId,
+              {
+                userId: order.userId,
+                currency: order.currency as 'USD' | 'BRL',
+              },
+            ]),
+          ).values(),
+        );
+
+        for (const affectedUser of affectedUsers) {
+          const [fills, balance] = await Promise.all([
+            portfolioService.listFills(
+              affectedUser.userId,
+              20,
+              affectedUser.currency,
+            ),
+            fundingService.getWalletBalance(
+              affectedUser.userId,
+              affectedUser.currency,
+            ),
+          ]);
+
+          accountRealtimeService.publish({
+            userId: affectedUser.userId,
+            currency: affectedUser.currency,
+            type: 'fill_batch',
+            data: {
+              marketId: result.marketId,
+              trades: result.trades,
+              fills: fills.fills,
+            },
+          });
+          accountRealtimeService.publish({
+            userId: affectedUser.userId,
+            currency: affectedUser.currency,
+            type: 'balance_updated',
+            data: {
+              trigger: 'matching_completed',
+              balance,
+            },
+          });
+        }
+      }
+
+      return result;
+    },
+  );
 
   app.post(
     '/internal/markets/:marketId/announcements',
+    { preHandler: requireInternal },
     async (request, reply) => {
-      assertBootstrapToken(request);
       const params = marketParamsSchema.parse(request.params);
       const body = publishMarketAnnouncementBodySchema.parse(request.body);
       const result = await marketsService.publishMarketAnnouncement(
@@ -354,112 +352,121 @@ async function marketRoutes(
     },
   );
 
-  app.post('/internal/markets/:marketId/status', async (request, reply) => {
-    assertBootstrapToken(request);
-    const params = marketParamsSchema.parse(request.params);
-    const body = updateMarketStatusBodySchema.parse(request.body);
-    const result = await marketsService.updateMarketStatus(params.marketId, {
-      status: body.status,
-      reason: body.reason,
-      ...(body.changedBy ? { changedBy: body.changedBy } : {}),
-    });
-
-    logWorkflowEvent(request, 'market.status_updated', {
-      marketId: result.market.id,
-      status: result.market.status,
-      alreadyApplied: result.alreadyApplied,
-      transitionId: result.transition?.id ?? null,
-    });
-
-    await publishStatusChange(
-      marketsService,
-      result.market.id,
-      'market_status_updated',
-    );
-
-    reply.status(200).send(result);
-  });
-
-  app.post('/internal/markets/:marketId/resolve', async (request, reply) => {
-    assertBootstrapToken(request);
-    const params = marketParamsSchema.parse(request.params);
-    const body = resolveMarketBodySchema.parse(request.body);
-    const result = await marketsService.resolveMarket(params.marketId, {
-      outcome: body.outcome,
-      evidenceSummary: body.evidenceSummary,
-      ...(body.evidenceSources
-        ? { evidenceSources: body.evidenceSources }
-        : {}),
-      ...(body.approvedBy ? { approvedBy: body.approvedBy } : {}),
-    });
-
-    logWorkflowEvent(request, 'market.resolution.recorded', {
-      marketId: result.market.id,
-      resolutionId: result.resolution.id,
-      outcome: result.resolution.outcome,
-      status: result.market.status,
-    });
-
-    await publishStatusChange(
-      marketsService,
-      result.market.id,
-      'market_resolved',
-    );
-
-    reply.status(200).send(result);
-  });
-
-  app.post('/internal/markets/:marketId/settle', async (request, reply) => {
-    assertBootstrapToken(request);
-    const params = marketParamsSchema.parse(request.params);
-    const result = await marketsService.settleMarket(params.marketId);
-
-    logWorkflowEvent(request, 'market.settlement.completed', {
-      marketId: result.marketId,
-      settlementId: result.settlement.id,
-      alreadySettled: result.alreadySettled,
-      outcome: result.resolution.outcome,
-      payoutCount: result.payouts.length,
-      totalPayoutMinor: result.settlement.totalPayoutMinor,
-    });
-
-    await publishStatusChange(
-      marketsService,
-      result.marketId,
-      'market_settled',
-    );
-
-    for (const payout of result.payouts) {
-      const currency = payout.currency as 'USD' | 'BRL';
-      const [settlements, balance] = await Promise.all([
-        portfolioService.listSettlements(payout.userId, 20, currency),
-        fundingService.getWalletBalance(payout.userId, currency),
-      ]);
-
-      accountRealtimeService.publish({
-        userId: payout.userId,
-        currency,
-        type: 'settlement_updated',
-        data: {
-          marketId: result.marketId,
-          settlement: result.settlement,
-          payout,
-          settlements: settlements.settlements,
-        },
+  app.post(
+    '/internal/markets/:marketId/status',
+    { preHandler: requireInternal },
+    async (request, reply) => {
+      const params = marketParamsSchema.parse(request.params);
+      const body = updateMarketStatusBodySchema.parse(request.body);
+      const result = await marketsService.updateMarketStatus(params.marketId, {
+        status: body.status,
+        reason: body.reason,
+        ...(body.changedBy ? { changedBy: body.changedBy } : {}),
       });
-      accountRealtimeService.publish({
-        userId: payout.userId,
-        currency,
-        type: 'balance_updated',
-        data: {
-          trigger: 'market_settled',
-          balance,
-        },
-      });
-    }
 
-    reply.status(result.alreadySettled ? 200 : 201).send(result);
-  });
+      logWorkflowEvent(request, 'market.status_updated', {
+        marketId: result.market.id,
+        status: result.market.status,
+        alreadyApplied: result.alreadyApplied,
+        transitionId: result.transition?.id ?? null,
+      });
+
+      await publishStatusChange(
+        marketsService,
+        result.market.id,
+        'market_status_updated',
+      );
+
+      reply.status(200).send(result);
+    },
+  );
+
+  app.post(
+    '/internal/markets/:marketId/resolve',
+    { preHandler: requireInternal },
+    async (request, reply) => {
+      const params = marketParamsSchema.parse(request.params);
+      const body = resolveMarketBodySchema.parse(request.body);
+      const result = await marketsService.resolveMarket(params.marketId, {
+        outcome: body.outcome,
+        evidenceSummary: body.evidenceSummary,
+        ...(body.evidenceSources
+          ? { evidenceSources: body.evidenceSources }
+          : {}),
+        ...(body.approvedBy ? { approvedBy: body.approvedBy } : {}),
+      });
+
+      logWorkflowEvent(request, 'market.resolution.recorded', {
+        marketId: result.market.id,
+        resolutionId: result.resolution.id,
+        outcome: result.resolution.outcome,
+        status: result.market.status,
+      });
+
+      await publishStatusChange(
+        marketsService,
+        result.market.id,
+        'market_resolved',
+      );
+
+      reply.status(200).send(result);
+    },
+  );
+
+  app.post(
+    '/internal/markets/:marketId/settle',
+    { preHandler: requireInternal },
+    async (request, reply) => {
+      const params = marketParamsSchema.parse(request.params);
+      const result = await marketsService.settleMarket(params.marketId);
+
+      logWorkflowEvent(request, 'market.settlement.completed', {
+        marketId: result.marketId,
+        settlementId: result.settlement.id,
+        alreadySettled: result.alreadySettled,
+        outcome: result.resolution.outcome,
+        payoutCount: result.payouts.length,
+        totalPayoutMinor: result.settlement.totalPayoutMinor,
+      });
+
+      await publishStatusChange(
+        marketsService,
+        result.marketId,
+        'market_settled',
+      );
+
+      for (const payout of result.payouts) {
+        const currency = payout.currency as 'USD' | 'BRL';
+        const [settlements, balance] = await Promise.all([
+          portfolioService.listSettlements(payout.userId, 20, currency),
+          fundingService.getWalletBalance(payout.userId, currency),
+        ]);
+
+        accountRealtimeService.publish({
+          userId: payout.userId,
+          currency,
+          type: 'settlement_updated',
+          data: {
+            marketId: result.marketId,
+            settlement: result.settlement,
+            payout,
+            settlements: settlements.settlements,
+          },
+        });
+        accountRealtimeService.publish({
+          userId: payout.userId,
+          currency,
+          type: 'balance_updated',
+          data: {
+            trigger: 'market_settled',
+            balance,
+          },
+        });
+      }
+
+      reply.status(result.alreadySettled ? 200 : 201).send(result);
+    },
+  );
 }
 
 export async function registerMarketRoutes(

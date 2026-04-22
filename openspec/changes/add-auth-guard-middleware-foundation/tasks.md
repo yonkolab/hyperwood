@@ -1,0 +1,5 @@
+- [x] Add shared session and internal auth guards.
+- [x] Add typed request auth context for Fastify handlers.
+- [x] Add shared step-up token capture for MFA-gated session routes.
+- [x] Migrate existing session and internal route modules to the new guards.
+- [x] Add regression coverage for the shared auth guard behavior.

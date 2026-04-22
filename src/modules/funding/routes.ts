@@ -10,6 +10,11 @@ import { fundingTransfers } from '../../db/schema';
 import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
 import { verifyFundingWebhookSignature } from '../../lib/webhooks';
+import {
+  getSessionAuthContext,
+  requireInternalAuth,
+  requireSessionAuth,
+} from '../identity/auth-guards';
 import { IdentityService } from '../identity/service';
 import { accountRealtimeService } from '../portfolio/account-realtime.service';
 import {
@@ -33,28 +38,6 @@ import {
 import { FundingService } from './service';
 
 type FundingCurrency = 'USD' | 'BRL';
-
-function getSessionTokenFromRequest(request: FastifyRequest) {
-  const header = request.headers.authorization;
-
-  if (!header?.startsWith('Bearer ')) {
-    throw new AppError(401, 'missing_session', 'missing bearer session token');
-  }
-
-  return header.slice('Bearer '.length);
-}
-
-function assertBootstrapToken(request: FastifyRequest) {
-  const bootstrapToken = request.headers['x-bootstrap-token'];
-
-  if (bootstrapToken !== env.INTERNAL_BOOTSTRAP_TOKEN) {
-    throw new AppError(
-      401,
-      'invalid_bootstrap_token',
-      'invalid bootstrap token',
-    );
-  }
-}
 
 function getWebhookTimestampFromRequest(request: FastifyRequest) {
   const header = request.headers['x-webhook-timestamp'];
@@ -169,109 +152,132 @@ async function fundingRoutes(
 ) {
   const identityService = new IdentityService();
   const fundingService = new FundingService();
+  const requireSession = requireSessionAuth(identityService);
+  const requireInternal = requireInternalAuth();
 
-  app.get('/funding/methods', async (request) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const query = fundingMethodsQuerySchema.parse(request.query);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
+  app.get(
+    '/funding/methods',
+    { preHandler: requireSession },
+    async (request) => {
+      const auth = getSessionAuthContext(request);
+      const query = fundingMethodsQuerySchema.parse(request.query);
 
-    return fundingService.listEligibleFundingMethods(user.id, query.currency);
-  });
+      return fundingService.listEligibleFundingMethods(
+        auth.user.id,
+        query.currency,
+      );
+    },
+  );
 
-  app.get('/wallet/balance', async (request) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const query = walletBalanceQuerySchema.parse(request.query);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
+  app.get(
+    '/wallet/balance',
+    { preHandler: requireSession },
+    async (request) => {
+      const auth = getSessionAuthContext(request);
+      const query = walletBalanceQuerySchema.parse(request.query);
 
-    return fundingService.getWalletBalance(user.id, query.currency);
-  });
+      return fundingService.getWalletBalance(auth.user.id, query.currency);
+    },
+  );
 
-  app.get('/funding/deposits', async (request) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const query = listDepositsQuerySchema.parse(request.query);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
+  app.get(
+    '/funding/deposits',
+    { preHandler: requireSession },
+    async (request) => {
+      const auth = getSessionAuthContext(request);
+      const query = listDepositsQuerySchema.parse(request.query);
 
-    return fundingService.listDeposits(user.id, {
-      limit: query.limit,
-      ...(query.currency ? { currency: query.currency } : {}),
-    });
-  });
+      return fundingService.listDeposits(auth.user.id, {
+        limit: query.limit,
+        ...(query.currency ? { currency: query.currency } : {}),
+      });
+    },
+  );
 
-  app.post('/funding/deposits', async (request, reply) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const body = createDepositBodySchema.parse(request.body);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const result = await fundingService.createDeposit({
-      userId: user.id,
-      fundingMethodId: body.fundingMethodId,
-      amountMinor: body.amountMinor,
-      currency: body.currency,
-    });
+  app.post(
+    '/funding/deposits',
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const auth = getSessionAuthContext(request);
+      const body = createDepositBodySchema.parse(request.body);
+      const result = await fundingService.createDeposit({
+        userId: auth.user.id,
+        fundingMethodId: body.fundingMethodId,
+        amountMinor: body.amountMinor,
+        currency: body.currency,
+      });
 
-    logWorkflowEvent(request, 'funding.deposit.created', {
-      userId: user.id,
-      transferId: result.deposit.id,
-      amountMinor: result.deposit.amountMinor,
-      currency: result.deposit.currency,
-      rail: result.deposit.fundingMethod.rail,
-      status: result.deposit.status,
-    });
+      logWorkflowEvent(request, 'funding.deposit.created', {
+        userId: auth.user.id,
+        transferId: result.deposit.id,
+        amountMinor: result.deposit.amountMinor,
+        currency: result.deposit.currency,
+        rail: result.deposit.fundingMethod.rail,
+        status: result.deposit.status,
+      });
 
-    await publishTransferAndBalanceEvent(fundingService, {
-      userId: user.id,
-      currency: result.deposit.currency as 'USD' | 'BRL',
-      transfer: result.deposit,
-      trigger: 'deposit_created',
-    });
+      await publishTransferAndBalanceEvent(fundingService, {
+        userId: auth.user.id,
+        currency: result.deposit.currency as 'USD' | 'BRL',
+        transfer: result.deposit,
+        trigger: 'deposit_created',
+      });
 
-    reply.status(201).send(result);
-  });
+      reply.status(201).send(result);
+    },
+  );
 
-  app.get('/funding/withdrawals', async (request) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const query = listWithdrawalsQuerySchema.parse(request.query);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
+  app.get(
+    '/funding/withdrawals',
+    { preHandler: requireSession },
+    async (request) => {
+      const auth = getSessionAuthContext(request);
+      const query = listWithdrawalsQuerySchema.parse(request.query);
 
-    return fundingService.listWithdrawals(user.id, {
-      limit: query.limit,
-      ...(query.currency ? { currency: query.currency } : {}),
-    });
-  });
+      return fundingService.listWithdrawals(auth.user.id, {
+        limit: query.limit,
+        ...(query.currency ? { currency: query.currency } : {}),
+      });
+    },
+  );
 
-  app.post('/funding/withdrawals', async (request, reply) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const body = createWithdrawalBodySchema.parse(request.body);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const result = await fundingService.createWithdrawal({
-      userId: user.id,
-      fundingMethodId: body.fundingMethodId,
-      amountMinor: body.amountMinor,
-      currency: body.currency,
-    });
+  app.post(
+    '/funding/withdrawals',
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const auth = getSessionAuthContext(request);
+      const body = createWithdrawalBodySchema.parse(request.body);
+      const result = await fundingService.createWithdrawal({
+        userId: auth.user.id,
+        fundingMethodId: body.fundingMethodId,
+        amountMinor: body.amountMinor,
+        currency: body.currency,
+      });
 
-    logWorkflowEvent(request, 'funding.withdrawal.created', {
-      userId: user.id,
-      transferId: result.withdrawal.id,
-      amountMinor: result.withdrawal.amountMinor,
-      currency: result.withdrawal.currency,
-      rail: result.withdrawal.fundingMethod.rail,
-      status: result.withdrawal.status,
-    });
+      logWorkflowEvent(request, 'funding.withdrawal.created', {
+        userId: auth.user.id,
+        transferId: result.withdrawal.id,
+        amountMinor: result.withdrawal.amountMinor,
+        currency: result.withdrawal.currency,
+        rail: result.withdrawal.fundingMethod.rail,
+        status: result.withdrawal.status,
+      });
 
-    await publishTransferAndBalanceEvent(fundingService, {
-      userId: user.id,
-      currency: result.withdrawal.currency as 'USD' | 'BRL',
-      transfer: result.withdrawal,
-      trigger: 'withdrawal_created',
-    });
+      await publishTransferAndBalanceEvent(fundingService, {
+        userId: auth.user.id,
+        currency: result.withdrawal.currency as 'USD' | 'BRL',
+        transfer: result.withdrawal,
+        trigger: 'withdrawal_created',
+      });
 
-    reply.status(201).send(result);
-  });
+      reply.status(201).send(result);
+    },
+  );
 
   app.post(
     '/internal/funding/users/:userId/methods',
+    { preHandler: requireInternal },
     async (request, reply) => {
-      assertBootstrapToken(request);
       const params = fundingUserParamsSchema.parse(request.params);
       const body = fundingMethodBodySchema.parse(request.body);
       const result = await fundingService.linkFundingMethod({
@@ -294,8 +300,8 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/users/:userId/wallet/seed',
+    { preHandler: requireInternal },
     async (request, reply) => {
-      assertBootstrapToken(request);
       const params = fundingUserParamsSchema.parse(request.params);
       const body = seedWalletBodySchema.parse(request.body);
       const result = await fundingService.seedWalletBalance({
@@ -311,8 +317,8 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/deposits/:depositId/settle',
+    { preHandler: requireInternal },
     async (request, reply) => {
-      assertBootstrapToken(request);
       const params = fundingDepositParamsSchema.parse(request.params);
       const result = await fundingService.settleDeposit(params.depositId);
 
@@ -340,8 +346,8 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/withdrawals/:withdrawalId/approve',
+    { preHandler: requireInternal },
     async (request, reply) => {
-      assertBootstrapToken(request);
       const params = fundingWithdrawalParamsSchema.parse(request.params);
       const result = await fundingService.approveWithdrawalReview(
         params.withdrawalId,
@@ -371,8 +377,8 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/withdrawals/:withdrawalId/fail',
+    { preHandler: requireInternal },
     async (request, reply) => {
-      assertBootstrapToken(request);
       const params = fundingWithdrawalParamsSchema.parse(request.params);
       const result = await fundingService.failWithdrawal(
         params.withdrawalId,
@@ -403,8 +409,8 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/withdrawals/:withdrawalId/settle',
+    { preHandler: requireInternal },
     async (request, reply) => {
-      assertBootstrapToken(request);
       const params = fundingWithdrawalParamsSchema.parse(request.params);
       const result = await fundingService.settleWithdrawal(params.withdrawalId);
 
@@ -430,52 +436,61 @@ async function fundingRoutes(
     },
   );
 
-  app.post('/internal/funding/reconciliation/runs', async (request, reply) => {
-    assertBootstrapToken(request);
-    const body = reconciliationRunBodySchema.parse(request.body);
-    const result = await fundingService.runTransferReconciliation({
-      ...(body.provider ? { provider: body.provider } : {}),
-      snapshots: body.snapshots,
-    });
+  app.post(
+    '/internal/funding/reconciliation/runs',
+    { preHandler: requireInternal },
+    async (request, reply) => {
+      const body = reconciliationRunBodySchema.parse(request.body);
+      const result = await fundingService.runTransferReconciliation({
+        ...(body.provider ? { provider: body.provider } : {}),
+        snapshots: body.snapshots,
+      });
 
-    logWorkflowEvent(request, 'funding.reconciliation.completed', {
-      runId: result.run.id,
-      scope: result.run.scope,
-      status: result.run.status,
-      discrepancyCount: result.discrepancies.length,
-      provider: result.run.provider,
-    });
+      logWorkflowEvent(request, 'funding.reconciliation.completed', {
+        runId: result.run.id,
+        scope: result.run.scope,
+        status: result.run.status,
+        discrepancyCount: result.discrepancies.length,
+        provider: result.run.provider,
+      });
 
-    reply.status(201).send(result);
-  });
+      reply.status(201).send(result);
+    },
+  );
 
-  app.get('/internal/funding/reconciliation/discrepancies', async (request) => {
-    assertBootstrapToken(request);
-    const query = reconciliationDiscrepanciesQuerySchema.parse(request.query);
+  app.get(
+    '/internal/funding/reconciliation/discrepancies',
+    { preHandler: requireInternal },
+    async (request) => {
+      const query = reconciliationDiscrepanciesQuerySchema.parse(request.query);
 
-    return fundingService.listReconciliationDiscrepancies({
-      unresolvedOnly: query.unresolvedOnly,
-      limit: query.limit,
-    });
-  });
+      return fundingService.listReconciliationDiscrepancies({
+        unresolvedOnly: query.unresolvedOnly,
+        limit: query.limit,
+      });
+    },
+  );
 
-  app.post('/internal/funding/webhook-delay-scan', async (request, reply) => {
-    assertBootstrapToken(request);
-    const body = callbackDelayScanBodySchema.parse(request.body ?? {});
-    const result = await fundingService.scanDelayedProviderCallbacks({
-      limit: body.limit,
-      ...(body.provider ? { provider: body.provider } : {}),
-    });
+  app.post(
+    '/internal/funding/webhook-delay-scan',
+    { preHandler: requireInternal },
+    async (request, reply) => {
+      const body = callbackDelayScanBodySchema.parse(request.body ?? {});
+      const result = await fundingService.scanDelayedProviderCallbacks({
+        limit: body.limit,
+        ...(body.provider ? { provider: body.provider } : {}),
+      });
 
-    logWorkflowEvent(request, 'funding.callback_delay_scan.completed', {
-      provider: body.provider ?? null,
-      delayedTransferCount: result.delayedTransfers.length,
-      alertsCreated: result.alertsCreated,
-      thresholdMinutes: result.thresholdMinutes,
-    });
+      logWorkflowEvent(request, 'funding.callback_delay_scan.completed', {
+        provider: body.provider ?? null,
+        delayedTransferCount: result.delayedTransfers.length,
+        alertsCreated: result.alertsCreated,
+        thresholdMinutes: result.thresholdMinutes,
+      });
 
-    reply.status(200).send(result);
-  });
+      reply.status(200).send(result);
+    },
+  );
 
   app.post('/webhooks/funding/providers/:provider', async (request, reply) => {
     const params = fundingWebhookProviderParamsSchema.parse(request.params);

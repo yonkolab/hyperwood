@@ -79,6 +79,7 @@ Useful commands:
 Relevant guides:
 
 - `docs/guides/getting-started.md`
+- `docs/guides/auth-access-matrix.md`
 - `docs/guides/authentication.md`
 - `docs/guides/alerts.md`
 - `docs/guides/errors.md`

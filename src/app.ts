@@ -197,6 +197,8 @@ export async function buildApp(
   const rateLimiter = new InMemoryRateLimiter();
   const rateLimitEventService = new RateLimitEventService();
 
+  app.decorateRequest('auth', undefined);
+
   await app.register(cors, {
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -240,6 +242,9 @@ export async function buildApp(
   });
 
   app.addHook('onRequest', async (request, reply) => {
+    request.auth = {
+      kind: 'public',
+    };
     reply.header('X-Request-Id', request.id);
   });
 

@@ -1,0 +1,3 @@
+- [x] Add a route access inventory guide grouped by module.
+- [x] Classify current routes into documented access classes.
+- [x] Document the bootstrap-token limitation for current internal routes.

@@ -61,6 +61,27 @@ describe('identity api', () => {
     expect(response.headers['x-request-id']).toEqual(expect.any(String));
   });
 
+  it('rejects invalid bootstrap auth on internal identity linking', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/internal/auth/link-existing-user',
+      headers: {
+        'x-bootstrap-token': 'invalid-token',
+      },
+      payload: {
+        userId: 'user_123',
+        email: 'linked@example.com',
+        password: 'Password123!',
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({
+      error: 'invalid_bootstrap_token',
+      message: 'invalid bootstrap token',
+    });
+  });
+
   it('lists and revokes authenticated sessions', async () => {
     const registration = await registerUser(app);
 

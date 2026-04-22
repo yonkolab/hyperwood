@@ -1,10 +1,9 @@
-import type {
-  FastifyInstance,
-  FastifyPluginOptions,
-  FastifyRequest,
-} from 'fastify';
-import { env } from '../../config/env';
-import { AppError } from '../../lib/errors';
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import {
+  getSessionAuthContext,
+  requireInternalAuth,
+  requireSessionAuth,
+} from '../identity/auth-guards';
 import { IdentityService } from '../identity/service';
 import {
   complianceProfileBodySchema,
@@ -13,46 +12,29 @@ import {
 } from './schema';
 import { ComplianceService } from './service';
 
-function getSessionTokenFromRequest(request: FastifyRequest) {
-  const header = request.headers.authorization;
-
-  if (!header?.startsWith('Bearer ')) {
-    throw new AppError(401, 'missing_session', 'missing bearer session token');
-  }
-
-  return header.slice('Bearer '.length);
-}
-
-function assertBootstrapToken(request: FastifyRequest) {
-  const bootstrapToken = request.headers['x-bootstrap-token'];
-
-  if (bootstrapToken !== env.INTERNAL_BOOTSTRAP_TOKEN) {
-    throw new AppError(
-      401,
-      'invalid_bootstrap_token',
-      'invalid bootstrap token',
-    );
-  }
-}
-
 async function complianceRoutes(
   app: FastifyInstance,
   _options: FastifyPluginOptions,
 ) {
   const identityService = new IdentityService();
   const complianceService = new ComplianceService();
+  const requireSession = requireSessionAuth(identityService);
+  const requireInternal = requireInternalAuth();
 
-  app.get('/compliance/me/capabilities', async (request) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
+  app.get(
+    '/compliance/me/capabilities',
+    { preHandler: requireSession },
+    async (request) => {
+      const auth = getSessionAuthContext(request);
 
-    return complianceService.getCapabilityEvaluation(user.id);
-  });
+      return complianceService.getCapabilityEvaluation(auth.user.id);
+    },
+  );
 
   app.post(
     '/internal/compliance/users/:userId/profile',
+    { preHandler: requireInternal },
     async (request, reply) => {
-      assertBootstrapToken(request);
       const params = complianceUserParamsSchema.parse(request.params);
       const body = complianceProfileBodySchema.parse(request.body);
       const result = await complianceService.upsertComplianceProfile({
@@ -76,8 +58,8 @@ async function complianceRoutes(
 
   app.post(
     '/internal/compliance/users/:userId/restrictions',
+    { preHandler: requireInternal },
     async (request, reply) => {
-      assertBootstrapToken(request);
       const params = complianceUserParamsSchema.parse(request.params);
       const body = restrictionBodySchema.parse(request.body);
       const result = await complianceService.applyAccountRestriction({

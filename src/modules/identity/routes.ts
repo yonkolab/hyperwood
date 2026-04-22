@@ -1,10 +1,13 @@
-import type {
-  FastifyInstance,
-  FastifyPluginOptions,
-  FastifyRequest,
-} from 'fastify';
-import { env } from '../../config/env';
-import { AppError } from '../../lib/errors';
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import {
+  getApiHmacHeaders,
+  getApiKeyFromRequest,
+  getInternalAuthContext,
+  getSessionAuthContext,
+  requireInternalAuth,
+  requireSessionAuth,
+  requireStepUpAuthorization,
+} from './auth-guards';
 import {
   apiKeyParamsSchema,
   authorizeSensitiveActionBodySchema,
@@ -21,91 +24,14 @@ import {
 } from './schema';
 import { IdentityService } from './service';
 
-function getSessionTokenFromRequest(request: FastifyRequest) {
-  const header = request.headers.authorization;
-
-  if (!header?.startsWith('Bearer ')) {
-    throw new AppError(401, 'missing_session', 'missing bearer session token');
-  }
-
-  return header.slice('Bearer '.length);
-}
-
-function getApiKeyFromRequest(request: FastifyRequest) {
-  const headerApiKey = request.headers['x-api-key'];
-
-  if (typeof headerApiKey === 'string' && headerApiKey.length > 0) {
-    return headerApiKey;
-  }
-
-  const authorization = request.headers.authorization;
-
-  if (authorization?.startsWith('Bearer ')) {
-    const token = authorization.slice('Bearer '.length);
-
-    if (token.startsWith('hw_')) {
-      return token;
-    }
-  }
-
-  throw new AppError(401, 'missing_api_key', 'missing api key');
-}
-
-function getApiHmacHeaders(request: FastifyRequest) {
-  const keyPrefix = request.headers['x-api-key'];
-  const timestamp = request.headers['x-api-timestamp'];
-  const nonce = request.headers['x-api-nonce'];
-  const signature = request.headers['x-api-signature'];
-
-  if (typeof keyPrefix !== 'string' || keyPrefix.length === 0) {
-    throw new AppError(401, 'missing_api_key', 'missing api key identifier');
-  }
-
-  if (typeof timestamp !== 'string' || timestamp.length === 0) {
-    throw new AppError(
-      401,
-      'missing_api_signature',
-      'missing api signature timestamp',
-    );
-  }
-
-  if (typeof nonce !== 'string' || nonce.length === 0) {
-    throw new AppError(
-      401,
-      'missing_api_signature',
-      'missing api signature nonce',
-    );
-  }
-
-  if (typeof signature !== 'string' || signature.length === 0) {
-    throw new AppError(401, 'missing_api_signature', 'missing api signature');
-  }
-
-  return {
-    keyPrefix,
-    timestamp,
-    nonce,
-    signature,
-  };
-}
-
-function getOptionalMfaActionAuthorizationTokenFromRequest(
-  request: FastifyRequest,
-) {
-  const header = request.headers['x-mfa-authorization'];
-
-  if (typeof header === 'string' && header.length > 0) {
-    return header;
-  }
-
-  return undefined;
-}
-
 async function identityRoutes(
   app: FastifyInstance,
   _options: FastifyPluginOptions,
 ) {
   const identityService = new IdentityService();
+  const requireSession = requireSessionAuth(identityService);
+  const requireInternal = requireInternalAuth();
+  const requireApiKeyStepUp = requireStepUpAuthorization('api_keys_manage');
 
   app.post('/auth/register', async (request, reply) => {
     const body = registerBodySchema.parse(request.body);
@@ -164,76 +90,86 @@ async function identityRoutes(
     reply.send(result);
   });
 
-  app.post('/auth/mfa/totp/authorize', async (request, reply) => {
-    const body = authorizeSensitiveActionBodySchema.parse(request.body);
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const result = await identityService.authorizeSensitiveActionWithTotp({
-      userId: user.id,
-      action: body.action,
-      code: body.code,
-    });
+  app.post(
+    '/auth/mfa/totp/authorize',
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const body = authorizeSensitiveActionBodySchema.parse(request.body);
+      const auth = getSessionAuthContext(request);
+      const result = await identityService.authorizeSensitiveActionWithTotp({
+        userId: auth.user.id,
+        action: body.action,
+        code: body.code,
+      });
 
-    reply.status(201).send(result);
+      reply.status(201).send(result);
+    },
+  );
+
+  app.get('/auth/me', { preHandler: requireSession }, async (request) => {
+    const auth = getSessionAuthContext(request);
+
+    return { user: auth.user };
   });
 
-  app.get('/auth/me', async (request) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
+  app.get('/auth/sessions', { preHandler: requireSession }, async (request) => {
+    const auth = getSessionAuthContext(request);
 
-    return { user };
+    return identityService.listSessions(auth.user.id, auth.sessionToken);
   });
 
-  app.get('/auth/sessions', async (request) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
+  app.delete(
+    '/auth/sessions/current',
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const auth = getSessionAuthContext(request);
+      const session = await identityService.getSessionFromToken(
+        auth.sessionToken,
+      );
+      const result = await identityService.revokeSession({
+        userId: auth.user.id,
+        sessionId: session.id,
+      });
 
-    return identityService.listSessions(user.id, sessionToken);
-  });
+      reply.send(result);
+    },
+  );
 
-  app.delete('/auth/sessions/current', async (request, reply) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const session = await identityService.getSessionFromToken(sessionToken);
-    const result = await identityService.revokeSession({
-      userId: user.id,
-      sessionId: session.id,
-    });
+  app.delete(
+    '/auth/sessions/:sessionId',
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const auth = getSessionAuthContext(request);
+      const params = sessionParamsSchema.parse(request.params);
+      const result = await identityService.revokeSession({
+        userId: auth.user.id,
+        sessionId: params.sessionId,
+      });
 
-    reply.send(result);
-  });
+      reply.send(result);
+    },
+  );
 
-  app.delete('/auth/sessions/:sessionId', async (request, reply) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const params = sessionParamsSchema.parse(request.params);
-    const result = await identityService.revokeSession({
-      userId: user.id,
-      sessionId: params.sessionId,
-    });
+  app.post(
+    '/auth/api-keys',
+    { preHandler: [requireSession, requireApiKeyStepUp] },
+    async (request, reply) => {
+      const body = createApiKeyBodySchema.parse(request.body);
+      const auth = getSessionAuthContext(request);
+      const result = await identityService.createApiKey({
+        userId: auth.user.id,
+        scopes: body.scopes,
+        mfaAuthorizationToken: auth.stepUp?.authorizationToken,
+      });
 
-    reply.send(result);
-  });
+      reply.status(201).send(result);
+    },
+  );
 
-  app.post('/auth/api-keys', async (request, reply) => {
-    const body = createApiKeyBodySchema.parse(request.body);
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const result = await identityService.createApiKey({
-      userId: user.id,
-      scopes: body.scopes,
-      mfaAuthorizationToken:
-        getOptionalMfaActionAuthorizationTokenFromRequest(request),
-    });
+  app.get('/auth/api-keys', { preHandler: requireSession }, async (request) => {
+    const auth = getSessionAuthContext(request);
 
-    reply.status(201).send(result);
-  });
-
-  app.get('/auth/api-keys', async (request) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-
-    return identityService.listApiKeys(user.id);
+    return identityService.listApiKeys(auth.user.id);
   });
 
   app.get('/auth/api-key/me', async (request) => {
@@ -259,77 +195,86 @@ async function identityRoutes(
     });
   });
 
-  app.delete('/auth/api-keys/:apiKeyId', async (request, reply) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const params = apiKeyParamsSchema.parse(request.params);
-    const result = await identityService.revokeApiKey({
-      userId: user.id,
-      apiKeyId: params.apiKeyId,
-      mfaAuthorizationToken:
-        getOptionalMfaActionAuthorizationTokenFromRequest(request),
-    });
+  app.delete(
+    '/auth/api-keys/:apiKeyId',
+    { preHandler: [requireSession, requireApiKeyStepUp] },
+    async (request, reply) => {
+      const auth = getSessionAuthContext(request);
+      const params = apiKeyParamsSchema.parse(request.params);
+      const result = await identityService.revokeApiKey({
+        userId: auth.user.id,
+        apiKeyId: params.apiKeyId,
+        mfaAuthorizationToken: auth.stepUp?.authorizationToken,
+      });
 
-    reply.send(result);
-  });
+      reply.send(result);
+    },
+  );
 
-  app.post('/auth/api-keys/:apiKeyId/rotate', async (request, reply) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const params = apiKeyParamsSchema.parse(request.params);
-    rotateApiKeyBodySchema.parse(request.body ?? {});
-    const result = await identityService.rotateApiKey({
-      userId: user.id,
-      apiKeyId: params.apiKeyId,
-      mfaAuthorizationToken:
-        getOptionalMfaActionAuthorizationTokenFromRequest(request),
-    });
+  app.post(
+    '/auth/api-keys/:apiKeyId/rotate',
+    { preHandler: [requireSession, requireApiKeyStepUp] },
+    async (request, reply) => {
+      const auth = getSessionAuthContext(request);
+      const params = apiKeyParamsSchema.parse(request.params);
+      rotateApiKeyBodySchema.parse(request.body ?? {});
+      const result = await identityService.rotateApiKey({
+        userId: auth.user.id,
+        apiKeyId: params.apiKeyId,
+        mfaAuthorizationToken: auth.stepUp?.authorizationToken,
+      });
 
-    reply.send(result);
-  });
+      reply.send(result);
+    },
+  );
 
-  app.post('/auth/mfa/totp/setup', async (request, reply) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const result = await identityService.setupTotp({
-      userId: user.id,
-    });
+  app.post(
+    '/auth/mfa/totp/setup',
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const auth = getSessionAuthContext(request);
+      const result = await identityService.setupTotp({
+        userId: auth.user.id,
+      });
 
-    reply.status(201).send(result);
-  });
+      reply.status(201).send(result);
+    },
+  );
 
-  app.post('/auth/mfa/totp/confirm', async (request, reply) => {
-    const sessionToken = getSessionTokenFromRequest(request);
-    const user = await identityService.getUserFromSessionToken(sessionToken);
-    const body = confirmTotpSetupBodySchema.parse(request.body);
-    const result = await identityService.confirmTotpSetup({
-      userId: user.id,
-      factorId: body.factorId,
-      code: body.code,
-    });
+  app.post(
+    '/auth/mfa/totp/confirm',
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const auth = getSessionAuthContext(request);
+      const body = confirmTotpSetupBodySchema.parse(request.body);
+      const result = await identityService.confirmTotpSetup({
+        userId: auth.user.id,
+        factorId: body.factorId,
+        code: body.code,
+      });
 
-    reply.send(result);
-  });
+      reply.send(result);
+    },
+  );
 
-  app.post('/internal/auth/link-existing-user', async (request, reply) => {
-    const bootstrapToken = request.headers['x-bootstrap-token'];
+  app.post(
+    '/internal/auth/link-existing-user',
+    { preHandler: requireInternal },
+    async (request, reply) => {
+      getInternalAuthContext(request);
+      const body = linkExistingUserBodySchema.parse(request.body);
+      const result = await identityService.linkExistingUser({
+        userId: body.userId,
+        email: body.email,
+        password: body.password,
+        ...(body.emailVerified !== undefined
+          ? { emailVerified: body.emailVerified }
+          : {}),
+      });
 
-    if (bootstrapToken !== env.INTERNAL_BOOTSTRAP_TOKEN) {
-      throw new AppError(403, 'forbidden', 'invalid bootstrap token');
-    }
-
-    const body = linkExistingUserBodySchema.parse(request.body);
-    const result = await identityService.linkExistingUser({
-      userId: body.userId,
-      email: body.email,
-      password: body.password,
-      ...(body.emailVerified !== undefined
-        ? { emailVerified: body.emailVerified }
-        : {}),
-    });
-
-    reply.status(201).send(result);
-  });
+      reply.status(201).send(result);
+    },
+  );
 }
 
 export const registerIdentityRoutes = identityRoutes;
