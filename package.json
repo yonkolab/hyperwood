@@ -25,7 +25,7 @@
     "docs:build": "node scripts/docs/build.mjs",
     "docs:preview": "node scripts/docs/preview.mjs",
     "docs:dev:install": "npm --prefix docs/developer install",
-    "docs:dev:start": "npm --prefix docs/developer run start -- --host ${DOCS_DEV_HOST:-0.0.0.0} --port ${DOCS_DEV_PORT:-3001}",
+    "docs:dev:start": "npm --prefix docs/developer run clear && npm --prefix docs/developer run start -- --host ${DOCS_DEV_HOST:-0.0.0.0} --port ${DOCS_DEV_PORT:-3001}",
     "docs:dev:build": "npm --prefix docs/developer run build",
     "docs:dev:serve": "npm --prefix docs/developer run serve -- --host ${DOCS_DEV_HOST:-0.0.0.0} --port ${DOCS_DEV_PORT:-3001}",
     "docker:prod:up": "docker compose up --build -d",
