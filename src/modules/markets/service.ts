@@ -108,8 +108,8 @@ export class MarketsService {
     return this.marketLifecycleService.updateMarketStatus(marketId, input);
   }
 
-  async settleMarket(marketId: string) {
-    return this.marketSettlementService.settleMarket(marketId);
+  async settleMarket(marketId: string, input?: { settledBy?: string }) {
+    return this.marketSettlementService.settleMarket(marketId, input);
   }
 
   async getOrderBookSnapshot(marketId: string) {

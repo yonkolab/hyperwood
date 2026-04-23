@@ -12,6 +12,7 @@ import { AppError } from '../../lib/errors';
 import { logWorkflowEvent } from '../../lib/observability';
 import { verifyFundingWebhookSignature } from '../../lib/webhooks';
 import {
+  getInternalAuthContext,
   getSessionAuthContext,
   requireInternalAuth,
   requireSessionAuth,
@@ -152,7 +153,8 @@ async function fundingRoutes(
   const identityService = new IdentityService();
   const fundingService = new FundingService();
   const requireSession = requireSessionAuth(identityService);
-  const requireInternal = requireInternalAuth();
+  const requireFundingApprove = requireInternalAuth('funding:approve');
+  const requireFundingReconcile = requireInternalAuth('funding:reconcile');
 
   app.get(
     '/funding/methods',
@@ -275,8 +277,9 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/users/:userId/methods',
-    { preHandler: requireInternal },
+    { preHandler: requireFundingApprove },
     async (request, reply) => {
+      getInternalAuthContext(request);
       const params = fundingUserParamsSchema.parse(request.params);
       const body = fundingMethodBodySchema.parse(request.body);
       const result = await fundingService.linkFundingMethod({
@@ -299,8 +302,9 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/users/:userId/wallet/seed',
-    { preHandler: requireInternal },
+    { preHandler: requireFundingApprove },
     async (request, reply) => {
+      getInternalAuthContext(request);
       const params = fundingUserParamsSchema.parse(request.params);
       const body = seedWalletBodySchema.parse(request.body);
       const result = await fundingService.seedWalletBalance({
@@ -316,8 +320,9 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/deposits/:depositId/settle',
-    { preHandler: requireInternal },
+    { preHandler: requireFundingApprove },
     async (request, reply) => {
+      getInternalAuthContext(request);
       const params = fundingDepositParamsSchema.parse(request.params);
       const result = await fundingService.settleDeposit(params.depositId);
 
@@ -345,11 +350,13 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/withdrawals/:withdrawalId/approve',
-    { preHandler: requireInternal },
+    { preHandler: requireFundingApprove },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = fundingWithdrawalParamsSchema.parse(request.params);
       const result = await fundingService.approveWithdrawalReview(
         params.withdrawalId,
+        { actor: auth.internalActor },
       );
 
       logWorkflowEvent(request, 'funding.withdrawal.review_approved', {
@@ -376,12 +383,14 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/withdrawals/:withdrawalId/fail',
-    { preHandler: requireInternal },
+    { preHandler: requireFundingApprove },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = fundingWithdrawalParamsSchema.parse(request.params);
       const result = await fundingService.failWithdrawal(
         params.withdrawalId,
         'manual_review_failure',
+        { actor: auth.internalActor },
       );
 
       logWorkflowEvent(request, 'funding.withdrawal.failed', {
@@ -408,10 +417,14 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/withdrawals/:withdrawalId/settle',
-    { preHandler: requireInternal },
+    { preHandler: requireFundingApprove },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = fundingWithdrawalParamsSchema.parse(request.params);
-      const result = await fundingService.settleWithdrawal(params.withdrawalId);
+      const result = await fundingService.settleWithdrawal(
+        params.withdrawalId,
+        { actor: auth.internalActor },
+      );
 
       logWorkflowEvent(request, 'funding.withdrawal.settled', {
         transferId: result.withdrawal.id,
@@ -437,8 +450,9 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/reconciliation/runs',
-    { preHandler: requireInternal },
+    { preHandler: requireFundingReconcile },
     async (request, reply) => {
+      getInternalAuthContext(request);
       const body = reconciliationRunBodySchema.parse(request.body);
       const result = await fundingService.runTransferReconciliation({
         ...(body.provider ? { provider: body.provider } : {}),
@@ -459,8 +473,9 @@ async function fundingRoutes(
 
   app.get(
     '/internal/funding/reconciliation/discrepancies',
-    { preHandler: requireInternal },
+    { preHandler: requireFundingReconcile },
     async (request) => {
+      getInternalAuthContext(request);
       const query = reconciliationDiscrepanciesQuerySchema.parse(request.query);
 
       return fundingService.listReconciliationDiscrepancies({
@@ -472,8 +487,9 @@ async function fundingRoutes(
 
   app.post(
     '/internal/funding/webhook-delay-scan',
-    { preHandler: requireInternal },
+    { preHandler: requireFundingReconcile },
     async (request, reply) => {
+      getInternalAuthContext(request);
       const body = callbackDelayScanBodySchema.parse(request.body ?? {});
       const result = await fundingService.scanDelayedProviderCallbacks({
         limit: body.limit,

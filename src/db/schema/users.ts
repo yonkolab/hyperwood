@@ -33,6 +33,24 @@ export const identityProviderEnum = pgEnum('identity_provider', [
 
 export const mfaFactorTypeEnum = pgEnum('mfa_factor_type', ['totp']);
 
+export const operatorStatusEnum = pgEnum('operator_status', [
+  'active',
+  'disabled',
+]);
+
+export const operatorRoleEnum = pgEnum('operator_role', [
+  'super_admin',
+  'operations_reader',
+  'operations_scanner',
+  'market_writer',
+  'market_settler',
+  'compliance_admin',
+  'funding_approver',
+  'funding_reconciler',
+  'exchange_admin',
+  'identity_admin',
+]);
+
 export const loginEventOutcomeEnum = pgEnum('login_event_outcome', [
   'success',
   'invalid_credentials',
@@ -282,6 +300,69 @@ export const apiKeys = pgTable(
   ],
 );
 
+export const operatorPrincipals = pgTable(
+  'operator_principals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: varchar('email', { length: 255 }).notNull(),
+    displayName: varchar('display_name', { length: 128 }),
+    status: operatorStatusEnum('status').notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex('operator_principals_email_unique').on(table.email)],
+);
+
+export const operatorRoleAssignments = pgTable(
+  'operator_role_assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    operatorId: uuid('operator_id')
+      .notNull()
+      .references(() => operatorPrincipals.id, { onDelete: 'cascade' }),
+    role: operatorRoleEnum('role').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('operator_role_assignments_operator_id_idx').on(table.operatorId),
+    uniqueIndex('operator_role_assignments_operator_role_unique').on(
+      table.operatorId,
+      table.role,
+    ),
+  ],
+);
+
+export const operatorApiTokens = pgTable(
+  'operator_api_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    operatorId: uuid('operator_id')
+      .notNull()
+      .references(() => operatorPrincipals.id, { onDelete: 'cascade' }),
+    label: varchar('label', { length: 64 }).notNull(),
+    tokenPrefix: varchar('token_prefix', { length: 32 }).notNull(),
+    tokenHash: text('token_hash').notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('operator_api_tokens_operator_id_idx').on(table.operatorId),
+    uniqueIndex('operator_api_tokens_token_prefix_unique').on(
+      table.tokenPrefix,
+    ),
+    uniqueIndex('operator_api_tokens_token_hash_unique').on(table.tokenHash),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   identities: many(userIdentities),
   sessions: many(userSessions),
@@ -292,6 +373,14 @@ export const usersRelations = relations(users, ({ many }) => ({
   loginEvents: many(loginEvents),
   apiKeys: many(apiKeys),
 }));
+
+export const operatorPrincipalsRelations = relations(
+  operatorPrincipals,
+  ({ many }) => ({
+    roles: many(operatorRoleAssignments),
+    apiTokens: many(operatorApiTokens),
+  }),
+);
 
 export const userIdentitiesRelations = relations(userIdentities, ({ one }) => ({
   user: one(users, {
@@ -367,3 +456,23 @@ export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const operatorRoleAssignmentsRelations = relations(
+  operatorRoleAssignments,
+  ({ one }) => ({
+    operator: one(operatorPrincipals, {
+      fields: [operatorRoleAssignments.operatorId],
+      references: [operatorPrincipals.id],
+    }),
+  }),
+);
+
+export const operatorApiTokensRelations = relations(
+  operatorApiTokens,
+  ({ one }) => ({
+    operator: one(operatorPrincipals, {
+      fields: [operatorApiTokens.operatorId],
+      references: [operatorPrincipals.id],
+    }),
+  }),
+);

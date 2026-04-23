@@ -78,7 +78,7 @@ export class ComplianceService {
 
     await this.adminAuditService.recordEvent({
       action: 'compliance.profile_upserted',
-      actor: 'bootstrap',
+      actor: input.changedBy ?? 'bootstrap',
       targetType: 'user',
       targetId: input.userId,
       payload: {
@@ -120,7 +120,7 @@ export class ComplianceService {
 
     await this.adminAuditService.recordEvent({
       action: 'compliance.restriction_applied',
-      actor: 'bootstrap',
+      actor: input.changedBy ?? 'bootstrap',
       targetType: 'user',
       targetId: input.userId,
       payload: {

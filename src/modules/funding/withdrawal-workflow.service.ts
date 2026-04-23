@@ -92,10 +92,14 @@ export class WithdrawalWorkflowService {
    * Example:
    * `await withdrawalWorkflowService.approveWithdrawalReview(withdrawalId)`
    */
-  async approveWithdrawalReview(withdrawalId: string) {
+  async approveWithdrawalReview(
+    withdrawalId: string,
+    input?: { actor?: string },
+  ) {
     return approveWithdrawalReview(
       { adminAuditService: this.adminAuditService },
       withdrawalId,
+      input,
     );
   }
 
@@ -105,7 +109,11 @@ export class WithdrawalWorkflowService {
    * Example:
    * `await withdrawalWorkflowService.failWithdrawal(withdrawalId, 'provider_rejected')`
    */
-  async failWithdrawal(withdrawalId: string, failureReason: string) {
+  async failWithdrawal(
+    withdrawalId: string,
+    failureReason: string,
+    input?: { actor?: string },
+  ) {
     return failWithdrawal(
       {
         walletLedgerService: this.walletLedgerService,
@@ -113,6 +121,7 @@ export class WithdrawalWorkflowService {
       },
       withdrawalId,
       failureReason,
+      input,
     );
   }
 
@@ -122,13 +131,14 @@ export class WithdrawalWorkflowService {
    * Example:
    * `await withdrawalWorkflowService.settleWithdrawal(withdrawalId)`
    */
-  async settleWithdrawal(withdrawalId: string) {
+  async settleWithdrawal(withdrawalId: string, input?: { actor?: string }) {
     return settleWithdrawal(
       {
         walletLedgerService: this.walletLedgerService,
         adminAuditService: this.adminAuditService,
       },
       withdrawalId,
+      input,
     );
   }
 }
@@ -343,6 +353,7 @@ async function createWithdrawal(
 async function approveWithdrawalReview(
   dependencies: Pick<WithdrawalServiceDependencies, 'adminAuditService'>,
   withdrawalId: string,
+  input?: { actor?: string },
 ) {
   const withdrawal = await loadWithdrawal(withdrawalId);
 
@@ -381,7 +392,7 @@ async function approveWithdrawalReview(
 
   await dependencies.adminAuditService.recordEvent({
     action: 'funding.withdrawal_review_approved',
-    actor: 'bootstrap',
+    actor: input?.actor ?? 'bootstrap',
     targetType: 'withdrawal',
     targetId: approvedWithdrawal.id,
     payload: {
@@ -408,6 +419,7 @@ async function failWithdrawal(
   >,
   withdrawalId: string,
   failureReason: string,
+  input?: { actor?: string },
 ) {
   return db.transaction(async (tx) => {
     const withdrawal = await loadWithdrawal(withdrawalId, tx);
@@ -508,7 +520,7 @@ async function failWithdrawal(
     await dependencies.adminAuditService.recordEvent(
       {
         action: 'funding.withdrawal_failed',
-        actor: 'bootstrap',
+        actor: input?.actor ?? 'bootstrap',
         targetType: 'withdrawal',
         targetId: failedWithdrawal.id,
         payload: {
@@ -538,6 +550,7 @@ async function settleWithdrawal(
     'walletLedgerService' | 'adminAuditService'
   >,
   withdrawalId: string,
+  input?: { actor?: string },
 ) {
   return db.transaction(async (tx) => {
     const withdrawal = await loadWithdrawal(withdrawalId, tx);
@@ -636,7 +649,7 @@ async function settleWithdrawal(
     await dependencies.adminAuditService.recordEvent(
       {
         action: 'funding.withdrawal_settled',
-        actor: 'bootstrap',
+        actor: input?.actor ?? 'bootstrap',
         targetType: 'withdrawal',
         targetId: settledWithdrawal.id,
         payload: {

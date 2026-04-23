@@ -1,5 +1,8 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { requireInternalAuth } from '../identity/auth-guards';
+import {
+  getInternalAuthContext,
+  requireInternalAuth,
+} from '../identity/auth-guards';
 import {
   ledgerInvariantScanBodySchema,
   listAlertsQuerySchema,
@@ -21,11 +24,12 @@ async function operationsRoutes(
   _options: FastifyPluginOptions,
 ) {
   const operationsService = new OperationsService();
-  const requireInternal = requireInternalAuth();
+  const requireOperationsRead = requireInternalAuth('operations:read');
+  const requireOperationsScan = requireInternalAuth('operations:scan');
 
   app.get(
     '/internal/operations/reviews',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsRead },
     async (request) => {
       const query = listReviewQueueQuerySchema.parse(request.query);
 
@@ -37,7 +41,7 @@ async function operationsRoutes(
 
   app.get(
     '/internal/operations/audit-events',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsRead },
     async (request) => {
       const query = listAuditEventsQuerySchema.parse(request.query);
 
@@ -52,7 +56,7 @@ async function operationsRoutes(
 
   app.get(
     '/internal/operations/rate-limit-events',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsRead },
     async (request) => {
       const query = listRateLimitEventsQuerySchema.parse(request.query);
 
@@ -68,7 +72,7 @@ async function operationsRoutes(
 
   app.get(
     '/internal/operations/email-feedback-events',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsRead },
     async (request) => {
       const query = listEmailFeedbackEventsQuerySchema.parse(request.query);
 
@@ -84,7 +88,7 @@ async function operationsRoutes(
 
   app.get(
     '/internal/operations/email-suppressions',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsRead },
     async (request) => {
       const query = listEmailSuppressionsQuerySchema.parse(request.query);
 
@@ -98,7 +102,7 @@ async function operationsRoutes(
 
   app.get(
     '/internal/operations/alerts',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsRead },
     async (request) => {
       const query = listAlertsQuerySchema.parse(request.query);
 
@@ -114,7 +118,7 @@ async function operationsRoutes(
 
   app.post(
     '/internal/operations/ledger-invariant-scan',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsScan },
     async (request) => {
       const body = ledgerInvariantScanBodySchema.parse(request.body ?? {});
 
@@ -126,7 +130,7 @@ async function operationsRoutes(
 
   app.post(
     '/internal/operations/settlement-failure-scan',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsScan },
     async (request) => {
       const body = settlementFailureScanBodySchema.parse(request.body ?? {});
 
@@ -138,13 +142,14 @@ async function operationsRoutes(
 
   app.post(
     '/internal/operations/settlement-retries/:marketId',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsScan },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = settlementRetryParamsSchema.parse(request.params);
       const body = settlementRetryBodySchema.parse(request.body ?? {});
       const result = await operationsService.retrySettlement({
         marketId: params.marketId,
-        ...(body.requestedBy ? { requestedBy: body.requestedBy } : {}),
+        requestedBy: body.requestedBy ?? auth.internalActor,
       });
 
       reply.status(result.alreadySettled ? 200 : 201).send(result);
@@ -153,7 +158,7 @@ async function operationsRoutes(
 
   app.post(
     '/internal/operations/trading-condition-scan',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsScan },
     async (request) => {
       const body = tradingConditionScanBodySchema.parse(request.body ?? {});
 
@@ -165,7 +170,7 @@ async function operationsRoutes(
 
   app.post(
     '/internal/operations/realtime-stream-health-scan',
-    { preHandler: requireInternal },
+    { preHandler: requireOperationsScan },
     async (request) => {
       const body = realtimeStreamHealthScanBodySchema.parse(request.body ?? {});
 

@@ -3,7 +3,10 @@ import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import type { MarketCurrency } from '../../config/currency';
 import { logWorkflowEvent } from '../../lib/observability';
 import { FundingService } from '../funding/service';
-import { requireInternalAuth } from '../identity/auth-guards';
+import {
+  getInternalAuthContext,
+  requireInternalAuth,
+} from '../identity/auth-guards';
 import { MatchingService } from '../matching/service';
 import { accountRealtimeService } from '../portfolio/account-realtime.service';
 import { PortfolioService } from '../portfolio/service';
@@ -65,7 +68,8 @@ async function marketRoutes(
   const matchingService = new MatchingService();
   const fundingService = new FundingService();
   const portfolioService = new PortfolioService();
-  const requireInternal = requireInternalAuth();
+  const requireMarketsWrite = requireInternalAuth('markets:write');
+  const requireMarketsSettle = requireInternalAuth('markets:settle');
 
   app.get('/markets', async (request) => {
     const query = listMarketsQuerySchema.parse(request.query);
@@ -190,8 +194,9 @@ async function marketRoutes(
 
   app.post(
     '/internal/markets/events',
-    { preHandler: requireInternal },
+    { preHandler: requireMarketsWrite },
     async (request, reply) => {
+      getInternalAuthContext(request);
       const body = createEventBodySchema.parse(request.body);
       const result = await marketsService.createEvent({
         slug: body.slug,
@@ -208,8 +213,9 @@ async function marketRoutes(
 
   app.post(
     '/internal/markets',
-    { preHandler: requireInternal },
+    { preHandler: requireMarketsWrite },
     async (request, reply) => {
+      getInternalAuthContext(request);
       const body = createMarketBodySchema.parse(request.body);
       const result = await marketsService.createMarket({
         eventId: body.eventId,
@@ -239,8 +245,9 @@ async function marketRoutes(
 
   app.post(
     '/internal/markets/:marketId/match',
-    { preHandler: requireInternal },
+    { preHandler: requireMarketsWrite },
     async (request) => {
+      getInternalAuthContext(request);
       const params = marketParamsSchema.parse(request.params);
       const result = await matchingService.runLimitOrderMatching(
         params.marketId,
@@ -321,8 +328,9 @@ async function marketRoutes(
 
   app.post(
     '/internal/markets/:marketId/announcements',
-    { preHandler: requireInternal },
+    { preHandler: requireMarketsWrite },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = marketParamsSchema.parse(request.params);
       const body = publishMarketAnnouncementBodySchema.parse(request.body);
       const result = await marketsService.publishMarketAnnouncement(
@@ -330,7 +338,7 @@ async function marketRoutes(
         {
           title: body.title,
           message: body.message,
-          ...(body.publishedBy ? { publishedBy: body.publishedBy } : {}),
+          publishedBy: body.publishedBy ?? auth.internalActor,
         },
       );
 
@@ -355,14 +363,15 @@ async function marketRoutes(
 
   app.post(
     '/internal/markets/:marketId/status',
-    { preHandler: requireInternal },
+    { preHandler: requireMarketsWrite },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = marketParamsSchema.parse(request.params);
       const body = updateMarketStatusBodySchema.parse(request.body);
       const result = await marketsService.updateMarketStatus(params.marketId, {
         status: body.status,
         reason: body.reason,
-        ...(body.changedBy ? { changedBy: body.changedBy } : {}),
+        changedBy: body.changedBy ?? auth.internalActor,
       });
 
       logWorkflowEvent(request, 'market.status_updated', {
@@ -384,8 +393,9 @@ async function marketRoutes(
 
   app.post(
     '/internal/markets/:marketId/resolve',
-    { preHandler: requireInternal },
+    { preHandler: requireMarketsSettle },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = marketParamsSchema.parse(request.params);
       const body = resolveMarketBodySchema.parse(request.body);
       const result = await marketsService.resolveMarket(params.marketId, {
@@ -394,7 +404,7 @@ async function marketRoutes(
         ...(body.evidenceSources
           ? { evidenceSources: body.evidenceSources }
           : {}),
-        ...(body.approvedBy ? { approvedBy: body.approvedBy } : {}),
+        approvedBy: body.approvedBy ?? auth.internalActor,
       });
 
       logWorkflowEvent(request, 'market.resolution.recorded', {
@@ -416,10 +426,13 @@ async function marketRoutes(
 
   app.post(
     '/internal/markets/:marketId/settle',
-    { preHandler: requireInternal },
+    { preHandler: requireMarketsSettle },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = marketParamsSchema.parse(request.params);
-      const result = await marketsService.settleMarket(params.marketId);
+      const result = await marketsService.settleMarket(params.marketId, {
+        settledBy: auth.internalActor,
+      });
 
       logWorkflowEvent(request, 'market.settlement.completed', {
         marketId: result.marketId,

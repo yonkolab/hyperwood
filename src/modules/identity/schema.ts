@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { operatorRoles } from './operator-access';
 
 export const registerBodySchema = z.object({
   email: z.string().email(),
@@ -57,4 +58,22 @@ export const emailWebhookProviderParamsSchema = z.object({
 
 export const sessionParamsSchema = z.object({
   sessionId: z.string().uuid(),
+});
+
+export const createOperatorBodySchema = z.object({
+  email: z.string().email(),
+  displayName: z.string().min(1).max(128).optional(),
+  roles: z.array(z.enum(operatorRoles)).min(1),
+});
+
+export const operatorParamsSchema = z.object({
+  operatorId: z.string().uuid(),
+});
+
+export const createOperatorTokenBodySchema = z.object({
+  label: z.string().min(1).max(64),
+});
+
+export const operatorTokenParamsSchema = z.object({
+  tokenId: z.string().uuid(),
 });

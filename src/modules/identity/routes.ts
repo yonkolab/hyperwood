@@ -4,6 +4,7 @@ import {
   getApiKeyFromRequest,
   getInternalAuthContext,
   getSessionAuthContext,
+  requireBootstrapInternalAuth,
   requireInternalAuth,
   requireSessionAuth,
   requireStepUpAuthorization,
@@ -14,9 +15,13 @@ import {
   authorizeSensitiveActionBodySchema,
   confirmTotpSetupBodySchema,
   createApiKeyBodySchema,
+  createOperatorBodySchema,
+  createOperatorTokenBodySchema,
   emailWebhookProviderParamsSchema,
   linkExistingUserBodySchema,
   loginBodySchema,
+  operatorParamsSchema,
+  operatorTokenParamsSchema,
   registerBodySchema,
   requestEmailVerificationBodySchema,
   rotateApiKeyBodySchema,
@@ -33,7 +38,8 @@ async function identityRoutes(
   const identityService = new IdentityService();
   const emailWebhookService = new EmailWebhookService();
   const requireSession = requireSessionAuth(identityService);
-  const requireInternal = requireInternalAuth();
+  const requireInternal = requireInternalAuth('identity:link');
+  const requireBootstrapInternal = requireBootstrapInternalAuth();
   const requireApiKeyStepUp = requireStepUpAuthorization('api_keys_manage');
 
   app.post('/auth/register', async (request, reply) => {
@@ -291,6 +297,62 @@ async function identityRoutes(
       });
 
       reply.status(201).send(result);
+    },
+  );
+
+  app.get(
+    '/internal/operators',
+    { preHandler: requireBootstrapInternal },
+    async (request) => {
+      getInternalAuthContext(request);
+
+      return identityService.listOperators({ limit: 100 });
+    },
+  );
+
+  app.post(
+    '/internal/operators',
+    { preHandler: requireBootstrapInternal },
+    async (request, reply) => {
+      getInternalAuthContext(request);
+      const body = createOperatorBodySchema.parse(request.body);
+      const result = await identityService.createOperator({
+        email: body.email,
+        ...(body.displayName ? { displayName: body.displayName } : {}),
+        roles: body.roles,
+      });
+
+      reply.status(201).send(result);
+    },
+  );
+
+  app.post(
+    '/internal/operators/:operatorId/tokens',
+    { preHandler: requireBootstrapInternal },
+    async (request, reply) => {
+      getInternalAuthContext(request);
+      const params = operatorParamsSchema.parse(request.params);
+      const body = createOperatorTokenBodySchema.parse(request.body);
+      const result = await identityService.createOperatorToken({
+        operatorId: params.operatorId,
+        label: body.label,
+      });
+
+      reply.status(201).send(result);
+    },
+  );
+
+  app.delete(
+    '/internal/operators/tokens/:tokenId',
+    { preHandler: requireBootstrapInternal },
+    async (request, reply) => {
+      getInternalAuthContext(request);
+      const params = operatorTokenParamsSchema.parse(request.params);
+      const result = await identityService.revokeOperatorToken({
+        tokenId: params.tokenId,
+      });
+
+      reply.send(result);
     },
   );
 }

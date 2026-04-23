@@ -23,6 +23,7 @@ export type UpsertComplianceProfileInput = {
   providerReference?: string;
   ageVerified: boolean;
   metadata?: Record<string, unknown>;
+  changedBy?: string;
 };
 
 export type ApplyAccountRestrictionInput = {
@@ -31,6 +32,7 @@ export type ApplyAccountRestrictionInput = {
   reason: string;
   source: RestrictionSource;
   expiresAt?: Date;
+  changedBy?: string;
 };
 
 export type CapabilityEvaluation = {

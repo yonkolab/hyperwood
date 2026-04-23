@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import {
+  getInternalAuthContext,
   getSessionAuthContext,
   requireInternalAuth,
   requireSessionAuth,
@@ -19,7 +20,7 @@ async function complianceRoutes(
   const identityService = new IdentityService();
   const complianceService = new ComplianceService();
   const requireSession = requireSessionAuth(identityService);
-  const requireInternal = requireInternalAuth();
+  const requireInternal = requireInternalAuth('compliance:write');
 
   app.get(
     '/compliance/me/capabilities',
@@ -35,6 +36,7 @@ async function complianceRoutes(
     '/internal/compliance/users/:userId/profile',
     { preHandler: requireInternal },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = complianceUserParamsSchema.parse(request.params);
       const body = complianceProfileBodySchema.parse(request.body);
       const result = await complianceService.upsertComplianceProfile({
@@ -50,6 +52,7 @@ async function complianceRoutes(
           ? { providerReference: body.providerReference }
           : {}),
         ...(body.metadata ? { metadata: body.metadata } : {}),
+        changedBy: auth.internalActor,
       });
 
       reply.status(200).send(result);
@@ -60,6 +63,7 @@ async function complianceRoutes(
     '/internal/compliance/users/:userId/restrictions',
     { preHandler: requireInternal },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const params = complianceUserParamsSchema.parse(request.params);
       const body = restrictionBodySchema.parse(request.body);
       const result = await complianceService.applyAccountRestriction({
@@ -68,6 +72,7 @@ async function complianceRoutes(
         reason: body.reason,
         source: body.source,
         ...(body.expiresAt ? { expiresAt: new Date(body.expiresAt) } : {}),
+        changedBy: auth.internalActor,
       });
 
       reply.status(201).send(result);

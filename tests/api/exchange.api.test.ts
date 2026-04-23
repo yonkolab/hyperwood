@@ -110,7 +110,7 @@ describe('exchange api', () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json()).toMatchObject({
-      error: 'invalid_bootstrap_token',
+      error: 'missing_internal_auth',
     });
   });
 
@@ -257,7 +257,7 @@ describe('exchange api', () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json()).toMatchObject({
-      error: 'invalid_bootstrap_token',
+      error: 'missing_internal_auth',
     });
   });
 });

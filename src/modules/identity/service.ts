@@ -4,6 +4,8 @@ import { EmailVerificationService } from './email-verification.service';
 import { IdentityLoginService } from './identity-login.service';
 import { IdentityRegistrationService } from './identity-registration.service';
 import { LoginAuditService } from './login-audit.service';
+import { OperatorAuthenticationService } from './operator-authentication.service';
+import { OperatorPrincipalService } from './operator-principal.service';
 import { SensitiveActionAuthorizationService } from './sensitive-action-authorization.service';
 import { IdentitySessionService } from './session.service';
 import { TotpFactorService } from './totp-factor.service';
@@ -14,11 +16,14 @@ import type {
   AuthorizeSensitiveActionWithTotpInput,
   ConfirmTotpSetupInput,
   CreateApiKeyInput,
+  CreateOperatorInput,
+  CreateOperatorTokenInput,
   LinkExistingUserInput,
   LoginInput,
   RegisterInput,
   RequestEmailVerificationInput,
   RevokeApiKeyInput,
+  RevokeOperatorTokenInput,
   RevokeSessionInput,
   RotateApiKeyInput,
   SetupTotpInput,
@@ -50,6 +55,9 @@ export class IdentityService {
   private readonly apiKeyLifecycleService = new ApiKeyLifecycleService();
   private readonly apiKeyAuthenticationService =
     new ApiKeyAuthenticationService();
+  private readonly operatorPrincipalService = new OperatorPrincipalService();
+  private readonly operatorAuthenticationService =
+    new OperatorAuthenticationService();
 
   async register(input: RegisterInput) {
     return this.registrationService.register(input);
@@ -129,5 +137,37 @@ export class IdentityService {
 
   async authenticateHmacApiKey(input: AuthenticateHmacApiKeyInput) {
     return this.apiKeyAuthenticationService.authenticateHmacApiKey(input);
+  }
+
+  async createOperator(input: CreateOperatorInput) {
+    return this.operatorPrincipalService.createOperator(input);
+  }
+
+  async listOperators(input: { limit: number }) {
+    return this.operatorPrincipalService.listOperators(input);
+  }
+
+  async createOperatorToken(input: CreateOperatorTokenInput) {
+    return this.operatorPrincipalService.createOperatorToken(input);
+  }
+
+  async revokeOperatorToken(input: RevokeOperatorTokenInput) {
+    return this.operatorPrincipalService.revokeOperatorToken(input);
+  }
+
+  async authenticateOperatorToken(
+    rawToken: string,
+    requiredPermission?: Parameters<
+      OperatorAuthenticationService['authenticateOperatorToken']
+    >[1],
+  ) {
+    return this.operatorAuthenticationService.authenticateOperatorToken(
+      rawToken,
+      requiredPermission,
+    );
+  }
+
+  formatOperatorActor(input: { displayName: string | null; email: string }) {
+    return this.operatorAuthenticationService.formatActor(input);
   }
 }

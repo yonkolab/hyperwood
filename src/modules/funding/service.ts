@@ -121,19 +121,30 @@ export class FundingService {
     return this.depositWorkflowService.settleDeposit(depositId);
   }
 
-  async approveWithdrawalReview(withdrawalId: string) {
-    return this.withdrawalWorkflowService.approveWithdrawalReview(withdrawalId);
-  }
-
-  async failWithdrawal(withdrawalId: string, failureReason: string) {
-    return this.withdrawalWorkflowService.failWithdrawal(
+  async approveWithdrawalReview(
+    withdrawalId: string,
+    input?: { actor?: string },
+  ) {
+    return this.withdrawalWorkflowService.approveWithdrawalReview(
       withdrawalId,
-      failureReason,
+      input,
     );
   }
 
-  async settleWithdrawal(withdrawalId: string) {
-    return this.withdrawalWorkflowService.settleWithdrawal(withdrawalId);
+  async failWithdrawal(
+    withdrawalId: string,
+    failureReason: string,
+    input?: { actor?: string },
+  ) {
+    return this.withdrawalWorkflowService.failWithdrawal(
+      withdrawalId,
+      failureReason,
+      input,
+    );
+  }
+
+  async settleWithdrawal(withdrawalId: string, input?: { actor?: string }) {
+    return this.withdrawalWorkflowService.settleWithdrawal(withdrawalId, input);
   }
 
   async runTransferReconciliation(input: {

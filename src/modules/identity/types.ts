@@ -1,4 +1,5 @@
 import type { db } from '../../db/client';
+import type { OperatorRole } from './operator-access';
 
 export type SensitiveAction = 'api_keys_manage';
 
@@ -129,4 +130,19 @@ export type AuthorizeSensitiveActionWithTotpInput = {
 export type RevokeSessionInput = {
   userId: string;
   sessionId: string;
+};
+
+export type CreateOperatorInput = {
+  email: string;
+  displayName?: string;
+  roles: OperatorRole[];
+};
+
+export type CreateOperatorTokenInput = {
+  operatorId: string;
+  label: string;
+};
+
+export type RevokeOperatorTokenInput = {
+  tokenId: string;
 };

@@ -27,6 +27,33 @@ class FakeIdentitySessionResolver {
   }
 }
 
+class FakeOperatorTokenResolver {
+  async authenticateOperatorToken(
+    rawToken: string,
+    requiredPermission?: string,
+  ) {
+    if (rawToken !== 'operator-token') {
+      throw {
+        statusCode: 401,
+      };
+    }
+
+    if (requiredPermission && requiredPermission !== 'operations:read') {
+      throw {
+        statusCode: 403,
+      };
+    }
+
+    return {
+      id: 'operator-1',
+      email: 'ops@example.com',
+      displayName: 'Ops Admin',
+      roles: ['operations_reader'],
+      permissions: ['operations:read'],
+    };
+  }
+}
+
 function createRequest(input: {
   auth?: RequestAuthContext;
   headers?: Record<string, string | undefined>;
@@ -125,7 +152,34 @@ describe('auth guards', () => {
 
     expect(request.auth).toEqual({
       kind: 'internal',
+      authSource: 'bootstrap',
       internalActor: 'bootstrap',
+      permissions: ['*'],
+    });
+  });
+
+  it('attaches operator auth context when a valid operator token is present', async () => {
+    const request = createRequest({
+      headers: {
+        'x-operator-token': 'operator-token',
+      },
+    });
+    const guard = requireInternalAuth(
+      'operations:read',
+      new FakeOperatorTokenResolver(),
+    );
+
+    await guard(request);
+
+    expect(request.auth).toMatchObject({
+      kind: 'internal',
+      authSource: 'operator_token',
+      internalActor: 'Ops Admin <ops@example.com>',
+      permissions: ['operations:read'],
+      operator: {
+        id: 'operator-1',
+        email: 'ops@example.com',
+      },
     });
   });
 

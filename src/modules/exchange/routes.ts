@@ -1,5 +1,8 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
-import { requireInternalAuth } from '../identity/auth-guards';
+import {
+  getInternalAuthContext,
+  requireInternalAuth,
+} from '../identity/auth-guards';
 import {
   listExchangeFeeSchedulesQuerySchema,
   publishExchangeFeeScheduleBodySchema,
@@ -12,7 +15,7 @@ async function exchangeRoutes(
   _options: FastifyPluginOptions,
 ) {
   const exchangeService = new ExchangeService();
-  const requireInternal = requireInternalAuth();
+  const requireInternal = requireInternalAuth('exchange:write');
 
   app.get('/exchange/schedule', async () =>
     exchangeService.getActiveSchedule(),
@@ -34,6 +37,7 @@ async function exchangeRoutes(
     '/internal/exchange/schedule',
     { preHandler: requireInternal },
     async (request, reply) => {
+      getInternalAuthContext(request);
       const body = upsertExchangeScheduleBodySchema.parse(request.body);
       const result = await exchangeService.upsertActiveSchedule({
         name: body.name,
@@ -51,6 +55,7 @@ async function exchangeRoutes(
     '/internal/exchange/fees',
     { preHandler: requireInternal },
     async (request, reply) => {
+      const auth = getInternalAuthContext(request);
       const body = publishExchangeFeeScheduleBodySchema.parse(request.body);
       const result = await exchangeService.publishFeeSchedule({
         name: body.name,
@@ -62,7 +67,7 @@ async function exchangeRoutes(
           ? { effectiveUntil: new Date(body.effectiveUntil) }
           : {}),
         ...(body.notes ? { notes: body.notes } : {}),
-        ...(body.publishedBy ? { publishedBy: body.publishedBy } : {}),
+        publishedBy: body.publishedBy ?? auth.internalActor,
       });
 
       reply.status(201).send(result);

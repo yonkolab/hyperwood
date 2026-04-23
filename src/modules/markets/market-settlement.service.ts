@@ -25,7 +25,7 @@ import {
 export class MarketSettlementService {
   constructor(private readonly adminAuditService: AdminAuditService) {}
 
-  async settleMarket(marketId: string) {
+  async settleMarket(marketId: string, input?: { settledBy?: string }) {
     return db.transaction(async (tx) => {
       const market = await loadMarketForSettlement(tx, marketId);
       await acquireMarketWriteLock(tx, market.id);
@@ -221,7 +221,7 @@ export class MarketSettlementService {
       await this.adminAuditService.recordEvent(
         {
           action: 'market.settled',
-          actor: 'bootstrap',
+          actor: input?.settledBy ?? 'bootstrap',
           targetType: 'market',
           targetId: market.id,
           payload: {

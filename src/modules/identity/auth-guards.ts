@@ -3,6 +3,11 @@ import type { FastifyRequest } from 'fastify';
 import { env } from '../../config/env';
 import type { apiKeys, users } from '../../db/schema';
 import { AppError } from '../../lib/errors';
+import {
+  formatInternalActor,
+  type OperatorPermission,
+} from './operator-access';
+import { IdentityService } from './service';
 import type { SensitiveAction } from './types';
 
 type SessionUser = InferSelectModel<typeof users>;
@@ -29,7 +34,17 @@ export type RequestAuthContext =
     }
   | {
       kind: 'internal';
-      internalActor: 'bootstrap';
+      authSource: 'bootstrap' | 'operator_token';
+      internalActor: string;
+      permissions: readonly string[];
+      operator?:
+        | {
+            id: string;
+            email: string;
+            displayName: string | null;
+            roles: readonly string[];
+          }
+        | undefined;
     };
 
 declare module 'fastify' {
@@ -47,6 +62,19 @@ export type InternalAuthContext = Extract<
   RequestAuthContext,
   { kind: 'internal' }
 >;
+
+type OperatorTokenResolver = {
+  authenticateOperatorToken(
+    rawToken: string,
+    requiredPermission?: OperatorPermission,
+  ): Promise<{
+    id: string;
+    email: string;
+    displayName: string | null;
+    roles: readonly string[];
+    permissions: readonly OperatorPermission[];
+  }>;
+};
 
 function hasBearerAuthorization(request: FastifyRequest) {
   return typeof request.headers.authorization === 'string'
@@ -142,6 +170,16 @@ export function getOptionalStepUpAuthorizationToken(request: FastifyRequest) {
   return undefined;
 }
 
+function getOperatorTokenFromRequest(request: FastifyRequest) {
+  const operatorToken = request.headers['x-operator-token'];
+
+  if (typeof operatorToken === 'string' && operatorToken.length > 0) {
+    return operatorToken;
+  }
+
+  return undefined;
+}
+
 export function requireSessionAuth(identityService: {
   getUserFromSessionToken(sessionToken: string): Promise<SessionUser>;
 }) {
@@ -163,7 +201,10 @@ export function requireSessionAuth(identityService: {
   };
 }
 
-export function requireInternalAuth() {
+export function requireInternalAuth(
+  requiredPermission?: OperatorPermission,
+  operatorTokenResolver?: OperatorTokenResolver,
+) {
   /**
    * Enforce the current bootstrap-token internal access model.
    *
@@ -171,6 +212,89 @@ export function requireInternalAuth() {
    * `preHandler: requireInternalAuth()`
    */
   return async function onInternalAuth(request: FastifyRequest) {
+    const bootstrapToken = request.headers['x-bootstrap-token'];
+    const operatorToken = getOperatorTokenFromRequest(request);
+
+    if (
+      typeof bootstrapToken === 'string' &&
+      bootstrapToken.length > 0 &&
+      bootstrapToken === env.INTERNAL_BOOTSTRAP_TOKEN
+    ) {
+      request.auth = {
+        kind: 'internal',
+        authSource: 'bootstrap',
+        internalActor: 'bootstrap',
+        permissions: ['*'],
+      };
+
+      return;
+    }
+
+    if (
+      typeof bootstrapToken === 'string' &&
+      bootstrapToken.length > 0 &&
+      bootstrapToken !== env.INTERNAL_BOOTSTRAP_TOKEN &&
+      !operatorToken
+    ) {
+      throw new AppError(
+        401,
+        'invalid_bootstrap_token',
+        'invalid bootstrap token',
+      );
+    }
+
+    if (!operatorToken) {
+      throw new AppError(
+        401,
+        'missing_internal_auth',
+        'missing internal auth; expected x-bootstrap-token or x-operator-token header',
+      );
+    }
+
+    const resolvedOperator = await (
+      operatorTokenResolver ??
+      new (class DefaultOperatorTokenResolver implements OperatorTokenResolver {
+        private readonly identityService = new IdentityService();
+
+        async authenticateOperatorToken(
+          rawToken: string,
+          permission?: OperatorPermission,
+        ) {
+          return this.identityService.authenticateOperatorToken(
+            rawToken,
+            permission,
+          );
+        }
+      })()
+    ).authenticateOperatorToken(operatorToken, requiredPermission);
+
+    request.auth = {
+      kind: 'internal',
+      authSource: 'operator_token',
+      internalActor: formatInternalActor({
+        authSource: 'operator_token',
+        displayName: resolvedOperator.displayName,
+        email: resolvedOperator.email,
+      }),
+      permissions: resolvedOperator.permissions,
+      operator: {
+        id: resolvedOperator.id,
+        email: resolvedOperator.email,
+        displayName: resolvedOperator.displayName,
+        roles: resolvedOperator.roles,
+      },
+    };
+  };
+}
+
+export function requireBootstrapInternalAuth() {
+  /**
+   * Restrict a route to the compatibility bootstrap token only.
+   *
+   * Example:
+   * `preHandler: requireBootstrapInternalAuth()`
+   */
+  return async function onBootstrapInternalAuth(request: FastifyRequest) {
     const bootstrapToken = request.headers['x-bootstrap-token'];
 
     if (bootstrapToken !== env.INTERNAL_BOOTSTRAP_TOKEN) {
@@ -183,7 +307,9 @@ export function requireInternalAuth() {
 
     request.auth = {
       kind: 'internal',
+      authSource: 'bootstrap',
       internalActor: 'bootstrap',
+      permissions: ['*'],
     };
   };
 }
