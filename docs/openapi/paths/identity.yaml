@@ -459,6 +459,7 @@ linkExistingUser:
     summary: Link a password identity to an existing user
     security:
       - BootstrapToken: []
+      - OperatorToken: []
     requestBody:
       required: true
       content:
@@ -478,3 +479,103 @@ linkExistingUser:
         $ref: ../components/responses/common.yaml#/NotFound
       '409':
         $ref: ../components/responses/common.yaml#/Conflict
+
+operators:
+  get:
+    operationId: listOperators
+    tags: [Identity, Internal]
+    summary: List operator principals
+    security:
+      - BootstrapToken: []
+    responses:
+      '200':
+        description: Operator inventory.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/OperatorListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+  post:
+    operationId: createOperator
+    tags: [Identity, Internal]
+    summary: Create an operator principal
+    security:
+      - BootstrapToken: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/CreateOperatorRequest
+    responses:
+      '201':
+        description: Operator created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/CreateOperatorResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+operatorTokens:
+  post:
+    operationId: createOperatorToken
+    tags: [Identity, Internal]
+    summary: Create an operator token
+    security:
+      - BootstrapToken: []
+    parameters:
+      - name: operatorId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/CreateOperatorTokenRequest
+    responses:
+      '201':
+        description: Operator token created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/CreateOperatorTokenResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
+operatorTokenById:
+  delete:
+    operationId: revokeOperatorToken
+    tags: [Identity, Internal]
+    summary: Revoke an operator token
+    security:
+      - BootstrapToken: []
+    parameters:
+      - name: tokenId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Operator token revoked.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/RevokeOperatorTokenResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound

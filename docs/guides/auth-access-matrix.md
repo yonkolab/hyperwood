@@ -8,7 +8,8 @@ Current access classes:
 - `user_session`
 - `user_api_key_raw`
 - `user_api_key_hmac`
-- `internal_bootstrap`
+- `internal_operator_or_bootstrap`
+- `internal_bootstrap_only`
 - `mixed_or_step_up`
 
 One current exception exists outside those user/operator classes:
@@ -17,8 +18,13 @@ One current exception exists outside those user/operator classes:
   Funding provider callbacks are authenticated by timestamped HMAC signatures,
   not by user sessions or the internal bootstrap token.
 
-Internal routes are currently protected by the shared bootstrap token. They are
-not yet backed by per-operator identities or role-based permissions.
+Internal routes are now in a compatibility phase:
+
+- most internal routes accept either the shared bootstrap token or a scoped
+  operator token
+- operator tokens are permissioned by route family
+- bootstrap-only routes remain for operator principal and token bootstrap
+  management
 
 ## Identity
 
@@ -42,15 +48,19 @@ not yet backed by per-operator identities or role-based permissions.
 | `POST` | `/api/v1/auth/api-keys/:apiKeyId/rotate` | `mixed_or_step_up` | Session auth plus MFA action token when MFA is enabled |
 | `POST` | `/api/v1/auth/mfa/totp/setup` | `user_session` | Starts TOTP enrollment |
 | `POST` | `/api/v1/auth/mfa/totp/confirm` | `user_session` | Finalizes TOTP enrollment |
-| `POST` | `/api/v1/internal/auth/link-existing-user` | `internal_bootstrap` | Current internal-only identity linking |
+| `POST` | `/api/v1/internal/auth/link-existing-user` | `internal_operator_or_bootstrap` | Requires `identity:link` for operator tokens |
+| `GET` | `/api/v1/internal/operators` | `internal_bootstrap_only` | Bootstrap-only operator inventory |
+| `POST` | `/api/v1/internal/operators` | `internal_bootstrap_only` | Bootstrap-only operator creation |
+| `POST` | `/api/v1/internal/operators/:operatorId/tokens` | `internal_bootstrap_only` | Bootstrap-only operator token issuance |
+| `DELETE` | `/api/v1/internal/operators/tokens/:tokenId` | `internal_bootstrap_only` | Bootstrap-only operator token revocation |
 
 ## Compliance
 
 | Method | Path | Access class | Notes |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/compliance/me/capabilities` | `user_session` | User capability evaluation |
-| `POST` | `/api/v1/internal/compliance/users/:userId/profile` | `internal_bootstrap` | Internal compliance profile upsert |
-| `POST` | `/api/v1/internal/compliance/users/:userId/restrictions` | `internal_bootstrap` | Internal restriction write path |
+| `POST` | `/api/v1/internal/compliance/users/:userId/profile` | `internal_operator_or_bootstrap` | Requires `compliance:write` for operator tokens |
+| `POST` | `/api/v1/internal/compliance/users/:userId/restrictions` | `internal_operator_or_bootstrap` | Requires `compliance:write` for operator tokens |
 
 ## Funding
 
@@ -63,15 +73,15 @@ not yet backed by per-operator identities or role-based permissions.
 | `GET` | `/api/v1/funding/withdrawals` | `user_session` | Withdrawal history |
 | `POST` | `/api/v1/funding/withdrawals` | `user_session` | Create withdrawal |
 | `POST` | `/api/v1/funding/methods` | `user_session` | Add user funding method |
-| `POST` | `/api/v1/internal/funding/users/:userId/methods` | `internal_bootstrap` | Internal method linking |
-| `POST` | `/api/v1/internal/funding/users/:userId/wallet/seed` | `internal_bootstrap` | Internal seed helper |
-| `POST` | `/api/v1/internal/funding/deposits/:depositId/settle` | `internal_bootstrap` | Internal settlement |
-| `POST` | `/api/v1/internal/funding/withdrawals/:withdrawalId/approve` | `internal_bootstrap` | Internal approval |
-| `POST` | `/api/v1/internal/funding/withdrawals/:withdrawalId/fail` | `internal_bootstrap` | Internal failure |
-| `POST` | `/api/v1/internal/funding/withdrawals/:withdrawalId/settle` | `internal_bootstrap` | Internal settlement |
-| `POST` | `/api/v1/internal/funding/reconciliation/runs` | `internal_bootstrap` | Internal reconciliation run |
-| `GET` | `/api/v1/internal/funding/reconciliation/discrepancies` | `internal_bootstrap` | Internal discrepancy review |
-| `POST` | `/api/v1/internal/funding/webhook-delay-scan` | `internal_bootstrap` | Internal delay scan |
+| `POST` | `/api/v1/internal/funding/users/:userId/methods` | `internal_operator_or_bootstrap` | Requires `funding:approve` for operator tokens |
+| `POST` | `/api/v1/internal/funding/users/:userId/wallet/seed` | `internal_operator_or_bootstrap` | Requires `funding:approve` for operator tokens |
+| `POST` | `/api/v1/internal/funding/deposits/:depositId/settle` | `internal_operator_or_bootstrap` | Requires `funding:approve` for operator tokens |
+| `POST` | `/api/v1/internal/funding/withdrawals/:withdrawalId/approve` | `internal_operator_or_bootstrap` | Requires `funding:approve` for operator tokens |
+| `POST` | `/api/v1/internal/funding/withdrawals/:withdrawalId/fail` | `internal_operator_or_bootstrap` | Requires `funding:approve` for operator tokens |
+| `POST` | `/api/v1/internal/funding/withdrawals/:withdrawalId/settle` | `internal_operator_or_bootstrap` | Requires `funding:approve` for operator tokens |
+| `POST` | `/api/v1/internal/funding/reconciliation/runs` | `internal_operator_or_bootstrap` | Requires `funding:reconcile` for operator tokens |
+| `GET` | `/api/v1/internal/funding/reconciliation/discrepancies` | `internal_operator_or_bootstrap` | Requires `funding:reconcile` for operator tokens |
+| `POST` | `/api/v1/internal/funding/webhook-delay-scan` | `internal_operator_or_bootstrap` | Requires `funding:reconcile` for operator tokens |
 | `POST` | `/api/v1/webhooks/funding/providers/:provider` | `provider_webhook_signed` | Provider callback HMAC verification |
 
 ## Orders
@@ -109,13 +119,13 @@ not yet backed by per-operator identities or role-based permissions.
 | `GET` | `/api/v1/historical/markets/:marketId/trades` | `public` | Historical trades |
 | `GET` | `/api/v1/historical/markets/:marketId/candles` | `public` | Historical candles |
 | `GET` | `/api/v1/markets/:marketId/announcements` | `public` | Published announcements |
-| `POST` | `/api/v1/internal/markets/events` | `internal_bootstrap` | Create event |
-| `POST` | `/api/v1/internal/markets` | `internal_bootstrap` | Create market |
-| `POST` | `/api/v1/internal/markets/:marketId/match` | `internal_bootstrap` | Internal matching trigger |
-| `POST` | `/api/v1/internal/markets/:marketId/announcements` | `internal_bootstrap` | Publish market announcement |
-| `POST` | `/api/v1/internal/markets/:marketId/status` | `internal_bootstrap` | Update market status |
-| `POST` | `/api/v1/internal/markets/:marketId/resolve` | `internal_bootstrap` | Resolve market |
-| `POST` | `/api/v1/internal/markets/:marketId/settle` | `internal_bootstrap` | Settle market |
+| `POST` | `/api/v1/internal/markets/events` | `internal_operator_or_bootstrap` | Requires `markets:write` for operator tokens |
+| `POST` | `/api/v1/internal/markets` | `internal_operator_or_bootstrap` | Requires `markets:write` for operator tokens |
+| `POST` | `/api/v1/internal/markets/:marketId/match` | `internal_operator_or_bootstrap` | Requires `markets:write` for operator tokens |
+| `POST` | `/api/v1/internal/markets/:marketId/announcements` | `internal_operator_or_bootstrap` | Requires `markets:write` for operator tokens |
+| `POST` | `/api/v1/internal/markets/:marketId/status` | `internal_operator_or_bootstrap` | Requires `markets:write` for operator tokens |
+| `POST` | `/api/v1/internal/markets/:marketId/resolve` | `internal_operator_or_bootstrap` | Requires `markets:settle` for operator tokens |
+| `POST` | `/api/v1/internal/markets/:marketId/settle` | `internal_operator_or_bootstrap` | Requires `markets:settle` for operator tokens |
 
 ## Exchange
 
@@ -124,22 +134,24 @@ not yet backed by per-operator identities or role-based permissions.
 | `GET` | `/api/v1/exchange/schedule` | `public` | Active schedule |
 | `GET` | `/api/v1/exchange/status` | `public` | Derived exchange status |
 | `GET` | `/api/v1/exchange/fees` | `public` | Active fee schedules |
-| `POST` | `/api/v1/internal/exchange/schedule` | `internal_bootstrap` | Publish schedule |
-| `POST` | `/api/v1/internal/exchange/fees` | `internal_bootstrap` | Publish fees |
+| `POST` | `/api/v1/internal/exchange/schedule` | `internal_operator_or_bootstrap` | Requires `exchange:write` for operator tokens |
+| `POST` | `/api/v1/internal/exchange/fees` | `internal_operator_or_bootstrap` | Requires `exchange:write` for operator tokens |
 
 ## Operations
 
 | Method | Path | Access class | Notes |
 | --- | --- | --- | --- |
-| `GET` | `/api/v1/internal/operations/reviews` | `internal_bootstrap` | Review queue |
-| `GET` | `/api/v1/internal/operations/audit-events` | `internal_bootstrap` | Audit feed |
-| `GET` | `/api/v1/internal/operations/rate-limit-events` | `internal_bootstrap` | Rate-limit review feed |
-| `GET` | `/api/v1/internal/operations/alerts` | `internal_bootstrap` | Alert feed |
-| `POST` | `/api/v1/internal/operations/ledger-invariant-scan` | `internal_bootstrap` | Ledger scan |
-| `POST` | `/api/v1/internal/operations/settlement-failure-scan` | `internal_bootstrap` | Settlement scan |
-| `POST` | `/api/v1/internal/operations/settlement-retries/:marketId` | `internal_bootstrap` | Settlement retry |
-| `POST` | `/api/v1/internal/operations/trading-condition-scan` | `internal_bootstrap` | Trading condition scan |
-| `POST` | `/api/v1/internal/operations/realtime-stream-health-scan` | `internal_bootstrap` | SSE health scan |
+| `GET` | `/api/v1/internal/operations/reviews` | `internal_operator_or_bootstrap` | Requires `operations:read` for operator tokens |
+| `GET` | `/api/v1/internal/operations/audit-events` | `internal_operator_or_bootstrap` | Requires `operations:read` for operator tokens |
+| `GET` | `/api/v1/internal/operations/rate-limit-events` | `internal_operator_or_bootstrap` | Requires `operations:read` for operator tokens |
+| `GET` | `/api/v1/internal/operations/email-feedback-events` | `internal_operator_or_bootstrap` | Requires `operations:read` for operator tokens |
+| `GET` | `/api/v1/internal/operations/email-suppressions` | `internal_operator_or_bootstrap` | Requires `operations:read` for operator tokens |
+| `GET` | `/api/v1/internal/operations/alerts` | `internal_operator_or_bootstrap` | Requires `operations:read` for operator tokens |
+| `POST` | `/api/v1/internal/operations/ledger-invariant-scan` | `internal_operator_or_bootstrap` | Requires `operations:scan` for operator tokens |
+| `POST` | `/api/v1/internal/operations/settlement-failure-scan` | `internal_operator_or_bootstrap` | Requires `operations:scan` for operator tokens |
+| `POST` | `/api/v1/internal/operations/settlement-retries/:marketId` | `internal_operator_or_bootstrap` | Requires `operations:scan` for operator tokens |
+| `POST` | `/api/v1/internal/operations/trading-condition-scan` | `internal_operator_or_bootstrap` | Requires `operations:scan` for operator tokens |
+| `POST` | `/api/v1/internal/operations/realtime-stream-health-scan` | `internal_operator_or_bootstrap` | Requires `operations:scan` for operator tokens |
 
 ## Health
 

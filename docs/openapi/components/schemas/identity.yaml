@@ -322,6 +322,128 @@ RevokeApiKeyResponse:
     apiKey:
       $ref: '#/ApiKeySummary'
 
+CreateOperatorRequest:
+  type: object
+  required: [email, roles]
+  properties:
+    email:
+      type: string
+      format: email
+    displayName:
+      type: string
+    roles:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        enum:
+          - super_admin
+          - operations_reader
+          - operations_scanner
+          - market_writer
+          - market_settler
+          - compliance_admin
+          - funding_approver
+          - funding_reconciler
+          - exchange_admin
+          - identity_admin
+
+OperatorSummary:
+  type: object
+  required:
+    [id, email, displayName, status, actor, roles, permissions, activeTokenCount, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    displayName:
+      type: string
+      nullable: true
+    status:
+      type: string
+      enum: [active, disabled]
+    actor:
+      type: string
+    roles:
+      type: array
+      items:
+        type: string
+    permissions:
+      type: array
+      items:
+        type: string
+    activeTokenCount:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateOperatorResponse:
+  type: object
+  required: [operator]
+  properties:
+    operator:
+      $ref: '#/OperatorSummary'
+
+OperatorListResponse:
+  type: object
+  required: [operators]
+  properties:
+    operators:
+      type: array
+      items:
+        $ref: '#/OperatorSummary'
+
+CreateOperatorTokenRequest:
+  type: object
+  required: [label]
+  properties:
+    label:
+      type: string
+
+CreateOperatorTokenResponse:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: object
+      required: [id, operatorId, label, tokenPrefix, rawToken, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        operatorId:
+          type: string
+          format: uuid
+        label:
+          type: string
+        tokenPrefix:
+          type: string
+        rawToken:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+RevokeOperatorTokenResponse:
+  type: object
+  required: [tokenId, revoked, alreadyRevoked]
+  properties:
+    tokenId:
+      type: string
+      format: uuid
+    revoked:
+      type: boolean
+      enum: [true]
+    alreadyRevoked:
+      type: boolean
+
 TotpSetupResponse:
   type: object
   required: [factorId, secret, otpauthUri]

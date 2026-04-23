@@ -8,7 +8,13 @@ BootstrapToken:
   type: apiKey
   in: header
   name: x-bootstrap-token
-  description: Internal bootstrap token used by private administrative endpoints.
+  description: Compatibility bootstrap token for private administrative endpoints.
+
+OperatorToken:
+  type: apiKey
+  in: header
+  name: x-operator-token
+  description: Scoped operator API token for internal administrative endpoints.
 
 ApiKeyHeader:
   type: apiKey

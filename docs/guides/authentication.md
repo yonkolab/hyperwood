@@ -1,6 +1,6 @@
 # Authentication
 
-Hyperwood currently supports three practical authentication modes for HTTP APIs plus one internal bootstrap mode.
+Hyperwood currently supports three practical authentication modes for HTTP APIs plus a phased internal operator model.
 
 ## 1. Bearer session tokens
 
@@ -98,27 +98,58 @@ Important constraints from the current implementation:
 - the key must support HMAC signing, older legacy keys do not
 - rotating a key immediately invalidates the previous raw key and HMAC secret
 
-## 5. Internal bootstrap token
+## 5. Internal operator and bootstrap auth
 
-Private administrative endpoints use:
+Most private administrative endpoints now accept either:
+
+```http
+x-operator-token: <rawOperatorToken>
+```
+
+or the compatibility bootstrap header:
 
 ```http
 x-bootstrap-token: <INTERNAL_BOOTSTRAP_TOKEN>
 ```
 
-Used by:
+Operator tokens are bootstrap-managed today. They are created through:
 
-- internal auth linking
-- internal compliance writes
-- internal funding writes
-- internal market bootstrap and matching
-- internal operations review queue
+- `POST /api/v1/internal/operators`
+- `POST /api/v1/internal/operators/{operatorId}/tokens`
+
+Bootstrap-only management endpoints:
+
+- `GET /api/v1/internal/operators`
+- `POST /api/v1/internal/operators`
+- `POST /api/v1/internal/operators/{operatorId}/tokens`
+- `DELETE /api/v1/internal/operators/tokens/{tokenId}`
+
+Permissioned internal route families:
+
+- `identity:link`
+- `compliance:write`
+- `funding:approve`
+- `funding:reconcile`
+- `markets:write`
+- `markets:settle`
+- `exchange:write`
+- `operations:read`
+- `operations:scan`
+
+Compatibility behavior:
+
+- bootstrap auth still works on permissioned internal routes
+- operator tokens are checked before the handler runs
+- missing both headers returns `missing_internal_auth`
+- invalid operator token returns `invalid_operator_token`
+- valid operator token without the required permission returns `insufficient_operator_permission`
 
 ## Current limitations
 
 - There is no OAuth flow today.
 - There is no token introspection endpoint.
-- There are no role-based admin tokens beyond the shared bootstrap token.
+- Operator auth is API-token based only.
+- There is no operator session login flow yet.
 
 ## Verification email delivery
 
