@@ -52,6 +52,16 @@ VerificationDelivery:
       type: string
       format: date-time
 
+EmailWebhookAckResponse:
+  type: object
+  required: [acknowledged, test]
+  properties:
+    acknowledged:
+      type: boolean
+      enum: [true]
+    test:
+      type: boolean
+
 VerificationResponse:
   type: object
   required: [user, verificationChallenge, delivery]

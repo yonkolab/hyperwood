@@ -198,6 +198,27 @@ export async function buildApp(
   const rateLimitEventService = new RateLimitEventService();
 
   app.decorateRequest('auth', undefined);
+  app.decorateRequest('rawBody', undefined);
+
+  app.addContentTypeParser(
+    /^application\/json(?:;.*)?$/,
+    { parseAs: 'string' },
+    (request, body, done) => {
+      const rawBody = typeof body === 'string' ? body : body.toString('utf8');
+      request.rawBody = rawBody;
+
+      if (rawBody.length === 0) {
+        done(null, {});
+        return;
+      }
+
+      try {
+        done(null, JSON.parse(rawBody));
+      } catch (error) {
+        done(error as Error, undefined);
+      }
+    },
+  );
 
   await app.register(cors, {
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],

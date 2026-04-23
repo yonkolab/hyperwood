@@ -357,6 +357,100 @@ RateLimitEventListResponse:
       items:
         $ref: '#/RateLimitEvent'
 
+EmailFeedbackEvent:
+  type: object
+  required:
+    [id, provider, eventType, status, providerEventId, providerMessageId, recipientEmail, payload, occurredAt, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    provider:
+      type: string
+    eventType:
+      type: string
+    status:
+      type: string
+      enum: [sent, delivered, deferred, soft_bounced, hard_bounced, complained]
+    providerEventId:
+      type: string
+    providerMessageId:
+      type: string
+      nullable: true
+    recipientEmail:
+      type: string
+      format: email
+      nullable: true
+    payload:
+      type: object
+      additionalProperties: true
+    occurredAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+
+EmailFeedbackEventListResponse:
+  type: object
+  required: [generatedAt, events]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    events:
+      type: array
+      items:
+        $ref: '#/EmailFeedbackEvent'
+
+EmailSuppression:
+  type: object
+  required:
+    [id, email, reason, provider, providerEventId, providerMessageId, sourceType, metadata, releasedAt, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    email:
+      type: string
+      format: email
+    reason:
+      type: string
+    provider:
+      type: string
+    providerEventId:
+      type: string
+    providerMessageId:
+      type: string
+      nullable: true
+    sourceType:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+    releasedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+EmailSuppressionListResponse:
+  type: object
+  required: [generatedAt, suppressions]
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+    suppressions:
+      type: array
+      items:
+        $ref: '#/EmailSuppression'
+
 OperationsAlert:
   type: object
   required:

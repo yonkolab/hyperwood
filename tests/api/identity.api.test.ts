@@ -103,6 +103,35 @@ describe('identity api', () => {
     });
   });
 
+  it('accepts the MailerSend webhook test request', async () => {
+    const payload = {
+      type: 'webhook.test',
+      message: 'This is a ping test message',
+      created_at: '2026-03-27T07:24:20.577080Z',
+    };
+    const rawBody = JSON.stringify(payload);
+    const signature = hmacSha256Hex(
+      'test_Am3L1GuOIc4blLUuHqAPxxwkZaJyEk8G',
+      rawBody,
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/webhooks/email/providers/mailersend',
+      headers: {
+        signature,
+        'content-type': 'application/json',
+      },
+      payload: rawBody,
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toEqual({
+      acknowledged: true,
+      test: true,
+    });
+  });
+
   it('lists and revokes authenticated sessions', async () => {
     const registration = await registerUser(app);
 

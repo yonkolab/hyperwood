@@ -8,11 +8,13 @@ import {
   requireSessionAuth,
   requireStepUpAuthorization,
 } from './auth-guards';
+import { EmailWebhookService } from './email-webhook.service';
 import {
   apiKeyParamsSchema,
   authorizeSensitiveActionBodySchema,
   confirmTotpSetupBodySchema,
   createApiKeyBodySchema,
+  emailWebhookProviderParamsSchema,
   linkExistingUserBodySchema,
   loginBodySchema,
   registerBodySchema,
@@ -29,6 +31,7 @@ async function identityRoutes(
   _options: FastifyPluginOptions,
 ) {
   const identityService = new IdentityService();
+  const emailWebhookService = new EmailWebhookService();
   const requireSession = requireSessionAuth(identityService);
   const requireInternal = requireInternalAuth();
   const requireApiKeyStepUp = requireStepUpAuthorization('api_keys_manage');
@@ -74,6 +77,21 @@ async function identityRoutes(
     });
 
     reply.send(result);
+  });
+
+  app.post('/webhooks/email/providers/:provider', async (request, reply) => {
+    emailWebhookProviderParamsSchema.parse(request.params);
+
+    const signatureHeader = request.headers.signature;
+    const signature =
+      typeof signatureHeader === 'string' ? signatureHeader : undefined;
+    const result = await emailWebhookService.processMailerSendWebhook({
+      rawBody: request.rawBody ?? JSON.stringify(request.body ?? {}),
+      signature,
+      body: request.body,
+    });
+
+    reply.status(202).send(result);
   });
 
   app.post('/auth/mfa/totp/verify', async (request, reply) => {

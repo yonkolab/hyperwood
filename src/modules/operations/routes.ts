@@ -4,6 +4,8 @@ import {
   ledgerInvariantScanBodySchema,
   listAlertsQuerySchema,
   listAuditEventsQuerySchema,
+  listEmailFeedbackEventsQuerySchema,
+  listEmailSuppressionsQuerySchema,
   listRateLimitEventsQuerySchema,
   listReviewQueueQuerySchema,
   realtimeStreamHealthScanBodySchema,
@@ -60,6 +62,36 @@ async function operationsRoutes(
         ...(query.scopeType ? { scopeType: query.scopeType } : {}),
         ...(query.scopeKey ? { scopeKey: query.scopeKey } : {}),
         ...(query.path ? { path: query.path } : {}),
+      });
+    },
+  );
+
+  app.get(
+    '/internal/operations/email-feedback-events',
+    { preHandler: requireInternal },
+    async (request) => {
+      const query = listEmailFeedbackEventsQuerySchema.parse(request.query);
+
+      return operationsService.listEmailFeedbackEvents({
+        limit: query.limit,
+        ...(query.recipientEmail
+          ? { recipientEmail: query.recipientEmail }
+          : {}),
+        ...(query.status ? { status: query.status } : {}),
+      });
+    },
+  );
+
+  app.get(
+    '/internal/operations/email-suppressions',
+    { preHandler: requireInternal },
+    async (request) => {
+      const query = listEmailSuppressionsQuerySchema.parse(request.query);
+
+      return operationsService.listEmailSuppressions({
+        limit: query.limit,
+        ...(query.email ? { email: query.email } : {}),
+        ...(query.reason ? { reason: query.reason } : {}),
       });
     },
   );

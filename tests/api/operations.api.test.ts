@@ -6,8 +6,11 @@ import {
   ledgerEntries,
   ledgerTransactions,
   marketResolutions,
+  suppressedEmailRecipients,
+  transactionalEmailFeedbackEvents,
   walletAccounts,
 } from '../../src/db/schema';
+import { hmacSha256Hex } from '../../src/lib/crypto';
 import { buildTestApp } from '../helpers/app';
 import { createVerifiedSession, registerUser } from '../helpers/auth';
 import {
@@ -774,5 +777,99 @@ describe('operations api', () => {
       controller.abort();
       await streamApp.close();
     }
+  });
+
+  it('lists persisted email feedback events and suppressions for internal operators', async () => {
+    const payload = {
+      type: 'activity.hard_bounced',
+      created_at: '2026-04-22T21:00:00.000000Z',
+      data: {
+        id: 'feedback_123',
+        domain_id: 'test-domain',
+        message_id: 'message_123',
+        email: 'bounced@example.com',
+        type: 'hard_bounced',
+        subject: 'Verify your Hyperwood account',
+        meta: [],
+      },
+    };
+    const rawBody = JSON.stringify(payload);
+    const signature = hmacSha256Hex(
+      process.env.MAILERSEND_WEBHOOK_SIGNING_SECRET ??
+        'test-mailersend-webhook-secret',
+      rawBody,
+    );
+
+    const webhook = await app.inject({
+      method: 'POST',
+      url: '/api/v1/webhooks/email/providers/mailersend',
+      headers: {
+        signature,
+        'content-type': 'application/json',
+      },
+      payload: rawBody,
+    });
+
+    expect(webhook.statusCode).toBe(202);
+
+    const feedbackEvents = await app.inject({
+      method: 'GET',
+      url:
+        '/api/v1/internal/operations/email-feedback-events' +
+        '?limit=10&recipientEmail=bounced%40example.com&status=hard_bounced',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+    });
+
+    expect(feedbackEvents.statusCode).toBe(200);
+    expect(feedbackEvents.json().events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: 'mailersend',
+          eventType: 'activity.hard_bounced',
+          status: 'hard_bounced',
+          providerEventId: 'feedback_123',
+          providerMessageId: 'message_123',
+          recipientEmail: 'bounced@example.com',
+        }),
+      ]),
+    );
+
+    const suppressions = await app.inject({
+      method: 'GET',
+      url: '/api/v1/internal/operations/email-suppressions?limit=10&email=bounced%40example.com',
+      headers: {
+        'x-bootstrap-token':
+          process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
+      },
+    });
+
+    expect(suppressions.statusCode).toBe(200);
+    expect(suppressions.json().suppressions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          email: 'bounced@example.com',
+          reason: 'hard_bounced',
+          provider: 'mailersend',
+          providerEventId: 'feedback_123',
+        }),
+      ]),
+    );
+
+    const storedFeedbackEvents = await db
+      .select()
+      .from(transactionalEmailFeedbackEvents)
+      .where(
+        eq(transactionalEmailFeedbackEvents.providerEventId, 'feedback_123'),
+      );
+    const storedSuppressions = await db
+      .select()
+      .from(suppressedEmailRecipients)
+      .where(eq(suppressedEmailRecipients.email, 'bounced@example.com'));
+
+    expect(storedFeedbackEvents).toHaveLength(1);
+    expect(storedSuppressions).toHaveLength(1);
   });
 });

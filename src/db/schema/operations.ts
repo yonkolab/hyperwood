@@ -27,6 +27,18 @@ export const transactionalEmailStatusEnum = pgEnum(
   ['development_override', 'queued', 'failed'],
 );
 
+export const transactionalEmailFeedbackStatusEnum = pgEnum(
+  'transactional_email_feedback_status',
+  [
+    'sent',
+    'delivered',
+    'deferred',
+    'soft_bounced',
+    'hard_bounced',
+    'complained',
+  ],
+);
+
 export const adminAuditEvents = pgTable(
   'admin_audit_events',
   {
@@ -166,5 +178,72 @@ export const transactionalEmailAttempts = pgTable(
     ),
     index('transactional_email_attempts_status_idx').on(table.status),
     index('transactional_email_attempts_created_at_idx').on(table.createdAt),
+  ],
+);
+
+export const transactionalEmailFeedbackEvents = pgTable(
+  'transactional_email_feedback_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    provider: varchar('provider', { length: 32 }).notNull(),
+    eventType: varchar('event_type', { length: 64 }).notNull(),
+    status: transactionalEmailFeedbackStatusEnum('status').notNull(),
+    providerEventId: varchar('provider_event_id', { length: 255 }).notNull(),
+    providerMessageId: varchar('provider_message_id', { length: 255 }),
+    recipientEmail: varchar('recipient_email', { length: 255 }),
+    payload: jsonb('payload')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('transactional_email_feedback_events_provider_unique').on(
+      table.provider,
+      table.providerEventId,
+      table.eventType,
+    ),
+    index('transactional_email_feedback_events_message_idx').on(
+      table.providerMessageId,
+    ),
+    index('transactional_email_feedback_events_recipient_idx').on(
+      table.recipientEmail,
+    ),
+    index('transactional_email_feedback_events_status_idx').on(table.status),
+    index('transactional_email_feedback_events_occurred_at_idx').on(
+      table.occurredAt,
+    ),
+  ],
+);
+
+export const suppressedEmailRecipients = pgTable(
+  'suppressed_email_recipients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: varchar('email', { length: 255 }).notNull(),
+    reason: varchar('reason', { length: 64 }).notNull(),
+    provider: varchar('provider', { length: 32 }).notNull(),
+    providerEventId: varchar('provider_event_id', { length: 255 }).notNull(),
+    providerMessageId: varchar('provider_message_id', { length: 255 }),
+    sourceType: varchar('source_type', { length: 64 }).notNull(),
+    metadata: jsonb('metadata')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('suppressed_email_recipients_active_unique').on(table.email),
+    index('suppressed_email_recipients_reason_idx').on(table.reason),
+    index('suppressed_email_recipients_created_at_idx').on(table.createdAt),
   ],
 );

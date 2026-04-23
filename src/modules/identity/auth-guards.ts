@@ -35,6 +35,7 @@ export type RequestAuthContext =
 declare module 'fastify' {
   interface FastifyRequest {
     auth: RequestAuthContext | undefined;
+    rawBody?: string;
   }
 }
 

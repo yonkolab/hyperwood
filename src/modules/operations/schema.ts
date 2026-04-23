@@ -19,6 +19,27 @@ export const listRateLimitEventsQuerySchema = z.object({
   path: z.string().min(1).max(255).optional(),
 });
 
+export const listEmailFeedbackEventsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+  recipientEmail: z.string().email().optional(),
+  status: z
+    .enum([
+      'sent',
+      'delivered',
+      'deferred',
+      'soft_bounced',
+      'hard_bounced',
+      'complained',
+    ])
+    .optional(),
+});
+
+export const listEmailSuppressionsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(25),
+  email: z.string().email().optional(),
+  reason: z.string().min(1).max(64).optional(),
+});
+
 export const listAlertsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(25),
   category: z.string().min(1).max(64).optional(),

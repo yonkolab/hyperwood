@@ -51,6 +51,10 @@ export const apiKeyParamsSchema = z.object({
   apiKeyId: z.string().uuid(),
 });
 
+export const emailWebhookProviderParamsSchema = z.object({
+  provider: z.enum(['mailersend']),
+});
+
 export const sessionParamsSchema = z.object({
   sessionId: z.string().uuid(),
 });

@@ -91,6 +91,67 @@ rateLimitEvents:
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
 
+emailFeedbackEvents:
+  get:
+    operationId: listOperationsEmailFeedbackEvents
+    tags: [Operations, Internal]
+    summary: List persisted transactional email feedback events
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit25
+      - name: recipientEmail
+        in: query
+        required: false
+        schema:
+          type: string
+          format: email
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [sent, delivered, deferred, soft_bounced, hard_bounced, complained]
+    responses:
+      '200':
+        description: Persisted transactional email feedback events ordered from newest to oldest.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/operations.yaml#/EmailFeedbackEventListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
+emailSuppressions:
+  get:
+    operationId: listOperationsEmailSuppressions
+    tags: [Operations, Internal]
+    summary: List persisted suppressed email recipients
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/Limit25
+      - name: email
+        in: query
+        required: false
+        schema:
+          type: string
+          format: email
+      - name: reason
+        in: query
+        required: false
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Persisted suppression records ordered from newest to oldest.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/operations.yaml#/EmailSuppressionListResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
 alerts:
   get:
     operationId: listOperationsAlerts

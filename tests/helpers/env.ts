@@ -18,7 +18,7 @@ const TEST_ENV_DEFAULTS: Record<string, string> = {
   MAILERSEND_API_TOKEN: '',
   MAILERSEND_DOMAIN: 'test-r9084zvxq6jgw63d.mlsender.net',
   MAILERSEND_FROM_EMAIL: 'no-reply@test-r9084zvxq6jgw63d.mlsender.net',
-  MAILERSEND_WEBHOOK_SIGNING_SECRET: '',
+  MAILERSEND_WEBHOOK_SIGNING_SECRET: 'test-mailersend-webhook-secret',
   MFA_CHALLENGE_TTL_MINUTES: '10',
   MFA_ACTION_AUTHORIZATION_TTL_MINUTES: '5',
   LOGIN_RISK_WINDOW_MINUTES: '15',

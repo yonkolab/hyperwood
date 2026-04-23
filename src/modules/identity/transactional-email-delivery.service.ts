@@ -1,6 +1,10 @@
+import { eq } from 'drizzle-orm';
 import { env } from '../../config/env';
 import { db } from '../../db/client';
-import { transactionalEmailAttempts } from '../../db/schema';
+import {
+  suppressedEmailRecipients,
+  transactionalEmailAttempts,
+} from '../../db/schema';
 import { buildVerificationEmailTemplate } from './email-delivery-support';
 import {
   MailerSendEmailClient,
@@ -23,6 +27,36 @@ export class TransactionalEmailDeliveryService {
   async deliverVerificationEmail(
     input: VerificationEmailDeliveryInput,
   ): Promise<VerificationEmailDeliveryResult> {
+    const recipientSuppression = await db
+      .select({
+        id: suppressedEmailRecipients.id,
+        reason: suppressedEmailRecipients.reason,
+        releasedAt: suppressedEmailRecipients.releasedAt,
+      })
+      .from(suppressedEmailRecipients)
+      .where(eq(suppressedEmailRecipients.email, input.email))
+      .limit(1);
+    const activeSuppression = recipientSuppression[0];
+
+    if (activeSuppression && activeSuppression.releasedAt === null) {
+      return this.recordAttempt({
+        userId: input.userId,
+        recipientEmail: input.email,
+        messageType: 'email_verification',
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        status: 'failed',
+        provider: null,
+        providerMessageId: null,
+        errorCode: 'recipient_suppressed',
+        errorMessage: `recipient ${input.email} is suppressed due to ${activeSuppression.reason}`,
+        metadata: {
+          suppressionId: activeSuppression.id,
+          expiresAt: input.expiresAt.toISOString(),
+        },
+      });
+    }
+
     if (env.EMAIL_DELIVERY_PROVIDER === 'development_override') {
       return this.recordAttempt({
         userId: input.userId,

@@ -1,3 +1,4 @@
+import { EmailWebhookService } from '../identity/email-webhook.service';
 import { OperationsAlertService } from './alerts';
 import { AdminAuditService } from './audit';
 import { LedgerInvariantAlertService } from './ledger-invariant-alert.service';
@@ -11,6 +12,7 @@ import { TradingConditionAlertService } from './trading-condition-alert.service'
 export class OperationsService {
   private readonly operationsAlertService = new OperationsAlertService();
   private readonly adminAuditService = new AdminAuditService();
+  private readonly emailWebhookService = new EmailWebhookService();
   private readonly ledgerInvariantAlertService =
     new LedgerInvariantAlertService();
   private readonly operationsReviewQueueService =
@@ -88,6 +90,44 @@ export class OperationsService {
         ...(input.severity ? { severity: input.severity } : {}),
         ...(input.status ? { status: input.status } : {}),
         ...(input.sourceType ? { sourceType: input.sourceType } : {}),
+      }),
+    };
+  }
+
+  async listEmailFeedbackEvents(input: {
+    limit: number;
+    recipientEmail?: string;
+    status?:
+      | 'sent'
+      | 'delivered'
+      | 'deferred'
+      | 'soft_bounced'
+      | 'hard_bounced'
+      | 'complained';
+  }) {
+    return {
+      generatedAt: new Date().toISOString(),
+      events: await this.emailWebhookService.listEmailFeedbackEvents({
+        limit: Math.min(input.limit, 100),
+        ...(input.recipientEmail
+          ? { recipientEmail: input.recipientEmail }
+          : {}),
+        ...(input.status ? { status: input.status } : {}),
+      }),
+    };
+  }
+
+  async listEmailSuppressions(input: {
+    limit: number;
+    email?: string;
+    reason?: string;
+  }) {
+    return {
+      generatedAt: new Date().toISOString(),
+      suppressions: await this.emailWebhookService.listSuppressedRecipients({
+        limit: Math.min(input.limit, 100),
+        ...(input.email ? { email: input.email } : {}),
+        ...(input.reason ? { reason: input.reason } : {}),
       }),
     };
   }

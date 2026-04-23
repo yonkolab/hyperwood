@@ -105,6 +105,38 @@ verifyEmail:
       '410':
         $ref: ../components/responses/common.yaml#/Gone
 
+emailProviderWebhook:
+  post:
+    operationId: receiveEmailProviderWebhook
+    tags: [Identity]
+    summary: Receive signed transactional email webhook callbacks
+    security: []
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [mailersend]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+    responses:
+      '202':
+        description: Webhook received and accepted for processing.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/EmailWebhookAckResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+
 verifyTotpLogin:
   post:
     operationId: verifyTotpLogin
