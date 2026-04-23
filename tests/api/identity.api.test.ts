@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../../src/db/client';
-import { userSessions } from '../../src/db/schema';
+import { transactionalEmailAttempts, userSessions } from '../../src/db/schema';
 import { hmacSha256Hex } from '../../src/lib/crypto';
 import { buildApiHmacPayload } from '../../src/modules/identity/identity-workflow-support';
 import { buildTestApp } from '../helpers/app';
@@ -35,6 +35,27 @@ describe('identity api', () => {
     expect(result.body.user.email).toBe(result.credentials.email);
     expect(result.body.user.username).toBe(result.credentials.username);
     expect(result.body.verificationChallenge.token).toEqual(expect.any(String));
+    expect(result.body.delivery).toMatchObject({
+      status: 'development_override',
+      provider: null,
+      failureCode: null,
+      failureMessage: null,
+    });
+
+    const emailAttempts = await db
+      .select()
+      .from(transactionalEmailAttempts)
+      .where(
+        eq(transactionalEmailAttempts.recipientEmail, result.credentials.email),
+      );
+
+    expect(emailAttempts).toHaveLength(1);
+    expect(emailAttempts[0]).toMatchObject({
+      messageType: 'email_verification',
+      sourceType: 'user_registration',
+      status: 'development_override',
+      provider: null,
+    });
   });
 
   it('logs in with the newly created password identity', async () => {
@@ -248,6 +269,42 @@ describe('identity api', () => {
       authRateLimitMaxRequests.toString(),
     );
     expect(finalAttempt?.headers['retry-after']).toEqual(expect.any(String));
+  });
+
+  it('records a resend verification delivery attempt', async () => {
+    const registration = await registerUser(app);
+
+    const resend = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/request-email-verification',
+      payload: {
+        email: registration.credentials.email,
+      },
+    });
+
+    expect(resend.statusCode).toBe(201);
+    expect(resend.json()).toMatchObject({
+      delivery: {
+        status: 'development_override',
+        provider: null,
+      },
+    });
+
+    const emailAttempts = await db
+      .select()
+      .from(transactionalEmailAttempts)
+      .where(
+        eq(
+          transactionalEmailAttempts.recipientEmail,
+          registration.credentials.email,
+        ),
+      );
+
+    expect(emailAttempts).toHaveLength(2);
+    expect(emailAttempts[1]).toMatchObject({
+      sourceType: 'email_verification_resend',
+      status: 'development_override',
+    });
   });
 
   it('rotates an api key secret and invalidates the previous raw key and hmac secret', async () => {

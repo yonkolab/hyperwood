@@ -7,13 +7,16 @@ import {
 } from '../../db/schema';
 import { normalizeEmail, sha256Hex } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
-import {
-  buildEmailVerificationChallenge,
-  formatVerificationResponse,
-} from './identity-workflow-support';
+import { formatVerificationResponse } from './email-delivery-support';
+import { buildEmailVerificationChallenge } from './identity-workflow-support';
+import { TransactionalEmailDeliveryService } from './transactional-email-delivery.service';
 import type { RequestEmailVerificationInput, VerifyEmailInput } from './types';
 
 export class EmailVerificationService {
+  constructor(
+    private readonly emailDeliveryService = new TransactionalEmailDeliveryService(),
+  ) {}
+
   async requestEmailVerification(input: RequestEmailVerificationInput) {
     const email = normalizeEmail(input.email);
     const userRows = await db
@@ -41,13 +44,36 @@ export class EmailVerificationService {
 
     const verificationChallenge = buildEmailVerificationChallenge();
 
-    await db.insert(emailVerificationTokens).values({
+    const insertedRows = await db
+      .insert(emailVerificationTokens)
+      .values({
+        userId: user.id,
+        tokenHash: verificationChallenge.tokenHash,
+        expiresAt: verificationChallenge.expiresAt,
+      })
+      .returning({
+        id: emailVerificationTokens.id,
+      });
+    const insertedVerificationToken = insertedRows[0];
+
+    if (!insertedVerificationToken) {
+      throw new AppError(
+        500,
+        'verification_creation_failed',
+        `failed to create verification token for user ${user.id}`,
+      );
+    }
+    const delivery = await this.emailDeliveryService.deliverVerificationEmail({
       userId: user.id,
-      tokenHash: verificationChallenge.tokenHash,
+      email: user.email,
+      username: user.username,
+      verificationToken: verificationChallenge.token,
       expiresAt: verificationChallenge.expiresAt,
+      sourceType: 'email_verification_resend',
+      sourceId: insertedVerificationToken.id,
     });
 
-    return formatVerificationResponse(user, verificationChallenge);
+    return formatVerificationResponse(user, verificationChallenge, delivery);
   }
 
   async verifyEmail(input: VerifyEmailInput) {

@@ -31,6 +31,10 @@ const envSchema = z.object({
     .default('development'),
   HOST: z.string().default('0.0.0.0'),
   PORT: z.coerce.number().int().positive().default(3000),
+  EMAIL_DELIVERY_PROVIDER: z
+    .enum(['development_override', 'mailersend'])
+    .default('development_override'),
+  EMAIL_FROM_NAME: z.string().min(1).default('Hyperwood'),
   PRIMARY_MARKET_CURRENCY: z
     .string()
     .trim()
@@ -69,6 +73,16 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(60),
+  MAILERSEND_API_TOKEN: z.string().default(''),
+  MAILERSEND_DOMAIN: z
+    .string()
+    .min(1)
+    .default('test-r9084zvxq6jgw63d.mlsender.net'),
+  MAILERSEND_FROM_EMAIL: z
+    .string()
+    .email()
+    .default('no-reply@test-r9084zvxq6jgw63d.mlsender.net'),
+  MAILERSEND_WEBHOOK_SIGNING_SECRET: z.string().default(''),
   MFA_CHALLENGE_TTL_MINUTES: z.coerce.number().int().positive().default(10),
   MFA_ACTION_AUTHORIZATION_TTL_MINUTES: z.coerce
     .number()
@@ -121,6 +135,25 @@ if (
   throw new Error(
     `PRIMARY_MARKET_CURRENCY="${parsedEnv.PRIMARY_MARKET_CURRENCY}" must be included in SUPPORTED_MARKET_CURRENCIES="${parsedEnv.SUPPORTED_MARKET_CURRENCIES.join(',')}"`,
   );
+}
+
+if (parsedEnv.EMAIL_DELIVERY_PROVIDER === 'mailersend') {
+  if (parsedEnv.MAILERSEND_API_TOKEN.length === 0) {
+    throw new Error(
+      'MAILERSEND_API_TOKEN must be configured when EMAIL_DELIVERY_PROVIDER="mailersend"',
+    );
+  }
+
+  const configuredFromDomain = parsedEnv.MAILERSEND_FROM_EMAIL.split('@')[1];
+
+  if (
+    configuredFromDomain?.toLowerCase() !==
+    parsedEnv.MAILERSEND_DOMAIN.toLowerCase()
+  ) {
+    throw new Error(
+      `MAILERSEND_FROM_EMAIL="${parsedEnv.MAILERSEND_FROM_EMAIL}" must use MAILERSEND_DOMAIN="${parsedEnv.MAILERSEND_DOMAIN}"`,
+    );
+  }
 }
 
 export const env = parsedEnv;

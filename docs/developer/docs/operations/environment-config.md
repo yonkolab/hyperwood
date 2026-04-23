@@ -12,6 +12,7 @@ Core runtime configuration lives in `src/config/env.ts`.
 - database connection
 - session and MFA policy
 - rate limits
+- transactional email delivery
 - webhook verification
 - alert thresholds
 - primary and supported market currencies
@@ -31,3 +32,16 @@ and in `.env.example`.
   Comma-separated list of accepted currency codes such as `BRL,USD,EUR`.
 
 The app validates that the primary currency is included in the supported list at startup.
+
+## Transactional email delivery
+
+- `EMAIL_DELIVERY_PROVIDER`
+  Selects `development_override` or `mailersend`.
+- `EMAIL_FROM_NAME`
+  Sender display name for transactional mail.
+- `MAILERSEND_API_TOKEN`
+  API token used when `EMAIL_DELIVERY_PROVIDER=mailersend`.
+- `MAILERSEND_DOMAIN`
+  Verified MailerSend sending domain.
+- `MAILERSEND_FROM_EMAIL`
+  Sender email used for transactional delivery. It must use the configured MailerSend domain.

@@ -22,6 +22,11 @@ export const operationsAlertStatusEnum = pgEnum('operations_alert_status', [
   'resolved',
 ]);
 
+export const transactionalEmailStatusEnum = pgEnum(
+  'transactional_email_status',
+  ['development_override', 'queued', 'failed'],
+);
+
 export const adminAuditEvents = pgTable(
   'admin_audit_events',
   {
@@ -119,5 +124,47 @@ export const apiRateLimitEvents = pgTable(
       table.scopeKey,
     ),
     index('api_rate_limit_events_path_idx').on(table.path),
+  ],
+);
+
+export const transactionalEmailAttempts = pgTable(
+  'transactional_email_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id'),
+    recipientEmail: varchar('recipient_email', { length: 255 }).notNull(),
+    messageType: varchar('message_type', { length: 64 }).notNull(),
+    provider: varchar('provider', { length: 32 }),
+    sourceType: varchar('source_type', { length: 64 }).notNull(),
+    sourceId: varchar('source_id', { length: 255 }).notNull(),
+    status: transactionalEmailStatusEnum('status').notNull(),
+    providerMessageId: varchar('provider_message_id', { length: 255 }),
+    errorCode: varchar('error_code', { length: 128 }),
+    errorMessage: varchar('error_message', { length: 512 }),
+    metadata: jsonb('metadata')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('transactional_email_attempts_user_id_idx').on(table.userId),
+    index('transactional_email_attempts_recipient_idx').on(
+      table.recipientEmail,
+    ),
+    index('transactional_email_attempts_message_type_idx').on(
+      table.messageType,
+    ),
+    index('transactional_email_attempts_source_idx').on(
+      table.sourceType,
+      table.sourceId,
+    ),
+    index('transactional_email_attempts_status_idx').on(table.status),
+    index('transactional_email_attempts_created_at_idx').on(table.createdAt),
   ],
 );

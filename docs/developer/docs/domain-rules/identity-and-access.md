@@ -7,6 +7,7 @@ title: Identity and Access Rules
 Core rules:
 
 - new users start pending email verification
+- verification delivery returns an explicit delivery outcome for registration and resend
 - authenticated trading capabilities require an active account
 - sessions are opaque bearer tokens
 - sessions have both absolute and idle expiry

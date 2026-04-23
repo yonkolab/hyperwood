@@ -119,3 +119,19 @@ Used by:
 - There is no OAuth flow today.
 - There is no token introspection endpoint.
 - There are no role-based admin tokens beyond the shared bootstrap token.
+
+## Verification email delivery
+
+Registration and verification resend responses include a `delivery` object.
+
+- `development_override` means the raw verification token is returned for local development and test
+- `queued` means the provider accepted the transactional email for delivery
+- `failed` means the provider handoff failed or returned a blocking warning
+
+Relevant env vars:
+
+- `EMAIL_DELIVERY_PROVIDER`
+- `EMAIL_FROM_NAME`
+- `MAILERSEND_API_TOKEN`
+- `MAILERSEND_DOMAIN`
+- `MAILERSEND_FROM_EMAIL`

@@ -48,6 +48,16 @@ Exceeded windows return `429 rate_limit_exceeded` and are available to operators
 
 Every HTTP response also includes `X-Request-Id`. Clients may send `x-request-id` to preserve their own correlation identifier across API logs and support workflows.
 
+Verification email delivery is configurable:
+
+- `EMAIL_DELIVERY_PROVIDER` selects `development_override` or `mailersend`
+- `EMAIL_FROM_NAME` controls the sender display name
+- `MAILERSEND_API_TOKEN` authenticates MailerSend API requests
+- `MAILERSEND_DOMAIN` identifies the verified MailerSend domain
+- `MAILERSEND_FROM_EMAIL` must use the configured MailerSend domain
+
+In development and test, `development_override` keeps the raw verification token in the API response for local workflows. Production deployments should switch to `mailersend`.
+
 ## Local Docker
 
 1. Copy `.env.example` to `.env`.

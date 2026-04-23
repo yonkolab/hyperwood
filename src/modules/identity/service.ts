@@ -7,6 +7,7 @@ import { LoginAuditService } from './login-audit.service';
 import { SensitiveActionAuthorizationService } from './sensitive-action-authorization.service';
 import { IdentitySessionService } from './session.service';
 import { TotpFactorService } from './totp-factor.service';
+import { TransactionalEmailDeliveryService } from './transactional-email-delivery.service';
 import type {
   AuthenticateApiKeyInput,
   AuthenticateHmacApiKeyInput,
@@ -28,8 +29,14 @@ import type {
 export class IdentityService {
   private readonly loginAuditService = new LoginAuditService();
   private readonly sessionService = new IdentitySessionService();
-  private readonly registrationService = new IdentityRegistrationService();
-  private readonly emailVerificationService = new EmailVerificationService();
+  private readonly transactionalEmailDeliveryService =
+    new TransactionalEmailDeliveryService();
+  private readonly registrationService = new IdentityRegistrationService(
+    this.transactionalEmailDeliveryService,
+  );
+  private readonly emailVerificationService = new EmailVerificationService(
+    this.transactionalEmailDeliveryService,
+  );
   private readonly loginService = new IdentityLoginService(
     this.loginAuditService,
     this.sessionService,

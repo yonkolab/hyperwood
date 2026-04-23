@@ -70,6 +70,35 @@ export type RequestEmailVerificationInput = {
   email: string;
 };
 
+export type TransactionalEmailSourceType =
+  | 'user_registration'
+  | 'email_verification_resend';
+
+export type VerificationEmailDeliveryInput = {
+  userId: string;
+  email: string;
+  username: string | null;
+  verificationToken: string;
+  expiresAt: Date;
+  sourceType: TransactionalEmailSourceType;
+  sourceId: string;
+};
+
+export type VerificationEmailDeliveryStatus =
+  | 'development_override'
+  | 'queued'
+  | 'failed';
+
+export type VerificationEmailDeliveryResult = {
+  attemptId: string;
+  status: VerificationEmailDeliveryStatus;
+  provider: 'mailersend' | null;
+  providerMessageId: string | null;
+  failureCode: string | null;
+  failureMessage: string | null;
+  attemptedAt: Date;
+};
+
 export type VerifyEmailInput = {
   token: string;
 };

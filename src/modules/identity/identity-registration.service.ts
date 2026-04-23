@@ -7,14 +7,19 @@ import {
 } from '../../db/schema';
 import { hashPassword, normalizeEmail } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
+import { formatVerificationResponse } from './email-delivery-support';
 import {
   buildEmailVerificationChallenge,
-  formatVerificationResponse,
   rethrowConstraint,
 } from './identity-workflow-support';
+import { TransactionalEmailDeliveryService } from './transactional-email-delivery.service';
 import type { LinkExistingUserInput, RegisterInput } from './types';
 
 export class IdentityRegistrationService {
+  constructor(
+    private readonly emailDeliveryService = new TransactionalEmailDeliveryService(),
+  ) {}
+
   async register(input: RegisterInput) {
     const email = normalizeEmail(input.email);
     const passwordHash = hashPassword(input.password);
@@ -48,21 +53,48 @@ export class IdentityRegistrationService {
 
         const verificationChallenge = buildEmailVerificationChallenge();
 
-        await tx.insert(emailVerificationTokens).values({
-          userId: created.id,
-          tokenHash: verificationChallenge.tokenHash,
-          expiresAt: verificationChallenge.expiresAt,
-        });
+        const verificationTokenRows = await tx
+          .insert(emailVerificationTokens)
+          .values({
+            userId: created.id,
+            tokenHash: verificationChallenge.tokenHash,
+            expiresAt: verificationChallenge.expiresAt,
+          })
+          .returning({
+            id: emailVerificationTokens.id,
+          });
+        const verificationToken = verificationTokenRows[0];
+
+        if (!verificationToken) {
+          throw new AppError(
+            500,
+            'verification_creation_failed',
+            `failed to create verification token for user ${created.id}`,
+          );
+        }
 
         return {
           user: created,
           verificationChallenge,
+          verificationTokenId: verificationToken.id,
         };
       });
+      const delivery = await this.emailDeliveryService.deliverVerificationEmail(
+        {
+          userId: result.user.id,
+          email: result.user.email,
+          username: result.user.username,
+          verificationToken: result.verificationChallenge.token,
+          expiresAt: result.verificationChallenge.expiresAt,
+          sourceType: 'user_registration',
+          sourceId: result.verificationTokenId,
+        },
+      );
 
       return formatVerificationResponse(
         result.user,
         result.verificationChallenge,
+        delivery,
       );
     } catch (error) {
       rethrowConstraint(

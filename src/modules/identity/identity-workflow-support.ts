@@ -41,24 +41,6 @@ export function buildEmailVerificationChallenge() {
   };
 }
 
-export function formatVerificationResponse(
-  user: typeof users.$inferSelect,
-  verificationChallenge: {
-    token: string;
-    expiresAt: Date;
-  },
-) {
-  return {
-    user,
-    verificationChallenge: {
-      expiresAt: verificationChallenge.expiresAt,
-      ...(env.NODE_ENV !== 'production'
-        ? { token: verificationChallenge.token }
-        : {}),
-    },
-  };
-}
-
 export async function getApiKeyByHash(secretHash: string) {
   const rows = await db
     .select({

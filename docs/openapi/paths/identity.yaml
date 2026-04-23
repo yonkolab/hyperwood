@@ -12,7 +12,7 @@ register:
             $ref: ../components/schemas/identity.yaml#/RegisterRequest
     responses:
       '201':
-        description: User registered and email verification challenge issued.
+        description: User registered, verification challenge issued, and delivery outcome recorded.
         content:
           application/json:
             schema:
@@ -65,7 +65,7 @@ requestEmailVerification:
             $ref: ../components/schemas/identity.yaml#/EmailRequest
     responses:
       '201':
-        description: Verification challenge created.
+        description: Verification challenge created and delivery outcome recorded.
         content:
           application/json:
             schema:
