@@ -1,0 +1,4 @@
+- [ ] add transactional email delivery requirements to the identity spec
+- [ ] define provider-backed verification email dispatch behavior
+- [ ] define local-development delivery override expectations
+- [x] validate the OpenSpec change
