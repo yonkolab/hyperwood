@@ -1,4 +1,4 @@
 - [x] Define the phased internal auth migration model.
 - [x] Define the initial operator permission vocabulary.
 - [x] Map current internal route families to the planned permissions.
-- [ ] Implement operator principals and permission enforcement.
+- [x] Implement operator principals and permission enforcement.

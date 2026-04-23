@@ -12,3 +12,8 @@ The system MUST define a phased authorization model for internal operator access
 - **WHEN** the platform introduces first-class operator identities
 - **THEN** each internal route family has an explicit permission mapping
 - **AND** permission checks are evaluated before the internal handler executes
+
+#### Scenario: Operator principal receives a scoped token
+- **WHEN** the platform creates an operator principal and issues an operator token
+- **THEN** the token resolves to one operator identity with assigned roles
+- **AND** the effective internal permissions are derived from those roles before route access is granted

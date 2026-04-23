@@ -1,4 +1,0 @@
-- [ ] add signed email-provider webhook requirements to the platform security spec
-- [ ] add suppression and delivery-event visibility requirements
-- [ ] define operator visibility expectations for delivery failures and suppressions
-- [x] validate the OpenSpec change
