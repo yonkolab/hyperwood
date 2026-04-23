@@ -19,7 +19,20 @@
     "rules": {
       "correctness": {
         "noUnusedImports": "error",
-        "noUnusedVariables": "error"
+        "noUnusedVariables": {
+          "level": "error",
+          "options": {
+            "ignoreRestSiblings": false
+          }
+        },
+        "noUnusedFunctionParameters": {
+          "level": "error",
+          "options": {
+            "ignoreRestSiblings": false
+          }
+        },
+        "noUnusedPrivateClassMembers": "error",
+        "noUnusedLabels": "error"
       }
     }
   },
