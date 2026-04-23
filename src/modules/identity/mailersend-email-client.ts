@@ -1,17 +1,5 @@
+import { EmailParams, MailerSend, Recipient, Sender } from 'mailersend';
 import { env } from '../../config/env';
-
-type MailerSendFetchResponse = {
-  ok: boolean;
-  status: number;
-  headers: {
-    get(name: string): string | null;
-  };
-  text(): Promise<string>;
-};
-
-type MailerSendFetcher = {
-  fetch(input: string, init: RequestInit): Promise<MailerSendFetchResponse>;
-};
 
 export type MailerSendVerificationEmailInput = {
   toEmail: string;
@@ -36,12 +24,28 @@ export class MailerSendRequestError extends Error {
   }
 }
 
+type MailerSendSdkResponse = {
+  headers: Record<string, string | undefined>;
+  body: unknown;
+  statusCode: number;
+};
+
+type MailerSendSdkClient = {
+  email: {
+    send(params: EmailParams): Promise<MailerSendSdkResponse>;
+  };
+};
+
 export class MailerSendEmailClient {
-  constructor(
-    private readonly fetcher: MailerSendFetcher = {
-      fetch: (input, init) => fetch(input, init),
-    },
-  ) {}
+  private readonly sdkClient: MailerSendSdkClient;
+
+  constructor(sdkClient?: MailerSendSdkClient) {
+    this.sdkClient =
+      sdkClient ??
+      new MailerSend({
+        apiKey: env.MAILERSEND_API_TOKEN,
+      });
+  }
 
   /**
    * Send one verification email through MailerSend.
@@ -52,57 +56,32 @@ export class MailerSendEmailClient {
   async sendVerificationEmail(
     input: MailerSendVerificationEmailInput,
   ): Promise<MailerSendVerificationEmailResult> {
-    const response = await this.fetcher.fetch(
-      'https://api.mailersend.com/v1/email',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.MAILERSEND_API_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: {
-            email: env.MAILERSEND_FROM_EMAIL,
-            name: env.EMAIL_FROM_NAME,
-          },
-          to: [
-            {
-              email: input.toEmail,
-              ...(input.toName ? { name: input.toName } : {}),
-            },
-          ],
-          subject: input.subject,
-          text: input.text,
-          html: input.html,
-        }),
-      },
+    const sender = new Sender(env.MAILERSEND_FROM_EMAIL, env.EMAIL_FROM_NAME);
+    const replyTo = new Recipient(
+      env.MAILERSEND_FROM_EMAIL,
+      env.EMAIL_FROM_NAME,
     );
-    const responseText = await response.text();
+    const recipient = new Recipient(input.toEmail, input.toName ?? undefined);
+    const emailParams = new EmailParams()
+      .setFrom(sender)
+      .setTo([recipient])
+      .setReplyTo(replyTo)
+      .setSubject(input.subject)
+      .setText(input.text)
+      .setHtml(input.html);
 
-    if (!response.ok) {
-      throw new MailerSendRequestError(
-        `mailersend_http_${String(response.status)}`,
-        `MailerSend returned status ${String(response.status)} with body ${responseText || '[empty]'}`,
-      );
+    try {
+      const response = await this.sdkClient.email.send(emailParams);
+      const warning = getFirstWarning(response.body);
+
+      return {
+        providerMessageId: getProviderMessageId(response.headers),
+        warningCode: warning?.type ?? null,
+        warningMessage: warning?.warning ?? null,
+      };
+    } catch (error) {
+      throw normalizeMailerSendError(error);
     }
-
-    const parsedBody =
-      responseText.length > 0 ? safeJsonParse(responseText) : {};
-    const warning = getFirstWarning(parsedBody);
-
-    return {
-      providerMessageId: response.headers.get('x-message-id'),
-      warningCode: warning?.type ?? null,
-      warningMessage: warning?.warning ?? null,
-    };
-  }
-}
-
-function safeJsonParse(rawValue: string): unknown {
-  try {
-    return JSON.parse(rawValue);
-  } catch {
-    return {};
   }
 }
 
@@ -131,4 +110,56 @@ function getFirstWarning(payload: unknown):
     type?: string;
     warning?: string;
   };
+}
+
+function getProviderMessageId(headers: Record<string, string | undefined>) {
+  return headers['x-message-id'] ?? headers['X-Message-Id'] ?? null;
+}
+
+function normalizeMailerSendError(error: unknown) {
+  if (isMailerSendApiError(error)) {
+    const responseBody = safeStringify(error.body);
+
+    return new MailerSendRequestError(
+      `mailersend_http_${String(error.statusCode)}`,
+      `MailerSend returned status ${String(error.statusCode)} with body ${responseBody}`,
+    );
+  }
+
+  if (error instanceof Error) {
+    return new MailerSendRequestError(
+      'mailersend_request_failed',
+      error.message,
+    );
+  }
+
+  return new MailerSendRequestError(
+    'mailersend_request_failed',
+    `MailerSend request failed with unexpected error ${String(error)}`,
+  );
+}
+
+function isMailerSendApiError(value: unknown): value is {
+  body: unknown;
+  statusCode: number;
+} {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'statusCode' in value &&
+    typeof value.statusCode === 'number' &&
+    'body' in value
+  );
+}
+
+function safeStringify(value: unknown) {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[unserializable]';
+  }
 }

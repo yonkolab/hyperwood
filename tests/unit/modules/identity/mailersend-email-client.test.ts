@@ -1,72 +1,80 @@
+import { EmailParams } from 'mailersend';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   MailerSendEmailClient,
   type MailerSendRequestError,
 } from '../../../../src/modules/identity/mailersend-email-client';
 
-class FakeMailerSendFetch {
+class FakeMailerSendSdk {
   private nextResponse: {
-    ok: boolean;
-    status: number;
-    body: string;
-    messageId?: string;
+    headers: Record<string, string | undefined>;
+    body: unknown;
+    statusCode: number;
   } = {
-    ok: true,
-    status: 202,
-    body: '',
+    headers: {},
+    body: {},
+    statusCode: 202,
   };
 
-  lastRequest: {
-    url: string;
-    init: RequestInit;
-  } | null = null;
+  private nextError:
+    | {
+        body: unknown;
+        statusCode: number;
+      }
+    | Error
+    | null = null;
+
+  lastParams: EmailParams | null = null;
+
+  readonly email = {
+    send: async (params: EmailParams) => {
+      this.lastParams = params;
+
+      if (this.nextError) {
+        throw this.nextError;
+      }
+
+      return this.nextResponse;
+    },
+  };
 
   queueResponse(response: {
-    ok: boolean;
-    status: number;
-    body: string;
-    messageId?: string;
+    headers: Record<string, string | undefined>;
+    body: unknown;
+    statusCode: number;
   }) {
+    this.nextError = null;
     this.nextResponse = response;
   }
 
-  async fetch(url: string, init: RequestInit) {
-    this.lastRequest = {
-      url,
-      init,
-    };
-
-    return {
-      ok: this.nextResponse.ok,
-      status: this.nextResponse.status,
-      headers: {
-        get: (name: string) =>
-          name.toLowerCase() === 'x-message-id'
-            ? (this.nextResponse.messageId ?? null)
-            : null,
-      },
-      text: async () => this.nextResponse.body,
-    };
+  queueError(
+    error:
+      | {
+          body: unknown;
+          statusCode: number;
+        }
+      | Error,
+  ) {
+    this.nextError = error;
   }
 }
 
 describe('MailerSendEmailClient', () => {
-  let fakeFetch: FakeMailerSendFetch;
+  let fakeSdk: FakeMailerSendSdk;
   let client: MailerSendEmailClient;
 
   beforeEach(() => {
-    fakeFetch = new FakeMailerSendFetch();
-    client = new MailerSendEmailClient({
-      fetch: (url, init) => fakeFetch.fetch(url, init),
-    });
+    fakeSdk = new FakeMailerSendSdk();
+    client = new MailerSendEmailClient(fakeSdk);
   });
 
   it('returns the provider message id for accepted deliveries', async () => {
-    fakeFetch.queueResponse({
-      ok: true,
-      status: 202,
-      body: '',
-      messageId: 'message_123',
+    fakeSdk.queueResponse({
+      headers: {
+        'x-message-id': 'message_123',
+      },
+      body: {},
+      statusCode: 202,
     });
 
     const result = await client.sendVerificationEmail({
@@ -82,24 +90,23 @@ describe('MailerSendEmailClient', () => {
       warningCode: null,
       warningMessage: null,
     });
-    expect(fakeFetch.lastRequest?.url).toBe(
-      'https://api.mailersend.com/v1/email',
-    );
+    expect(fakeSdk.lastParams).toBeInstanceOf(EmailParams);
   });
 
   it('surfaces warning payloads from MailerSend', async () => {
-    fakeFetch.queueResponse({
-      ok: true,
-      status: 202,
-      body: JSON.stringify({
+    fakeSdk.queueResponse({
+      headers: {
+        'x-message-id': 'message_123',
+      },
+      body: {
         warnings: [
           {
             type: 'SOME_SUPPRESSED',
             warning: 'Some recipients are suppressed.',
           },
         ],
-      }),
-      messageId: 'message_123',
+      },
+      statusCode: 202,
     });
 
     const result = await client.sendVerificationEmail({
@@ -118,10 +125,11 @@ describe('MailerSendEmailClient', () => {
   });
 
   it('throws a provider error for non-success responses', async () => {
-    fakeFetch.queueResponse({
-      ok: false,
-      status: 422,
-      body: '{"message":"The given data was invalid."}',
+    fakeSdk.queueError({
+      body: {
+        message: 'The given data was invalid.',
+      },
+      statusCode: 422,
     });
 
     await expect(
