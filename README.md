@@ -1,6 +1,6 @@
 # hyperwood
 
-Prediction market API skeleton focused on the day-1 `identity-and-access` foundation.
+Prediction market API. auth, security, KYC and more.
 
 ## Stack
 
