@@ -1,0 +1,3 @@
+hyperwood.yonkolab.xyz {
+	reverse_proxy api:3000
+}

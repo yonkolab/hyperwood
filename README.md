@@ -69,11 +69,15 @@ The same stack also runs the Docusaurus developer-doc app on `http://localhost:3
 
 ## Production Docker
 
+Deployment targets Oracle Cloud free tier behind Caddy with automatic HTTPS — see [docs/deploy/oracle-cloud.md](docs/deploy/oracle-cloud.md).
+
+Local production stack (builds the image and runs `db` + `api` locally):
+
 1. Copy `.env.example` to `.env`.
 2. Start the stack with `npm run docker:prod:up`.
 3. The API will be available at `http://localhost:${API_PORT:-3000}` and PostgreSQL at `localhost:${POSTGRES_PORT:-5432}`.
 
-The production stack uses `docker-compose.yml`, starts only `db` and `api`, runs database migrations on container start, builds the TypeScript app inside the container image, and then runs `npm start`.
+The production image is multi-stage: dependencies and TypeScript are compiled during `docker build`, and the runtime stage ships production dependencies only. Database migrations run on container start via the `drizzle-orm` runtime migrator (`scripts/db-migrate.mjs`), then `dist/index.js` starts. `npm run deploy` builds the image locally, ships it to the VM over SSH, and brings up `db`, `api`, and `caddy` with `docker-compose.prod.yml`.
 
 ## API Docs
 

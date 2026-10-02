@@ -28,12 +28,14 @@
     "docs:dev:start": "npm --prefix docs/developer run clear && npm --prefix docs/developer run start -- --host ${DOCS_DEV_HOST:-0.0.0.0} --port ${DOCS_DEV_PORT:-3001}",
     "docs:dev:build": "npm --prefix docs/developer run build",
     "docs:dev:serve": "npm --prefix docs/developer run serve -- --host ${DOCS_DEV_HOST:-0.0.0.0} --port ${DOCS_DEV_PORT:-3001}",
-    "docker:prod:up": "docker compose up --build -d",
-    "docker:prod:down": "docker compose down",
+    "deploy": "bash scripts/deploy.sh",
+    "docker:prod:up": "docker compose -f docker-compose.prod.yml up -d",
+    "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
     "docker:local:up": "docker compose -f docker-compose.local.yml up --build",
     "docker:local:down": "docker compose -f docker-compose.local.yml down"
   },
   "dependencies": {
+    "@fastify/cors": "^11.2.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "1.0.0-beta.21",
     "fastify": "^5.2.1",
@@ -44,7 +46,6 @@
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
     "@biomejs/biome": "^2.4.12",
-    "@fastify/cors": "^11.2.0",
     "@scalar/api-reference": "^1.52.3",
     "@scalar/fastify-api-reference": "^1.52.3",
     "@testcontainers/postgresql": "^11.14.0",

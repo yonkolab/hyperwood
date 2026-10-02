@@ -1,7 +1,6 @@
 #!/bin/sh
 set -eu
 
-npm run db:migrate
-npm run build
+node ./scripts/db-migrate.mjs
 
-exec npm run start
+exec node ./dist/index.js

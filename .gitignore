@@ -3,3 +3,5 @@ dist
 .env
 .codex
 .claude
+
+.env.prod
