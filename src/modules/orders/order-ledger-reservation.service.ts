@@ -4,7 +4,7 @@ import {
   ledgerTransactions,
   walletAccounts,
 } from '../../db/schema';
-import { AppError } from '../../lib/errors';
+import { AppError, isUniqueViolation } from '../../lib/errors';
 import type {
   DbExecutor,
   MarketCurrency,
@@ -145,12 +145,7 @@ export class OrderLedgerReservationService {
 
       return inserted;
     } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === '23505'
-      ) {
+      if (isUniqueViolation(error)) {
         const retryRows = await executor
           .select({
             id: walletAccounts.id,

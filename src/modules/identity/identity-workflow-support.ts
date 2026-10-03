@@ -9,7 +9,7 @@ import {
   users,
 } from '../../db/schema';
 import { createOpaqueToken, hmacSha256Hex, sha256Hex } from '../../lib/crypto';
-import { AppError } from '../../lib/errors';
+import { AppError, isUniqueViolation } from '../../lib/errors';
 import { decryptString } from '../../lib/secrets';
 import type { AuthenticateHmacApiKeyInput, SensitiveAction } from './types';
 
@@ -17,12 +17,7 @@ export function rethrowConstraint(
   error: unknown,
   fallbackMessage: string,
 ): never {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === '23505'
-  ) {
+  if (isUniqueViolation(error)) {
     throw new AppError(409, 'conflict', fallbackMessage);
   }
 
@@ -162,12 +157,7 @@ export async function persistApiKeyNonce(input: {
       expiresAt: new Date(Date.now() + env.API_HMAC_NONCE_TTL_SECONDS * 1000),
     });
   } catch (error) {
-    if (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      error.code === '23505'
-    ) {
+    if (isUniqueViolation(error)) {
       throw new AppError(
         401,
         'replayed_api_request',

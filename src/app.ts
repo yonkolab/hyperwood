@@ -303,9 +303,14 @@ export async function buildApp(
       return;
     }
 
+    const message =
+      statusCode >= 500 && env.NODE_ENV === 'production'
+        ? 'internal server error'
+        : error.message;
+
     reply.status(statusCode).send({
       error: code,
-      message: error.message,
+      message,
     });
   });
 

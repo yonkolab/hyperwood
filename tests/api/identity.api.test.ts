@@ -58,6 +58,24 @@ describe('identity api', () => {
     });
   });
 
+  it('returns a clean conflict error for duplicate registration', async () => {
+    const first = await registerUser(app);
+    expect(first.response.statusCode).toBe(201);
+
+    const duplicate = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      payload: first.credentials,
+    });
+
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json()).toMatchObject({
+      error: 'conflict',
+      message: 'user already exists for this email or username',
+    });
+    expect(duplicate.body).not.toContain('Failed query');
+  });
+
   it('logs in with the newly created password identity', async () => {
     const registration = await registerUser(app);
     const login = await loginUser(app, registration.credentials);
