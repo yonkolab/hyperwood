@@ -1,15 +1,30 @@
 import { randomUUID } from 'node:crypto';
-import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import type {
+  FastifyInstance,
+  FastifyPluginOptions,
+  FastifyRequest,
+} from 'fastify';
+import { z } from 'zod';
 import type { MarketCurrency } from '../../config/currency';
 import { logWorkflowEvent } from '../../lib/observability';
 import { FundingService } from '../funding/service';
 import {
   getInternalAuthContext,
+  getSessionAuthContext,
   requireInternalAuth,
+  requireSessionAuth,
 } from '../identity/auth-guards';
+import { IdentityService } from '../identity/service';
 import { MatchingService } from '../matching/service';
 import { accountRealtimeService } from '../portfolio/account-realtime.service';
 import { PortfolioService } from '../portfolio/service';
+import {
+  createMarketComment,
+  listMarketComments,
+  reportMarketComment,
+  toggleMarketCommentBookmark,
+  toggleMarketCommentLike,
+} from './market-comments.service';
 import { marketRealtimeService } from './market-realtime.service';
 import {
   createEventBodySchema,
@@ -67,6 +82,8 @@ async function marketRoutes(
   const marketsService = new MarketsService();
   const matchingService = new MatchingService();
   const fundingService = new FundingService();
+  const identityService = new IdentityService();
+  const requireSession = requireSessionAuth(identityService);
   const portfolioService = new PortfolioService();
   const requireMarketsWrite = requireInternalAuth('markets:write');
   const requireMarketsSettle = requireInternalAuth('markets:settle');
@@ -488,4 +505,138 @@ export async function registerMarketRoutes(
   options: FastifyPluginOptions,
 ) {
   await marketRoutes(app, options);
+  await marketCommentRoutes(app, options);
+}
+
+function getSessionBearerTokenOptional(request: FastifyRequest) {
+  const authorization = request.headers.authorization;
+
+  if (
+    typeof authorization !== 'string' ||
+    !authorization.startsWith('Bearer ')
+  ) {
+    return null;
+  }
+
+  return authorization.slice('Bearer '.length) || null;
+}
+
+async function safeResolveViewer(
+  identityService: { getUserFromSessionToken(token: string): Promise<unknown> },
+  sessionToken: string,
+): Promise<{ userId: string } | null> {
+  try {
+    const user = (await identityService.getUserFromSessionToken(
+      sessionToken,
+    )) as { id?: unknown };
+
+    return typeof user?.id === 'string' ? { userId: user.id } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function marketCommentRoutes(
+  app: FastifyInstance,
+  _options: FastifyPluginOptions,
+) {
+  const identityService = new IdentityService();
+  const requireSession = requireSessionAuth(identityService);
+
+  const commentBodySchema = z.string().min(1).max(2000);
+
+  const createCommentBodySchema = z.object({
+    body: commentBodySchema,
+    parentId: z.string().uuid().optional(),
+  });
+
+  const reportBodySchema = z.object({
+    reason: z.string().min(3).max(160),
+  });
+
+  const commentParamsSchema = z.object({
+    commentId: z.string().uuid(),
+  });
+
+  app.get('/markets/:marketId/comments', async (request) => {
+    const params = marketParamsSchema.parse(request.params);
+    const sessionToken = getSessionBearerTokenOptional(request);
+    const viewer = sessionToken
+      ? await safeResolveViewer(identityService, sessionToken)
+      : null;
+
+    const comments = await listMarketComments(params.marketId, viewer);
+
+    return { marketId: params.marketId, comments };
+  });
+
+  app.post(
+    '/markets/:marketId/comments',
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const params = marketParamsSchema.parse(request.params);
+      const body = createCommentBodySchema.parse(request.body);
+      const auth = getSessionAuthContext(request);
+
+      const comment = await createMarketComment({
+        marketId: params.marketId,
+        userId: auth.user.id,
+        parentId: body.parentId ?? null,
+        body: body.body,
+      });
+
+      reply.status(201).send({ comment });
+    },
+  );
+
+  app.post(
+    '/comments/:commentId/like',
+    { preHandler: requireSession },
+    async (request) => {
+      const params = commentParamsSchema.parse(request.params);
+      const auth = getSessionAuthContext(request);
+
+      return toggleMarketCommentLike({
+        commentId: params.commentId,
+        userId: auth.user.id,
+      });
+    },
+  );
+
+  app.post(
+    '/comments/:commentId/bookmark',
+    { preHandler: requireSession },
+    async (request) => {
+      const params = commentParamsSchema.parse(request.params);
+      const auth = getSessionAuthContext(request);
+
+      return toggleMarketCommentBookmark({
+        commentId: params.commentId,
+        userId: auth.user.id,
+      });
+    },
+  );
+
+  app.post(
+    '/comments/:commentId/report',
+    { preHandler: requireSession },
+    async (request) => {
+      const params = commentParamsSchema.parse(request.params);
+      const body = reportBodySchema.parse(request.body);
+      const auth = getSessionAuthContext(request);
+
+      return reportMarketComment({
+        commentId: params.commentId,
+        reporterId: auth.user.id,
+        reason: body.reason,
+      });
+    },
+  );
+}
+
+export async function registerMarketCommentRoutes(
+  app: FastifyInstance,
+  options: FastifyPluginOptions,
+) {
+  await marketCommentRoutes(app, options);
 }

@@ -1,3 +1,4 @@
+export * from './comments';
 export * from './compliance';
 export * from './exchange';
 export * from './funding';
