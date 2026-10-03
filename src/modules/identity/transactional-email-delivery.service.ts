@@ -10,6 +10,7 @@ import {
   MailerSendEmailClient,
   MailerSendRequestError,
 } from './mailersend-email-client';
+import { ResendEmailClient, ResendRequestError } from './resend-email-client';
 import type {
   VerificationEmailDeliveryInput,
   VerificationEmailDeliveryResult,
@@ -17,6 +18,7 @@ import type {
 
 export class TransactionalEmailDeliveryService {
   private readonly mailerSendClient = new MailerSendEmailClient();
+  private readonly resendClient = new ResendEmailClient();
 
   /**
    * Deliver one verification email and persist the delivery attempt.
@@ -76,15 +78,26 @@ export class TransactionalEmailDeliveryService {
     }
 
     const template = buildVerificationEmailTemplate(input);
+    const provider = env.EMAIL_DELIVERY_PROVIDER;
+    const providerName = provider === 'resend' ? 'resend' : 'mailersend';
 
     try {
-      const result = await this.mailerSendClient.sendVerificationEmail({
-        toEmail: input.email,
-        toName: input.username,
-        subject: template.subject,
-        text: template.text,
-        html: template.html,
-      });
+      const result =
+        provider === 'resend'
+          ? await this.resendClient.sendVerificationEmail({
+              toEmail: input.email,
+              toName: input.username,
+              subject: template.subject,
+              text: template.text,
+              html: template.html,
+            })
+          : await this.mailerSendClient.sendVerificationEmail({
+              toEmail: input.email,
+              toName: input.username,
+              subject: template.subject,
+              text: template.text,
+              html: template.html,
+            });
 
       if (result.warningCode || result.warningMessage) {
         return this.recordAttempt({
@@ -94,7 +107,7 @@ export class TransactionalEmailDeliveryService {
           sourceType: input.sourceType,
           sourceId: input.sourceId,
           status: 'failed',
-          provider: 'mailersend',
+          provider: providerName,
           providerMessageId: result.providerMessageId,
           errorCode: result.warningCode,
           errorMessage: result.warningMessage,
@@ -111,7 +124,7 @@ export class TransactionalEmailDeliveryService {
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         status: 'queued',
-        provider: 'mailersend',
+        provider: providerName,
         providerMessageId: result.providerMessageId,
         errorCode: null,
         errorMessage: null,
@@ -129,7 +142,7 @@ export class TransactionalEmailDeliveryService {
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         status: 'failed',
-        provider: 'mailersend',
+        provider: providerName,
         providerMessageId: null,
         errorCode: normalizedError.code,
         errorMessage: normalizedError.message,
@@ -147,7 +160,7 @@ export class TransactionalEmailDeliveryService {
     sourceType: string;
     sourceId: string;
     status: 'development_override' | 'queued' | 'failed';
-    provider: 'mailersend' | null;
+    provider: 'mailersend' | 'resend' | null;
     providerMessageId: string | null;
     errorCode: string | null;
     errorMessage: string | null;
@@ -200,15 +213,22 @@ function normalizeDeliveryFailure(error: unknown) {
     };
   }
 
+  if (error instanceof ResendRequestError) {
+    return {
+      code: error.code,
+      message: error.message,
+    };
+  }
+
   if (error instanceof Error) {
     return {
-      code: 'mailersend_request_failed',
+      code: 'email_provider_request_failed',
       message: error.message,
     };
   }
 
   return {
-    code: 'mailersend_request_failed',
-    message: 'unknown MailerSend delivery failure',
+    code: 'email_provider_request_failed',
+    message: 'unknown email delivery failure',
   };
 }

@@ -93,7 +93,7 @@ export type VerificationEmailDeliveryStatus =
 export type VerificationEmailDeliveryResult = {
   attemptId: string;
   status: VerificationEmailDeliveryStatus;
-  provider: 'mailersend' | null;
+  provider: 'mailersend' | 'resend' | null;
   providerMessageId: string | null;
   failureCode: string | null;
   failureMessage: string | null;
