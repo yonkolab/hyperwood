@@ -118,9 +118,7 @@ export class MarketCatalogQueryService {
         search: input.search ?? null,
         sort: input.sort ?? 'newest',
       },
-      categories: Array.from(
-        new Set(records.map((market) => market.event.category)),
-      ),
+      categories: await listMarketEventCategories(),
       eventGroups,
       markets: records,
     };
@@ -211,4 +209,13 @@ export class MarketCatalogQueryService {
       },
     };
   }
+}
+
+async function listMarketEventCategories(): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ category: marketEvents.category })
+    .from(marketEvents)
+    .orderBy(marketEvents.category);
+
+  return rows.map((row) => row.category);
 }
