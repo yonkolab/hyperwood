@@ -161,6 +161,8 @@ paths:
     $ref: ./paths/markets.yaml#/internalMatch
   /api/v1/internal/markets/{marketId}/announcements:
     $ref: ./paths/markets.yaml#/internalAnnouncements
+  /api/v1/internal/markets/{marketId}/closing:
+    $ref: ./paths/markets.yaml#/internalMarketClosing
   /api/v1/internal/markets/{marketId}/status:
     $ref: ./paths/markets.yaml#/internalStatus
   /api/v1/internal/markets/{marketId}/resolve:

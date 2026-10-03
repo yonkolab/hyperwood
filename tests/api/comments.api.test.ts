@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../helpers/app';
 import { createVerifiedSession } from '../helpers/auth';
 import { createMarket, createMarketEvent } from '../helpers/bootstrap';
+import { createMatchedMarketScenario } from '../helpers/trading';
 
 async function createComment(
   app: FastifyInstance,
@@ -19,18 +20,12 @@ async function createComment(
   });
 }
 
-async function setupCommentsScenario(app: FastifyInstance, title?: string) {
-  const session = await createVerifiedSession(app);
-  const event = await createMarketEvent(app, {
-    title: title ?? 'Comments API Event',
-  });
-  const market = await createMarket(app, event.body.event.id as string, {
-    title: 'Comments API Market',
-  });
+async function setupCommentsScenario(app: FastifyInstance) {
+  const scenario = await createMatchedMarketScenario(app);
 
   return {
-    session,
-    marketId: market.body.market.id as string,
+    session: scenario.buyer,
+    marketId: scenario.market.body.market.id as string,
   };
 }
 
@@ -62,6 +57,45 @@ describe('market comments api', () => {
     expect(body.comment.depth).toBe(0);
     expect(body.comment.body).toBe('primeiro comentário do mercado');
     expect(body.comment.author.email).toEqual(expect.any(String));
+    expect(body.comment.author.position).toBe("yes");
+  });
+
+  it('rejects comments from users without a completed trade on the market', async () => {
+    const { marketId } = await setupCommentsScenario(app);
+    const outsider = await createVerifiedSession(app);
+
+    const response = await createComment(
+      app,
+      marketId,
+      outsider.sessionToken,
+      'quero comentar sem negociar',
+    );
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: 'comment_requires_trade',
+    });
+  });
+
+  it('allows comments after the user completed a trade on the market', async () => {
+    const scenario = await createMatchedMarketScenario(app, {
+      currency: 'USD',
+      quantity: 10,
+      limitPriceBps: 4800,
+    });
+    const marketId = scenario.market.body.market.id as string;
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/v1/markets/${marketId}/comments`,
+      headers: { authorization: `Bearer ${scenario.buyer.sessionToken}` },
+      payload: { body: 'depois de negociar posso comentar' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().comment.body).toBe(
+      'depois de negociar posso comentar',
+    );
   });
 
   it('lists comments anonymously with viewer state false', async () => {
@@ -209,29 +243,23 @@ describe('market comments api', () => {
   });
 
   it('rejects replies to comments of another market', async () => {
-    const { session, marketId } = await setupCommentsScenario(app);
-
-    const otherEvent = await createMarketEvent(app, {
-      title: 'Comments API Other Event',
-    });
-    const otherMarket = await createMarket(
-      app,
-      otherEvent.body.event.id as string,
-      { title: 'Comments API Other Market' },
-    );
+    const scenarioA = await setupCommentsScenario(app);
+    const scenarioB = await setupCommentsScenario(app);
 
     const root = await createComment(
       app,
-      marketId,
-      session.sessionToken,
+      scenarioA.marketId,
+      scenarioA.session.sessionToken,
       'raiz do mercado principal',
     );
     const rootId = root.json().comment.id as string;
 
     const response = await app.inject({
       method: 'POST',
-      url: `/api/v1/markets/${otherMarket.body.market.id}/comments`,
-      headers: { authorization: `Bearer ${session.sessionToken}` },
+      url: `/api/v1/markets/${scenarioB.marketId}/comments`,
+      headers: {
+        authorization: `Bearer ${scenarioB.session.sessionToken}`,
+      },
       payload: { body: 'resposta errada', parentId: rootId },
     });
 

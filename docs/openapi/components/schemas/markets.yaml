@@ -77,6 +77,26 @@ CreateMarketRequest:
       type: string
       format: date-time
 
+UpdateMarketClosingRequest:
+  type: object
+  required: [closesAt]
+  properties:
+    closesAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: New closing timestamp. Send null to clear the schedule.
+    resolvesAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Optional new resolution timestamp. Must not be earlier than closesAt.
+    changedBy:
+      type: string
+      minLength: 3
+      maxLength: 128
+      description: Optional actor label recorded with the change.
+
 CreateMarketResponse:
   type: object
   required: [market]

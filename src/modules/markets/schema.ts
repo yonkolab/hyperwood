@@ -66,6 +66,12 @@ export const updateMarketStatusBodySchema = z.object({
   changedBy: z.string().min(3).max(128).optional(),
 });
 
+export const updateMarketClosingBodySchema = z.object({
+  closesAt: z.union([z.string().datetime(), z.null()]),
+  resolvesAt: z.union([z.string().datetime(), z.null()]).optional(),
+  changedBy: z.string().min(3).max(128).optional(),
+});
+
 export const resolveMarketBodySchema = z.object({
   outcome: z.enum(['yes', 'no', 'void']),
   evidenceSummary: z.string().min(3).max(4000),

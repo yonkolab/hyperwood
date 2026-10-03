@@ -92,6 +92,96 @@ export class MarketLifecycleService {
     });
   }
 
+  /**
+   * Update the closing (and optionally resolution) schedule of one market.
+   *
+   * Example:
+   * `await marketLifecycleService.updateMarketClosing(marketId, { closesAt: new Date('2026-10-05T02:59:59.000Z'), changedBy: 'bootstrap' })`
+   */
+  async updateMarketClosing(
+    marketId: string,
+    input: {
+      closesAt: Date | null;
+      resolvesAt?: Date | null;
+      changedBy?: string;
+    },
+  ) {
+    const [market] = await db
+      .select()
+      .from(markets)
+      .where(eq(markets.id, marketId))
+      .limit(1);
+
+    if (!market) {
+      throw new AppError(
+        404,
+        'market_not_found',
+        `market was not found: ${marketId}`,
+      );
+    }
+
+    if (
+      market.status === 'settled' ||
+      market.status === 'voided' ||
+      market.status === 'cancelled'
+    ) {
+      throw new AppError(
+        409,
+        'market_already_archived',
+        `market status ${market.status} can no longer change its closing schedule`,
+      );
+    }
+
+    const resolvesAt =
+      input.resolvesAt === undefined ? market.resolvesAt : input.resolvesAt;
+
+    if (
+      input.closesAt &&
+      resolvesAt &&
+      resolvesAt.getTime() < input.closesAt.getTime()
+    ) {
+      throw new AppError(
+        400,
+        'invalid_closing_schedule',
+        'resolvesAt must not be earlier than closesAt',
+      );
+    }
+
+    if (
+      input.closesAt &&
+      market.opensAt &&
+      input.closesAt.getTime() <= market.opensAt.getTime()
+    ) {
+      throw new AppError(
+        400,
+        'invalid_closing_schedule',
+        'closesAt must be later than opensAt',
+      );
+    }
+
+    const now = new Date();
+    const updatedRows = await db
+      .update(markets)
+      .set({
+        closesAt: input.closesAt,
+        ...(resolvesAt === market.resolvesAt ? {} : { resolvesAt }),
+        updatedAt: now,
+      })
+      .where(eq(markets.id, market.id))
+      .returning();
+    const updatedMarket = updatedRows[0];
+
+    if (!updatedMarket) {
+      throw new AppError(
+        500,
+        'market_closing_update_failed',
+        `failed to update closing schedule for ${market.id}`,
+      );
+    }
+
+    return { market: updatedMarket };
+  }
+
   async updateMarketStatus(
     marketId: string,
     input: {

@@ -65,6 +65,13 @@ export class MarketsService {
     return this.marketTradeHistoryService.listHistoricalTrades(marketId, limit);
   }
 
+  async listMarketCandles(
+    marketId: string,
+    input: { interval: '1h' | '1d'; limit: number },
+  ) {
+    return this.marketCandleHistoryService.listMarketCandles(marketId, input);
+  }
+
   async listHistoricalCandles(
     marketId: string,
     input: { interval: '1h' | '1d'; limit: number },
@@ -95,6 +102,17 @@ export class MarketsService {
     },
   ) {
     return this.marketResolutionService.resolveMarket(marketId, input);
+  }
+
+  async updateMarketClosing(
+    marketId: string,
+    input: {
+      closesAt: Date | null;
+      resolvesAt?: Date | null;
+      changedBy?: string;
+    },
+  ) {
+    return this.marketLifecycleService.updateMarketClosing(marketId, input);
   }
 
   async updateMarketStatus(

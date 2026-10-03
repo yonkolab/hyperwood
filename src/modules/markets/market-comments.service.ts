@@ -9,13 +9,66 @@ import {
   users,
 } from '../../db/schema';
 import { COMMENT_MAX_DEPTH } from '../../db/schema/comments';
+import { orders } from '../../db/schema/orders';
 import { AppError, isUniqueViolation } from '../../lib/errors';
 
 export type MarketCommentAuthor = {
   id: string;
   username: string | null;
   email: string;
+  position: 'yes' | 'no' | null;
 };
+
+async function loadAuthorPositions(
+  marketId: string,
+  authorIds: string[],
+): Promise<Map<string, 'yes' | 'no'>> {
+  if (authorIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await db
+    .select({
+      userId: orders.userId,
+      outcome: orders.outcome,
+      netQuantity: sql<number>`sum(case when ${orders.side} = 'buy' then ${orders.filledQuantity} else -${orders.filledQuantity} end)`,
+    })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.marketId, marketId),
+        inArray(orders.userId, authorIds),
+        sql`${orders.filledQuantity} > 0`,
+      ),
+    )
+    .groupBy(orders.userId, orders.outcome);
+
+  const nets = new Map<string, { yes: number; no: number }>();
+
+  for (const row of rows) {
+    const current = nets.get(row.userId) ?? { yes: 0, no: 0 };
+
+    if (row.outcome === 'yes') {
+      current.yes = Number(row.netQuantity);
+    } else {
+      current.no = Number(row.netQuantity);
+    }
+
+    nets.set(row.userId, current);
+  }
+
+  const positions = new Map<string, 'yes' | 'no'>();
+
+  for (const [userId, net] of nets.entries()) {
+    if (net.yes > 0 && net.yes >= net.no) {
+      positions.set(userId, 'yes');
+    } else if (net.no > 0) {
+      positions.set(userId, 'no');
+    }
+  }
+
+  return positions;
+}
 
 export type MarketCommentNode = {
   id: string;
@@ -122,6 +175,9 @@ export async function listMarketComments(
     }
   }
 
+  const authorIds = [...new Set(commentRows.map((row) => row.authorId))];
+  const authorPositions = await loadAuthorPositions(marketId, authorIds);
+
   const nodesById = new Map<string, MarketCommentNode>();
   const roots: MarketCommentNode[] = [];
 
@@ -140,6 +196,7 @@ export async function listMarketComments(
         id: row.authorId,
         username: row.authorUsername,
         email: row.authorEmail,
+        position: authorPositions.get(row.authorId) ?? null,
       },
       viewer: {
         liked: likedIds.has(row.id),
@@ -167,6 +224,28 @@ export type CreateMarketCommentInput = {
   body: string;
 };
 
+async function assertUserTradedOnMarket(userId: string, marketId: string) {
+  const rows = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.userId, userId),
+        eq(orders.marketId, marketId),
+        sql`${orders.filledQuantity} > 0`,
+      ),
+    )
+    .limit(1);
+
+  if (!rows[0]) {
+    throw new AppError(
+      403,
+      'comment_requires_trade',
+      'you must complete a trade on this market before commenting',
+    );
+  }
+}
+
 export async function createMarketComment(
   input: CreateMarketCommentInput,
 ): Promise<MarketCommentNode> {
@@ -175,6 +254,8 @@ export async function createMarketComment(
   if (!marketAuthorId) {
     throw new AppError(404, 'market_not_found', 'market not found');
   }
+
+  await assertUserTradedOnMarket(input.userId, input.marketId);
 
   const authorRows = await db
     .select({ id: users.id, username: users.username, email: users.email })
@@ -241,6 +322,10 @@ export async function createMarketComment(
     })
     .returning();
   const created = createdRows[0];
+  const authorPosition =
+    (await loadAuthorPositions(input.marketId, [input.userId])).get(
+      input.userId,
+    ) ?? null;
 
   if (!created) {
     throw new AppError(500, 'comment_creation_failed', 'failed to comment');
@@ -270,6 +355,7 @@ export async function createMarketComment(
       id: author.id,
       username: author.username,
       email: author.email,
+      position: authorPosition,
     },
     viewer: {
       liked: false,

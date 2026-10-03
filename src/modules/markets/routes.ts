@@ -36,6 +36,7 @@ import {
   publishMarketAnnouncementBodySchema,
   recentTradesQuerySchema,
   resolveMarketBodySchema,
+  updateMarketClosingBodySchema,
   updateMarketStatusBodySchema,
 } from './schema';
 import { MarketsService } from './service';
@@ -115,12 +116,17 @@ async function marketRoutes(
       marketsService.listRecentTrades(params.marketId, 20),
     ]);
 
+    const corsAllowOrigin = reply.getHeader('access-control-allow-origin');
+
     reply.hijack();
     reply.raw.writeHead(200, {
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-cache, no-transform',
       connection: 'keep-alive',
       'x-accel-buffering': 'no',
+      ...(typeof corsAllowOrigin === 'string'
+        ? { 'access-control-allow-origin': corsAllowOrigin }
+        : {}),
     });
     reply.raw.write(
       marketRealtimeService.toSseFrame({
@@ -191,6 +197,16 @@ async function marketRoutes(
     const query = recentTradesQuerySchema.parse(request.query);
 
     return marketsService.listHistoricalTrades(params.marketId, query.limit);
+  });
+
+  app.get('/markets/:marketId/candles', async (request) => {
+    const params = marketParamsSchema.parse(request.params);
+    const query = historicalCandlesQuerySchema.parse(request.query);
+
+    return marketsService.listMarketCandles(params.marketId, {
+      interval: query.interval,
+      limit: query.limit,
+    });
   });
 
   app.get('/historical/markets/:marketId/candles', async (request) => {
@@ -375,6 +391,32 @@ async function marketRoutes(
       });
 
       reply.status(201).send(result);
+    },
+  );
+
+  app.patch(
+    '/internal/markets/:marketId/closing',
+    { preHandler: requireMarketsWrite },
+    async (request, reply) => {
+      const auth = getInternalAuthContext(request);
+      const params = marketParamsSchema.parse(request.params);
+      const body = updateMarketClosingBodySchema.parse(request.body);
+      const result = await marketsService.updateMarketClosing(params.marketId, {
+        closesAt: body.closesAt ? new Date(body.closesAt) : null,
+        ...(body.resolvesAt === undefined
+          ? {}
+          : {
+              resolvesAt: body.resolvesAt ? new Date(body.resolvesAt) : null,
+            }),
+        changedBy: body.changedBy ?? auth.internalActor,
+      });
+
+      logWorkflowEvent(request, 'market.closing_updated', {
+        marketId: result.market.id,
+        closesAt: result.market.closesAt,
+      });
+
+      reply.status(200).send({ market: result.market });
     },
   );
 

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../helpers/app';
 import { createVerifiedSession } from '../helpers/auth';
 import {
+  bootstrapHeaders,
   createMarket,
   createMarketEvent,
   publishMarketAnnouncement,
@@ -347,6 +348,103 @@ describe('markets api', () => {
       priceBps: 4800,
       outcome: 'yes',
     });
+  });
+
+  it('updates the market closing schedule through the internal endpoint', async () => {
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string, {
+      title: 'Closing Schedule Market',
+    });
+
+    const update = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/internal/markets/${market.body.market.id}/closing`,
+      headers: bootstrapHeaders(),
+      payload: {
+        closesAt: '2026-10-05T02:59:59.000Z',
+        resolvesAt: '2026-10-06T21:00:00.000Z',
+      },
+    });
+
+    expect(update.statusCode).toBe(200);
+    expect(update.json().market).toMatchObject({
+      id: market.body.market.id,
+      closesAt: '2026-10-05T02:59:59.000Z',
+      resolvesAt: '2026-10-06T21:00:00.000Z',
+    });
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/v1/markets/${market.body.market.id}`,
+    });
+    expect(detail.json().market.closesAt).toBe('2026-10-05T02:59:59.000Z');
+  });
+
+  it('rejects closing schedule changes for archived markets', async () => {
+    const scenario = await createMatchedMarketScenario(app, {
+      currency: 'USD',
+      quantity: 10,
+      limitPriceBps: 4800,
+    });
+
+    await resolveMarket(app, scenario.market.body.market.id as string, {
+      outcome: 'yes',
+      evidenceSummary: 'Official authority certified the result.',
+      evidenceSources: ['https://example.com/result'],
+    });
+    await settleMarket(app, scenario.market.body.market.id as string);
+
+    const update = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/internal/markets/${scenario.market.body.market.id}/closing`,
+      headers: bootstrapHeaders(),
+      payload: { closesAt: '2026-10-05T02:59:59.000Z' },
+    });
+
+    expect(update.statusCode).toBe(409);
+    expect(update.json()).toMatchObject({ error: 'market_already_archived' });
+  });
+
+  it('rejects resolvesAt earlier than closesAt', async () => {
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string, {
+      title: 'Invalid Schedule Market',
+    });
+
+    const update = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/internal/markets/${market.body.market.id}/closing`,
+      headers: bootstrapHeaders(),
+      payload: {
+        closesAt: '2026-10-05T02:59:59.000Z',
+        resolvesAt: '2026-10-01T00:00:00.000Z',
+      },
+    });
+
+    expect(update.statusCode).toBe(400);
+    expect(update.json()).toMatchObject({ error: 'invalid_closing_schedule' });
+  });
+
+  it('serves flat baseline candles for active markets without trades', async () => {
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string, {
+      title: 'Live Candles Market',
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/markets/${market.body.market.id}/candles?interval=1h&limit=10`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.marketId).toBe(market.body.market.id);
+    expect(body.candles.length).toBe(2);
+    for (const candle of body.candles) {
+      expect(candle.openPriceBps).toBeGreaterThan(0);
+      expect(candle.closePriceBps).toBe(candle.openPriceBps);
+      expect(candle.tradeCount).toBe(0);
+    }
   });
 
   it('serves archived market candles through the historical path after settlement', async () => {

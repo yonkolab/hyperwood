@@ -255,6 +255,41 @@ internalMarkets:
       '404':
         $ref: ../components/responses/common.yaml#/NotFound
 
+internalMarketClosing:
+  patch:
+    operationId: updateMarketClosing
+    tags: [Markets, Internal]
+    summary: Update a market closing schedule
+    description: >
+      Replaces the closing timestamp of one market and optionally its
+      resolution timestamp. Terminal markets (settled, voided or cancelled)
+      reject the change.
+    security:
+      - BootstrapToken: []
+    parameters:
+      - $ref: ../components/parameters/common.yaml#/MarketId
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/markets.yaml#/UpdateMarketClosingRequest
+    responses:
+      '200':
+        description: Market closing schedule updated.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/markets.yaml#/CreateMarketResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        description: Market is already archived and cannot be rescheduled.
+
 internalMatch:
   post:
     operationId: runLimitOrderMatching

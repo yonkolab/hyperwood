@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { MarketCurrency } from '../../src/config/currency';
 
-const bootstrapHeaders = () => ({
+export const bootstrapHeaders = () => ({
   'x-bootstrap-token':
     process.env.INTERNAL_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token',
 });
