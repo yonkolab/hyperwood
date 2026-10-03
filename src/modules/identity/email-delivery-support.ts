@@ -1,4 +1,9 @@
 import { env } from '../../config/env';
+import {
+  formatEmailTimestamp,
+  renderEmailLayout,
+  renderVerificationEmailBody,
+} from './email-templates';
 import type {
   VerificationEmailDeliveryInput,
   VerificationEmailDeliveryResult,
@@ -14,25 +19,47 @@ export function buildVerificationEmailTemplate(
   input: VerificationEmailDeliveryInput,
 ): VerificationEmailTemplate {
   const displayName = input.username ?? input.email;
-  const expiresAt = input.expiresAt.toISOString();
-  const subject = 'Verify your Hyperwood account';
+  const expiresAtLabel = formatEmailTimestamp(input.expiresAt);
+  const subject = 'Ative sua conta no Hyperwood';
+  const verificationLink =
+    env.EMAIL_VERIFICATION_URL_BASE.length > 0
+      ? `${env.EMAIL_VERIFICATION_URL_BASE.replace(/\/+$/, '')}/verify-email?token=${input.verificationToken}`
+      : null;
+
   const text = [
-    `Hello ${displayName},`,
+    `Olá ${displayName},`,
     '',
-    'Use the verification token below to activate your Hyperwood account:',
-    input.verificationToken,
+    verificationLink
+      ? 'Ative sua conta no Hyperwood abrindo o link abaixo:'
+      : 'Use o token abaixo para ativar sua conta no Hyperwood:',
+    verificationLink ?? input.verificationToken,
     '',
-    `This token expires at ${expiresAt}.`,
+    `O link expira em ${expiresAtLabel}.`,
     '',
-    'Submit it to POST /api/v1/auth/verify-email to complete verification.',
-  ].join('\n');
-  const html = [
-    `<p>Hello ${displayName},</p>`,
-    '<p>Use the verification token below to activate your Hyperwood account:</p>',
-    `<p><strong>${input.verificationToken}</strong></p>`,
-    `<p>This token expires at <strong>${expiresAt}</strong>.</p>`,
-    '<p>Submit it to <code>POST /api/v1/auth/verify-email</code> to complete verification.</p>',
-  ].join('');
+    verificationLink
+      ? 'Se o link não funcionar, use este token manualmente:'
+      : '',
+    verificationLink ? input.verificationToken : '',
+    '',
+    '— Equipe Hyperwood',
+  ]
+    .filter((line) => line.length > 0)
+    .join('\n');
+
+  const html = renderEmailLayout({
+    title: subject,
+    preheader: 'Confirme seu e-mail para começar a operar nos mercados.',
+    bodyHtml: renderVerificationEmailBody({
+      displayName,
+      verificationToken: input.verificationToken,
+      verificationLink,
+      expiresAtLabel,
+    }),
+    footerNote:
+      'Você recebeu este e-mail porque criou uma conta no Hyperwood. Se não foi você, ignore este e-mail.',
+    appUrl:
+      env.EMAIL_VERIFICATION_URL_BASE.replace(/\/+$/, '') || 'hyperwood.app',
+  });
 
   return {
     subject,
