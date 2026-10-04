@@ -1,0 +1,308 @@
+{
+  "events": [
+    {
+      "slug": "midterms-eua-2026-congresso",
+      "title": "Midterms EUA 2026 — Composição do Congresso",
+      "category": "Internacional",
+      "summary": "Três de novembro. Os democratas tentam virar a Câmara e o Senado contra o segundo mandato de Trump.",
+      "startsAt": "2026-10-03T21:00:00Z",
+      "endsAt": "2026-11-10T21:00:00Z",
+      "markets": [
+        {
+          "slug": "midterms-2026-sweep-democrata",
+          "title": "Sweep democrata (Câmara + Senado)?",
+          "summary": "Abrindo com 64% nos agregadores de outubro.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM se os democratas conquistarem maioria em AMBAS as casas (Câmara e Senado) nas eleições de novembro de 2026.",
+          "resolutionSources": [
+            "https://apnews.com"
+          ],
+          "yesPriceBps": 6400,
+          "noPriceBps": 3600,
+          "volumeUsdMinor": 3180000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-11-03T21:00:00Z",
+          "resolvesAt": "2026-11-06T21:00:00Z",
+          "tags": [
+            "eleicoes",
+            "eua",
+            "internacional"
+          ]
+        },
+        {
+          "slug": "midterms-2026-cursos-rep-duas-casas",
+          "title": "Republicanos mantêm as duas casas?",
+          "summary": "O mapa precisa de virada surpresa pros democratas não varrerem tudo.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM se os republicanos mantiverem maioria na Câmara E no Senado após os midterms de 2026.",
+          "resolutionSources": [
+            "https://apnews.com"
+          ],
+          "yesPriceBps": 800,
+          "noPriceBps": 9200,
+          "volumeUsdMinor": 1290000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-11-03T21:00:00Z",
+          "resolvesAt": "2026-11-06T21:00:00Z",
+          "tags": [
+            "eleicoes",
+            "eua",
+            "internacional"
+          ]
+        },
+        {
+          "slug": "midterms-2026-ossoff-ga-senado",
+          "title": "Jon Ossoff (D) se reelege na Geórgia?",
+          "summary": "A defesa do assento coreano, dependente do estado roxo.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM se Jon Ossoff for certificado vencedor da cadeira da Geórgia na eleição para o Senado dos EUA de novembro de 2026.",
+          "resolutionSources": [
+            "https://apnews.com"
+          ],
+          "yesPriceBps": 1600,
+          "noPriceBps": 8400,
+          "volumeUsdMinor": 980000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-11-03T21:00:00Z",
+          "resolvesAt": "2026-11-06T21:00:00Z",
+          "tags": [
+            "eleicoes",
+            "eua",
+            "internacional"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "eua-regulacion-de-acoes-2026",
+      "title": "Regulação de ações no Congresso (EUA)",
+      "category": "Internacional",
+      "summary": "A proposta de banir parlamentares de operar em bolsa de valores vive forever nos EUA. Quem acelera essa máquina?",
+      "startsAt": "2026-10-03T21:00:00Z",
+      "endsAt": "2029-01-25T21:00:00Z",
+      "markets": [
+        {
+          "slug": "eua-ban-ativos-congresso-2029",
+          "title": "Bloqueio de ações por deputados vira lei?",
+          "summary": "Antes de 21 de janeiro de 2029.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM se o Congresso dos EUA sancionar lei proibindo membros e cônjuges de operares em ativos negociáveis, certificado antes de 21/01/2029.",
+          "resolutionSources": [
+            "https://www.congress.gov"
+          ],
+          "yesPriceBps": 3200,
+          "noPriceBps": 6800,
+          "volumeUsdMinor": 810000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2029-01-20T21:00:00Z",
+          "resolvesAt": "2029-01-23T21:00:00Z",
+          "tags": [
+            "regulacao",
+            "eua"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "cripto-eua-clarity-act",
+      "title": "Clarity Act — Regulação cripto dos EUA",
+      "category": "Economia",
+      "summary": "O projeto que estrutura stablecoins e DeFi nos EUA pode virar lei antes do fim de 2027.",
+      "startsAt": "2026-10-03T21:00:00Z",
+      "endsAt": "2028-01-05T21:00:00Z",
+      "markets": [
+        {
+          "slug": "cripto-eua-clarity-act-antes-2028",
+          "title": "Clarity Act vira lei antes de 1/1/2028?",
+          "summary": "Aberto em 16% nas projeções de outubro.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM se o Clarity Act for sancionado (ou incorporado a lei sancionada) pelo Congresso americano até 31/12/2027, conforme https://www.congress.gov.",
+          "resolutionSources": [
+            "https://www.congress.gov"
+          ],
+          "yesPriceBps": 1800,
+          "noPriceBps": 8200,
+          "volumeUsdMinor": 1400000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2027-12-19T21:00:00Z",
+          "resolvesAt": "2027-12-31T21:00:00Z",
+          "tags": [
+            "cripto",
+            "eua",
+            "regulacao"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "esportes-sb-2026-champions-week",
+      "title": "Fio na Champions League e nos campeonatos domingos",
+      "category": "Esportes",
+      "summary": "Champions League e as semanas de NCAA Football. O divertimento USA + europeu.",
+      "startsAt": "2026-10-03T21:00:00Z",
+      "endsAt": "2026-10-14T21:00:00Z",
+      "markets": [
+        {
+          "slug": "esportes-fav-weekend-arsenal",
+          "title": "Arsenal vence o duelo da rodada?",
+          "summary": "Okan's favorite fixture do sábado.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM conforme resultado oficial divulgado após a partida.",
+          "resolutionSources": [
+            "https://www.uefa.com"
+          ],
+          "yesPriceBps": 5800,
+          "noPriceBps": 4200,
+          "volumeUsdMinor": 610000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-10-12T15:00:00Z",
+          "resolvesAt": "2026-10-13T21:00:00Z",
+          "tags": [
+            "futebol",
+            "champions"
+          ]
+        },
+        {
+          "slug": "esportes-fav-weekend-real-madrid",
+          "title": "Real Madrid vence o duelo da rodada?",
+          "summary": "Rodada La Liga/Champions unida.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM conforme resultado oficial divulgado após a partida.",
+          "resolutionSources": [
+            "https://www.uefa.com"
+          ],
+          "yesPriceBps": 6100,
+          "noPriceBps": 3900,
+          "volumeUsdMinor": 830000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-10-12T15:00:00Z",
+          "resolvesAt": "2026-10-13T21:00:00Z",
+          "tags": [
+            "futebol",
+            "champions"
+          ]
+        },
+        {
+          "slug": "esportes-fav-weekend-bayern",
+          "title": "Bayern vence o duelo da rodada?",
+          "summary": "Bundesliga x Champions unidas.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM conforme resultado oficial divulgado após a partida.",
+          "resolutionSources": [
+            "https://www.bundesliga.com"
+          ],
+          "yesPriceBps": 6400,
+          "noPriceBps": 3600,
+          "volumeUsdMinor": 470000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-10-12T15:00:00Z",
+          "resolvesAt": "2026-10-13T21:00:00Z",
+          "tags": [
+            "futebol",
+            "champions"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "ncaa-football-week-7-out-2026",
+      "title": "Grade de college football — semana de outubro",
+      "category": "Esportes",
+      "summary": "Domingo no college: matchups que decidem bowls e playoffs.",
+      "startsAt": "2026-10-03T21:00:00Z",
+      "endsAt": "2026-10-08T21:00:00Z",
+      "markets": [
+        {
+          "slug": "ncaa-weekend-texasam-vitoria",
+          "title": "Texas A&M vence o fim de semana?",
+          "summary": "Peso do favorito no game da semana.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM conforme resultado oficial da partida principal do fim de semana em questão.",
+          "resolutionSources": [
+            "https://www.ncaa.com"
+          ],
+          "yesPriceBps": 7200,
+          "noPriceBps": 2800,
+          "volumeUsdMinor": 210000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-10-05T01:00:00Z",
+          "resolvesAt": "2026-10-05T06:00:00Z",
+          "tags": [
+            "ncaa",
+            "futebol-americano"
+          ]
+        },
+        {
+          "slug": "ncaa-weekend-byu-vitoria",
+          "title": "BYU ou UNLV na prorrogação?",
+          "summary": "Fim de semana de loucuras no college.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM conforme resultado oficial das partidas em questão.",
+          "resolutionSources": [
+            "https://www.ncaa.com"
+          ],
+          "yesPriceBps": 6100,
+          "noPriceBps": 3900,
+          "volumeUsdMinor": 98000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-10-05T01:00:00Z",
+          "resolvesAt": "2026-10-05T06:00:00Z",
+          "tags": [
+            "ncaa",
+            "futebol-americano"
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "goal-livres-2026-mlb-playoffs",
+      "title": "MLB Playoffs no começo do outono",
+      "category": "Esportes",
+      "summary": "Wild card, divisional e championship games do beisebol americano.",
+      "startsAt": "2026-10-03T21:00:00Z",
+      "endsAt": "2026-10-20T21:00:00Z",
+      "markets": [
+        {
+          "slug": "mlb-playoffs-yankees-avancam",
+          "title": "Yankees avançam de chave nos playoffs?",
+          "summary": "Pressão do fim de semana.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM conforme resultado oficial da MLB.",
+          "resolutionSources": [
+            "https://www.mlb.com"
+          ],
+          "yesPriceBps": 5400,
+          "noPriceBps": 4600,
+          "volumeUsdMinor": 750000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-10-07T01:00:00Z",
+          "resolvesAt": "2026-10-08T06:00:00Z",
+          "tags": [
+            "mlb",
+            "beisebol"
+          ]
+        },
+        {
+          "slug": "mlb-playoffs-dodgers-avancam",
+          "title": "Dodgers avançam de chave nos playoffs?",
+          "summary": "Padrão perpétuo do beisebol moderno.",
+          "currency": "USD",
+          "resolutionRules": "Resolve SIM conforme resultado oficial da MLB.",
+          "resolutionSources": [
+            "https://www.mlb.com"
+          ],
+          "yesPriceBps": 6200,
+          "noPriceBps": 3800,
+          "volumeUsdMinor": 540000,
+          "opensAt": "2026-10-03T21:00:00Z",
+          "closesAt": "2026-10-07T01:00:00Z",
+          "resolvesAt": "2026-10-08T06:00:00Z",
+          "tags": [
+            "mlb",
+            "beisebol"
+          ]
+        }
+      ]
+    }
+  ]
+}

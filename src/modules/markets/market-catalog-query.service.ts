@@ -1,4 +1,4 @@
-import { and, asc, eq, ilike, or } from 'drizzle-orm';
+import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
 import { db } from '../../db/client';
 import {
   marketEvents,
@@ -26,6 +26,28 @@ export class MarketCatalogQueryService {
    * `await marketCatalogQueryService.listMarkets({ sort: 'newest', limit: 20 })`
    */
   async listMarkets(input: ListMarketsInput) {
+    const whereConditions = and(
+      input.category ? eq(marketEvents.category, input.category) : undefined,
+      input.status ? eq(markets.status, input.status) : undefined,
+      input.search
+        ? or(
+            ilike(markets.title, `%${input.search}%`),
+            ilike(markets.summary, `%${input.search}%`),
+            ilike(marketEvents.title, `%${input.search}%`),
+            ilike(marketEvents.summary, `%${input.search}%`),
+          )
+        : undefined,
+    );
+
+    const countRows = await db
+      .select({ total: sql<number>`count(*)` })
+      .from(markets)
+      .innerJoin(marketEvents, eq(marketEvents.id, markets.eventId))
+      .where(whereConditions);
+
+    const total = Number(countRows[0]?.total ?? 0);
+    const offset = input.offset ?? 0;
+
     const rows = await db
       .select({
         id: markets.id,
@@ -54,24 +76,10 @@ export class MarketCatalogQueryService {
       })
       .from(markets)
       .innerJoin(marketEvents, eq(marketEvents.id, markets.eventId))
-      .where(
-        and(
-          input.category
-            ? eq(marketEvents.category, input.category)
-            : undefined,
-          input.status ? eq(markets.status, input.status) : undefined,
-          input.search
-            ? or(
-                ilike(markets.title, `%${input.search}%`),
-                ilike(markets.summary, `%${input.search}%`),
-                ilike(marketEvents.title, `%${input.search}%`),
-                ilike(marketEvents.summary, `%${input.search}%`),
-              )
-            : undefined,
-        ),
-      )
+      .where(whereConditions)
       .orderBy(...getOrderByClause(input.sort))
-      .limit(Math.min(input.limit, 100));
+      .limit(Math.min(input.limit, 100))
+      .offset(Math.min(offset, 10000));
 
     const records = rows
       .map((row) => mapMarketRecord(row))
@@ -121,6 +129,12 @@ export class MarketCatalogQueryService {
       categories: await listMarketEventCategories(),
       eventGroups,
       markets: records,
+      pagination: {
+        total,
+        offset,
+        limit: input.limit,
+        hasMore: offset + records.length < total,
+      },
     };
   }
 

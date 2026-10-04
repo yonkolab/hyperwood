@@ -62,6 +62,7 @@ export type ListMarketsInput = {
   search?: string;
   sort?: 'newest' | 'closing_soon' | 'highest_volume';
   limit: number;
+  offset?: number;
 };
 
 export type MarketRecord = {

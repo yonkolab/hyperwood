@@ -425,6 +425,43 @@ describe('markets api', () => {
     expect(update.json()).toMatchObject({ error: 'invalid_closing_schedule' });
   });
 
+  it('paginates markets with offset and hasMore', async () => {
+    const event = await createMarketEvent(app);
+    for (let i = 0; i < 5; i += 1) {
+      await createMarket(app, event.body.event.id as string, {
+        title: `Pagination Market ${i}`,
+      });
+    }
+
+    const page1 = await app.inject({
+      method: 'GET',
+      url: '/api/v1/markets?limit=3&offset=0',
+    });
+
+    expect(page1.statusCode).toBe(200);
+    const body1 = page1.json();
+    expect(body1.markets.length).toBe(3);
+    expect(body1.pagination).toMatchObject({
+      limit: 3,
+      offset: 0,
+      hasMore: true,
+    });
+
+    const page2 = await app.inject({
+      method: 'GET',
+      url: `/api/v1/markets?limit=3&offset=${body1.pagination.offset + body1.markets.length}`,
+    });
+
+    expect(page2.statusCode).toBe(200);
+    const body2 = page2.json();
+    expect(body2.markets.length).toBeGreaterThan(0);
+    expect(
+      body2.markets.some(
+        (m: { id: string }) => !body1.markets.some((p: { id: string }) => p.id === m.id),
+      ),
+    ).toBe(true);
+  });
+
   it('serves flat baseline candles for active markets without trades', async () => {
     const event = await createMarketEvent(app);
     const market = await createMarket(app, event.body.event.id as string, {

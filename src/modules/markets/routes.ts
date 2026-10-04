@@ -94,6 +94,7 @@ async function marketRoutes(
 
     return marketsService.listMarkets({
       limit: query.limit,
+      ...(query.offset ? { offset: query.offset } : {}),
       ...(query.category ? { category: query.category } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.tag ? { tag: query.tag } : {}),

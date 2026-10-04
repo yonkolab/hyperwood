@@ -48,6 +48,7 @@ export const listMarketsQuerySchema = z.object({
   search: z.string().min(1).max(160).optional(),
   sort: z.enum(['newest', 'closing_soon', 'highest_volume']).optional(),
   limit: z.coerce.number().int().positive().max(100).default(25),
+  offset: z.coerce.number().int().nonnegative().max(10000).default(0),
 });
 
 export const marketParamsSchema = z.object({
