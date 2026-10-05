@@ -139,6 +139,48 @@ describe('identity api', () => {
     expect(login.body.mfaRequired).toBe(false);
   });
 
+  it('updates the authenticated user profile', async () => {
+    const session = await createVerifiedSession(app);
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/me',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+      payload: {
+        username: 'updated-trader',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().user).toMatchObject({
+      id: session.body.user.id,
+      email: session.body.user.email,
+      username: 'updated-trader',
+    });
+  });
+
+  it('rejects profile updates that use another user’s username', async () => {
+    const session = await createVerifiedSession(app);
+    const otherUser = await registerUser(app);
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/auth/me',
+      headers: {
+        authorization: `Bearer ${session.sessionToken}`,
+      },
+      payload: {
+        username: otherUser.credentials.username,
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: 'username_conflict',
+      message: 'username is already in use',
+    });
+  });
+
   it('rejects missing bearer auth on wallet balance', async () => {
     const response = await app.inject({
       method: 'GET',

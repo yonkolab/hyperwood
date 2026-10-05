@@ -34,6 +34,7 @@ import {
   requestEmailVerificationBodySchema,
   rotateApiKeyBodySchema,
   sessionParamsSchema,
+  updateProfileBodySchema,
   verifyEmailBodySchema,
   verifyTotpLoginBodySchema,
 } from './schema';
@@ -213,6 +214,16 @@ async function identityRoutes(
     const auth = getSessionAuthContext(request);
 
     return { user: auth.user };
+  });
+
+  app.patch('/auth/me', { preHandler: requireSession }, async (request) => {
+    const body = updateProfileBodySchema.parse(request.body);
+    const auth = getSessionAuthContext(request);
+
+    return identityService.updateProfile({
+      userId: auth.user.id,
+      username: body.username,
+    });
   });
 
   app.get('/auth/sessions', { preHandler: requireSession }, async (request) => {

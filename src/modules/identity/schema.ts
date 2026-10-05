@@ -12,6 +12,10 @@ export const loginBodySchema = z.object({
   password: z.string().min(1),
 });
 
+export const updateProfileBodySchema = z.object({
+  username: z.string().trim().min(3).max(64),
+});
+
 export const oauthProviderParamsSchema = z.object({
   provider: z.enum(['google', 'apple']),
 });

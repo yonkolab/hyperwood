@@ -20,6 +20,11 @@ export type RegisterInput = {
   password: string;
 };
 
+export type UpdateProfileInput = {
+  userId: string;
+  username: string;
+};
+
 export type LoginInput = {
   email: string;
   password: string;

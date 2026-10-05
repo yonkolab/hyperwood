@@ -329,6 +329,31 @@ authMe:
               $ref: ../components/schemas/identity.yaml#/AuthMeResponse
       '401':
         $ref: ../components/responses/common.yaml#/Unauthorized
+  patch:
+    operationId: updateAuthenticatedUserProfile
+    tags: [Identity]
+    summary: Update the authenticated user's basic profile
+    security:
+      - SessionBearer: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/UpdateProfileRequest
+    responses:
+      '200':
+        description: Updated current user.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/AuthMeResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '404':
+        $ref: ../components/responses/common.yaml#/NotFound
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
 
 sessions:
   get:

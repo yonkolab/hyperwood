@@ -2,6 +2,7 @@ import { ApiKeyAuthenticationService } from './api-key-authentication.service';
 import { ApiKeyLifecycleService } from './api-key-lifecycle.service';
 import { EmailVerificationService } from './email-verification.service';
 import { IdentityLoginService } from './identity-login.service';
+import { IdentityProfileService } from './identity-profile.service';
 import { IdentityRegistrationService } from './identity-registration.service';
 import { LoginAuditService } from './login-audit.service';
 import { OAuthLoginService, type OAuthProvider } from './oauth-login.service';
@@ -47,6 +48,7 @@ export class IdentityService {
     this.loginAuditService,
     this.sessionService,
   );
+  private readonly profileService = new IdentityProfileService();
   private readonly oauthLoginService = new OAuthLoginService(
     this.sessionService,
     this.loginAuditService,
@@ -70,6 +72,10 @@ export class IdentityService {
 
   async login(input: LoginInput) {
     return this.loginService.login(input);
+  }
+
+  async updateProfile(input: { userId: string; username: string }) {
+    return this.profileService.updateProfile(input);
   }
 
   getOAuthProviders() {
