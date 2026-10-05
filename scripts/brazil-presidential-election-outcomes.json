@@ -1,0 +1,168 @@
+{
+  "eventSlug": "eleicoes-brasil-2026",
+  "eventTitle": "Eleição presidencial do Brasil — 2026",
+  "eventSummary": "Mercado para acompanhar os resultados da eleição presidencial brasileira de 2026. O primeiro turno ocorreu em 4 de outubro; o resultado definitivo pode depender do segundo turno, previsto para 25 de outubro. Os contratos individuais são acompanhados conforme as regras abaixo; a eleição ainda não tem vencedor final.",
+  "eventEndsAt": "2027-07-01T03:59:00.000Z",
+  "updatedAt": "2026-10-05",
+  "closingAt": "2027-07-01T03:59:00.000Z",
+  "resolutionAt": "2027-07-01T03:59:00.000Z",
+  "resolutionRules": "Resolve SIM se o candidato indicado for confirmado como vencedor da eleição presidencial brasileira de 2026, incluindo eventual segundo turno. A resolução considera o consenso de fontes jornalísticas confiáveis; se houver ambiguidade, prevalecem os resultados oficiais publicados pelo Tribunal Superior Eleitoral (TSE). Se o resultado não for conhecido até 30 de junho de 2027, às 23h59 no horário do leste dos Estados Unidos, resolve como Outro. Esta é uma paráfrase das regras do mercado de referência.",
+  "resolutionSources": [
+    "https://polymarket.com/event/brazil-presidential-election",
+    "https://resultados.tse.jus.br"
+  ],
+  "outcomes": [
+    {
+      "slug": "eleicoes-2026-flavio-eleito",
+      "title": "Flávio Bolsonaro vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Flávio Bolsonaro",
+      "marketStatus": "active",
+      "yesPriceBps": 8265,
+      "polymarketSlug": "will-flvio-bolsonaro-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-2026-lula-reeleito",
+      "title": "Luiz Inácio Lula da Silva vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Luiz Inácio Lula da Silva",
+      "marketStatus": "active",
+      "yesPriceBps": 1750,
+      "polymarketSlug": "will-luiz-incio-lula-da-silva-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-tarcisio-de-freitas",
+      "title": "Tarcísio de Freitas vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Tarcísio de Freitas",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-tarcisio-de-frietas-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-jair-bolsonaro",
+      "title": "Jair Bolsonaro vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Jair Bolsonaro",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-jair-bolsonaro-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-fernando-haddad",
+      "title": "Fernando Haddad vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Fernando Haddad",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-fernando-haddad-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-michelle-bolsonaro",
+      "title": "Michelle Bolsonaro vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Michelle Bolsonaro",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-michelle-bolsonaro-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-eduardo-bolsonaro",
+      "title": "Eduardo Bolsonaro vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Eduardo Bolsonaro",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-eduardo-bolsonaro-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-ratinho-junior",
+      "title": "Ratinho Júnior vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Ratinho Júnior",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-carlos-roberto-massa-jnior-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-renan-santos",
+      "title": "Renan Santos vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Renan Santos",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-renan-santos-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-ronaldo-caiado",
+      "title": "Ronaldo Caiado vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Ronaldo Caiado",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-ronaldo-caiado-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-romeu-zema",
+      "title": "Romeu Zema vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Romeu Zema",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-romeu-zema-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-camilo-santana",
+      "title": "Camilo Santana vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Camilo Santana",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-camilo-santana-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-geraldo-alckmin",
+      "title": "Geraldo Alckmin vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Geraldo Alckmin",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-geraldo-alckmin-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-eduardo-leite",
+      "title": "Eduardo Leite vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Eduardo Leite",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-eduardo-leite-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-aldo-rebelo",
+      "title": "Aldo Rebelo vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Aldo Rebelo",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-aldo-rebelo-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-tereza-cristina",
+      "title": "Tereza Cristina vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Tereza Cristina",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-tereza-cristina-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-helder-barbalho",
+      "title": "Helder Barbalho vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Helder Barbalho",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-helder-barbalho-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-pablo-marcal",
+      "title": "Pablo Marçal vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Pablo Marçal",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-pablo-marcal-win-the-2026-brazilian-presidential-election"
+    },
+    {
+      "slug": "eleicoes-brasil-2026-outcome-augusto-cury",
+      "title": "Augusto Cury vence a eleição presidencial do Brasil em 2026?",
+      "candidate": "Augusto Cury",
+      "marketStatus": "resolved_no",
+      "yesPriceBps": 0,
+      "polymarketSlug": "will-augusto-cury-win-the-2026-brazilian-presidential-election"
+    }
+  ]
+}

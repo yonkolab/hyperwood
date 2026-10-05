@@ -14,6 +14,8 @@ import type {
   MarketResolutionOutcome,
   MarketStatus,
   PublishMarketAnnouncementInput,
+  UpdateMarketDetailsInput,
+  UpdateMarketEventInput,
 } from './types';
 
 export class MarketsService {
@@ -41,8 +43,16 @@ export class MarketsService {
     return this.marketLifecycleService.createEvent(input);
   }
 
+  async updateEvent(input: UpdateMarketEventInput) {
+    return this.marketLifecycleService.updateEvent(input);
+  }
+
   async createMarket(input: CreateMarketInput) {
     return this.marketLifecycleService.createMarket(input);
+  }
+
+  async updateMarketDetails(input: UpdateMarketDetailsInput) {
+    return this.marketLifecycleService.updateMarketDetails(input);
   }
 
   async listMarkets(input: ListMarketsInput) {

@@ -11,6 +11,7 @@ import {
   acquireMarketWriteLock,
   assertAllowedMarketStatusTransition,
   assertEventExists,
+  assertNoOpenOrders,
   assertPriceSnapshot,
   mapStatusTransition,
 } from './market-workflow-support';
@@ -18,6 +19,8 @@ import type {
   CreateMarketEventInput,
   CreateMarketInput,
   MarketStatus,
+  UpdateMarketDetailsInput,
+  UpdateMarketEventInput,
 } from './types';
 
 export class MarketLifecycleService {
@@ -40,6 +43,66 @@ export class MarketLifecycleService {
     return {
       event: insertedRows[0],
     };
+  }
+
+  async updateEvent(input: UpdateMarketEventInput) {
+    const [event] = await db
+      .select()
+      .from(marketEvents)
+      .where(eq(marketEvents.id, input.eventId))
+      .limit(1);
+
+    if (!event) {
+      throw new AppError(
+        404,
+        'market_event_not_found',
+        `market event was not found: ${input.eventId}`,
+      );
+    }
+
+    const [updatedEvent] = await db.transaction(async (tx) => {
+      const updatedRows = await tx
+        .update(marketEvents)
+        .set({
+          ...(input.title === undefined ? {} : { title: input.title }),
+          ...(input.summary === undefined ? {} : { summary: input.summary }),
+          ...(input.endsAt === undefined ? {} : { endsAt: input.endsAt }),
+          updatedAt: new Date(),
+        })
+        .where(eq(marketEvents.id, event.id))
+        .returning();
+
+      await this.adminAuditService.recordEvent(
+        {
+          action: 'market_event.updated',
+          actor: input.changedBy ?? 'bootstrap',
+          targetType: 'market_event',
+          targetId: event.id,
+          payload: {
+            title: input.title ?? event.title,
+            summary:
+              input.summary === undefined ? event.summary : input.summary,
+            endsAt:
+              input.endsAt === undefined
+                ? (event.endsAt?.toISOString() ?? null)
+                : (input.endsAt?.toISOString() ?? null),
+          },
+        },
+        tx,
+      );
+
+      return updatedRows;
+    });
+
+    if (!updatedEvent) {
+      throw new AppError(
+        500,
+        'market_event_update_failed',
+        `failed to update market event ${event.id}`,
+      );
+    }
+
+    return { event: updatedEvent };
   }
 
   async createMarket(input: CreateMarketInput) {
@@ -89,6 +152,105 @@ export class MarketLifecycleService {
       });
 
       return { market };
+    });
+  }
+
+  async updateMarketDetails(input: UpdateMarketDetailsInput) {
+    return db.transaction(async (tx) => {
+      await acquireMarketWriteLock(tx, input.marketId);
+      const [market] = await tx
+        .select()
+        .from(markets)
+        .where(eq(markets.id, input.marketId))
+        .limit(1);
+
+      if (!market) {
+        throw new AppError(
+          404,
+          'market_not_found',
+          `market was not found: ${input.marketId}`,
+        );
+      }
+
+      if (market.status !== 'active') {
+        throw new AppError(
+          409,
+          'market_not_active',
+          'only active markets can have their terms or reference prices updated',
+        );
+      }
+
+      const yesPriceBps = input.yesPriceBps ?? market.yesPriceBps;
+      const noPriceBps = input.noPriceBps ?? market.noPriceBps;
+      assertPriceSnapshot(yesPriceBps, noPriceBps);
+
+      if (
+        yesPriceBps !== market.yesPriceBps ||
+        noPriceBps !== market.noPriceBps
+      ) {
+        await assertNoOpenOrders(tx, market.id);
+      }
+
+      const closesAt =
+        input.closesAt === undefined ? market.closesAt : input.closesAt;
+      const resolvesAt =
+        input.resolvesAt === undefined ? market.resolvesAt : input.resolvesAt;
+
+      if (closesAt && resolvesAt && resolvesAt.getTime() < closesAt.getTime()) {
+        throw new AppError(
+          400,
+          'invalid_closing_schedule',
+          'resolvesAt must not be earlier than closesAt',
+        );
+      }
+
+      const now = new Date();
+      const [updatedMarket] = await tx
+        .update(markets)
+        .set({
+          ...(input.title === undefined ? {} : { title: input.title }),
+          ...(input.summary === undefined ? {} : { summary: input.summary }),
+          ...(input.tags === undefined ? {} : { tags: input.tags }),
+          ...(input.resolutionRules === undefined
+            ? {}
+            : { resolutionRules: input.resolutionRules }),
+          ...(input.resolutionSources === undefined
+            ? {}
+            : { resolutionSources: input.resolutionSources }),
+          yesPriceBps,
+          noPriceBps,
+          closesAt,
+          resolvesAt,
+          updatedAt: now,
+        })
+        .where(eq(markets.id, market.id))
+        .returning();
+
+      if (!updatedMarket) {
+        throw new AppError(
+          500,
+          'market_update_failed',
+          `failed to update market ${market.id}`,
+        );
+      }
+
+      await this.adminAuditService.recordEvent(
+        {
+          action: 'market.details_updated',
+          actor: input.changedBy ?? 'bootstrap',
+          targetType: 'market',
+          targetId: market.id,
+          payload: {
+            title: input.title ?? market.title,
+            yesPriceBps,
+            noPriceBps,
+            resolutionRules: input.resolutionRules ?? market.resolutionRules,
+          },
+        },
+        tx,
+      );
+
+      return { market: updatedMarket };
     });
   }
 

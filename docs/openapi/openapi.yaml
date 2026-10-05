@@ -167,8 +167,12 @@ paths:
     $ref: ./paths/markets.yaml#/announcements
   /api/v1/internal/markets/events:
     $ref: ./paths/markets.yaml#/internalEvents
+  /api/v1/internal/markets/events/{eventId}:
+    $ref: ./paths/markets.yaml#/internalEventById
   /api/v1/internal/markets:
     $ref: ./paths/markets.yaml#/internalMarkets
+  /api/v1/internal/markets/{marketId}:
+    $ref: ./paths/markets.yaml#/internalMarketById
   /api/v1/internal/markets/{marketId}/match:
     $ref: ./paths/markets.yaml#/internalMatch
   /api/v1/internal/markets/{marketId}/announcements:

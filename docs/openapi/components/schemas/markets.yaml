@@ -24,6 +24,23 @@ CreateEventResponse:
     event:
       $ref: ./common.yaml#/MarketEvent
 
+UpdateEventRequest:
+  type: object
+  minProperties: 1
+  properties:
+    title:
+      type: string
+      minLength: 3
+      maxLength: 160
+    summary:
+      type: string
+      nullable: true
+      maxLength: 2000
+    endsAt:
+      type: string
+      format: date-time
+      nullable: true
+
 CreateMarketRequest:
   type: object
   required:
@@ -103,6 +120,52 @@ CreateMarketResponse:
   properties:
     market:
       $ref: ./common.yaml#/MarketRecord
+
+UpdateMarketDetailsRequest:
+  type: object
+  minProperties: 1
+  properties:
+    title:
+      type: string
+      minLength: 3
+      maxLength: 160
+    summary:
+      type: string
+      nullable: true
+      maxLength: 2000
+    tags:
+      type: array
+      maxItems: 16
+      items:
+        type: string
+        minLength: 1
+        maxLength: 64
+    resolutionRules:
+      type: string
+      minLength: 3
+      maxLength: 4000
+    resolutionSources:
+      type: array
+      maxItems: 16
+      items:
+        type: string
+        format: uri
+    yesPriceBps:
+      type: integer
+      minimum: 0
+      maximum: 10000
+    noPriceBps:
+      type: integer
+      minimum: 0
+      maximum: 10000
+    closesAt:
+      type: string
+      format: date-time
+      nullable: true
+    resolvesAt:
+      type: string
+      format: date-time
+      nullable: true
 
 MarketListResponse:
   type: object

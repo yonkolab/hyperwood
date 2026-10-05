@@ -113,6 +113,61 @@ describe('markets api', () => {
     expect(detail.json().market.currency).toBe('USD');
   });
 
+  it('updates market event metadata and reference prices through internal APIs', async () => {
+    const event = await createMarketEvent(app);
+    const market = await createMarket(app, event.body.event.id as string);
+
+    const eventUpdate = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/internal/markets/events/${event.body.event.id}`,
+      headers: bootstrapHeaders(),
+      payload: {
+        title: 'Updated election',
+        summary: null,
+        endsAt: '2028-11-10T00:00:00.000Z',
+      },
+    });
+
+    expect(eventUpdate.statusCode).toBe(200);
+    expect(eventUpdate.json().event).toMatchObject({
+      title: 'Updated election',
+      summary: null,
+      endsAt: '2028-11-10T00:00:00.000Z',
+    });
+
+    const marketUpdate = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/internal/markets/${market.body.market.id}`,
+      headers: bootstrapHeaders(),
+      payload: {
+        title: 'Updated candidate market',
+        yesPriceBps: 8265,
+        noPriceBps: 1735,
+        resolutionRules: 'Resolves YES if the candidate wins.',
+      },
+    });
+
+    expect(marketUpdate.statusCode).toBe(200);
+    expect(marketUpdate.json().market).toMatchObject({
+      title: 'Updated candidate market',
+      yesPriceBps: 8265,
+      noPriceBps: 1735,
+      resolutionRules: 'Resolves YES if the candidate wins.',
+    });
+
+    const invalidPriceUpdate = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/internal/markets/${market.body.market.id}`,
+      headers: bootstrapHeaders(),
+      payload: {
+        yesPriceBps: 8265,
+        noPriceBps: 1734,
+      },
+    });
+
+    expect(invalidPriceUpdate.statusCode).toBe(400);
+  });
+
   it('returns empty order book and trade collections for a new market', async () => {
     const event = await createMarketEvent(app);
     const market = await createMarket(app, event.body.event.id as string);
@@ -457,7 +512,8 @@ describe('markets api', () => {
     expect(body2.markets.length).toBeGreaterThan(0);
     expect(
       body2.markets.some(
-        (m: { id: string }) => !body1.markets.some((p: { id: string }) => p.id === m.id),
+        (m: { id: string }) =>
+          !body1.markets.some((p: { id: string }) => p.id === m.id),
       ),
     ).toBe(true);
   });

@@ -23,6 +23,18 @@ export const createEventBodySchema = z.object({
   endsAt: z.string().datetime().optional(),
 });
 
+export const eventParamsSchema = z.object({
+  eventId: z.string().uuid(),
+});
+
+export const updateEventBodySchema = z
+  .object({
+    title: z.string().min(3).max(160).optional(),
+    summary: z.string().max(2000).nullable().optional(),
+    endsAt: z.union([z.string().datetime(), z.null()]).optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0);
+
 export const createMarketBodySchema = z.object({
   eventId: z.string().uuid(),
   slug: z.string().min(3).max(128),
@@ -40,6 +52,20 @@ export const createMarketBodySchema = z.object({
   closesAt: z.string().datetime().optional(),
   resolvesAt: z.string().datetime().optional(),
 });
+
+export const updateMarketDetailsBodySchema = z
+  .object({
+    title: z.string().min(3).max(160).optional(),
+    summary: z.string().max(2000).nullable().optional(),
+    tags: z.array(z.string().min(1).max(64)).max(16).optional(),
+    resolutionRules: z.string().min(3).max(4000).optional(),
+    resolutionSources: z.array(z.string().url()).max(16).optional(),
+    yesPriceBps: z.number().int().min(0).max(10000).optional(),
+    noPriceBps: z.number().int().min(0).max(10000).optional(),
+    closesAt: z.union([z.string().datetime(), z.null()]).optional(),
+    resolvesAt: z.union([z.string().datetime(), z.null()]).optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0);
 
 export const listMarketsQuerySchema = z.object({
   category: z.string().min(2).max(64).optional(),

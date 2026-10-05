@@ -31,6 +31,14 @@ export type CreateMarketEventInput = {
   endsAt?: Date;
 };
 
+export type UpdateMarketEventInput = {
+  eventId: string;
+  title?: string;
+  summary?: string | null;
+  endsAt?: Date | null;
+  changedBy?: string;
+};
+
 export type CreateMarketInput = {
   eventId: string;
   slug: string;
@@ -47,6 +55,20 @@ export type CreateMarketInput = {
   opensAt?: Date;
   closesAt?: Date;
   resolvesAt?: Date;
+};
+
+export type UpdateMarketDetailsInput = {
+  marketId: string;
+  title?: string;
+  summary?: string | null;
+  tags?: string[];
+  resolutionRules?: string;
+  resolutionSources?: string[];
+  yesPriceBps?: number;
+  noPriceBps?: number;
+  closesAt?: Date | null;
+  resolvesAt?: Date | null;
+  changedBy?: string;
 };
 
 export type PublishMarketAnnouncementInput = {

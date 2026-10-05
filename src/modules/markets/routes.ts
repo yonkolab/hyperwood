@@ -29,6 +29,7 @@ import { marketRealtimeService } from './market-realtime.service';
 import {
   createEventBodySchema,
   createMarketBodySchema,
+  eventParamsSchema,
   historicalCandlesQuerySchema,
   listMarketsQuerySchema,
   marketParamsSchema,
@@ -36,7 +37,9 @@ import {
   publishMarketAnnouncementBodySchema,
   recentTradesQuerySchema,
   resolveMarketBodySchema,
+  updateEventBodySchema,
   updateMarketClosingBodySchema,
+  updateMarketDetailsBodySchema,
   updateMarketStatusBodySchema,
 } from './schema';
 import { MarketsService } from './service';
@@ -245,6 +248,31 @@ async function marketRoutes(
     },
   );
 
+  app.patch(
+    '/internal/markets/events/:eventId',
+    { preHandler: requireMarketsWrite },
+    async (request, reply) => {
+      const auth = getInternalAuthContext(request);
+      const params = eventParamsSchema.parse(request.params);
+      const body = updateEventBodySchema.parse(request.body);
+      const result = await marketsService.updateEvent({
+        eventId: params.eventId,
+        ...(body.title === undefined ? {} : { title: body.title }),
+        ...(body.summary === undefined ? {} : { summary: body.summary }),
+        ...(body.endsAt === undefined
+          ? {}
+          : { endsAt: body.endsAt ? new Date(body.endsAt) : null }),
+        changedBy: auth.internalActor,
+      });
+
+      logWorkflowEvent(request, 'market_event.updated', {
+        eventId: result.event.id,
+      });
+
+      reply.status(200).send(result);
+    },
+  );
+
   app.post(
     '/internal/markets',
     { preHandler: requireMarketsWrite },
@@ -274,6 +302,55 @@ async function marketRoutes(
       });
 
       reply.status(201).send(result);
+    },
+  );
+
+  app.patch(
+    '/internal/markets/:marketId',
+    { preHandler: requireMarketsWrite },
+    async (request, reply) => {
+      const auth = getInternalAuthContext(request);
+      const params = marketParamsSchema.parse(request.params);
+      const body = updateMarketDetailsBodySchema.parse(request.body);
+      const result = await marketsService.updateMarketDetails({
+        marketId: params.marketId,
+        ...(body.title === undefined ? {} : { title: body.title }),
+        ...(body.summary === undefined ? {} : { summary: body.summary }),
+        ...(body.tags === undefined ? {} : { tags: body.tags }),
+        ...(body.resolutionRules === undefined
+          ? {}
+          : { resolutionRules: body.resolutionRules }),
+        ...(body.resolutionSources === undefined
+          ? {}
+          : { resolutionSources: body.resolutionSources }),
+        ...(body.yesPriceBps === undefined
+          ? {}
+          : { yesPriceBps: body.yesPriceBps }),
+        ...(body.noPriceBps === undefined
+          ? {}
+          : { noPriceBps: body.noPriceBps }),
+        ...(body.closesAt === undefined
+          ? {}
+          : { closesAt: body.closesAt ? new Date(body.closesAt) : null }),
+        ...(body.resolvesAt === undefined
+          ? {}
+          : { resolvesAt: body.resolvesAt ? new Date(body.resolvesAt) : null }),
+        changedBy: auth.internalActor,
+      });
+
+      logWorkflowEvent(request, 'market.details_updated', {
+        marketId: result.market.id,
+        yesPriceBps: result.market.yesPriceBps,
+        noPriceBps: result.market.noPriceBps,
+      });
+
+      await publishStatusChange(
+        marketsService,
+        result.market.id,
+        'market_details_updated',
+      );
+
+      reply.status(200).send(result);
     },
   );
 
