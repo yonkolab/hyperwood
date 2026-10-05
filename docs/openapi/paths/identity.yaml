@@ -51,6 +51,127 @@ login:
       '429':
         $ref: ../components/responses/common.yaml#/TooManyRequests
 
+oauthProviders:
+  get:
+    operationId: getOAuthProviders
+    tags: [Identity]
+    summary: List configured social login providers
+    security: []
+    responses:
+      '200':
+        description: Provider availability for sign-in and registration.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/OAuthProvidersResponse
+
+oauthAuthorize:
+  get:
+    operationId: authorizeOAuthLogin
+    tags: [Identity]
+    summary: Start an OAuth authorization-code flow
+    security: []
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [google, apple]
+    responses:
+      '302':
+        description: Redirect to the selected identity provider.
+      '503':
+        description: The selected provider is not configured.
+
+oauthCallback:
+  get:
+    operationId: callbackOAuthLogin
+    tags: [Identity]
+    summary: Receive a Google OAuth authorization response
+    security: []
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [google, apple]
+      - name: code
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: false
+        schema:
+          type: string
+    responses:
+      '302':
+        description: Redirect to the frontend social-auth callback.
+  post:
+    operationId: callbackAppleOAuthLogin
+    tags: [Identity]
+    summary: Receive Apple's form-post authorization response
+    security: []
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [google, apple]
+    requestBody:
+      required: true
+      content:
+        application/x-www-form-urlencoded:
+          schema:
+            type: object
+            properties:
+              code:
+                type: string
+              state:
+                type: string
+              error:
+                type: string
+    responses:
+      '302':
+        description: Redirect to the frontend social-auth callback.
+
+oauthExchange:
+  post:
+    operationId: exchangeOAuthLoginCode
+    tags: [Identity]
+    summary: Exchange a one-time OAuth login code for an application session
+    security: []
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [google, apple]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/OAuthExchangeRequest
+    responses:
+      '200':
+        description: Successful login or MFA challenge.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: ../components/schemas/identity.yaml#/LoginSessionResponse
+                - $ref: ../components/schemas/identity.yaml#/LoginMfaChallengeResponse
+      '401':
+        $ref: ../components/responses/common.yaml#/Unauthorized
+      '409':
+        $ref: ../components/responses/common.yaml#/Conflict
+
 requestEmailVerification:
   post:
     operationId: requestEmailVerification

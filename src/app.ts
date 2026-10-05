@@ -155,9 +155,13 @@ function getRateLimitPolicy(
     '/api/v1/auth/mfa/totp/verify',
   ]);
 
+  const isSocialAuthPath =
+    /^\/api\/v1\/auth\/oauth\/(google|apple)\/(authorize|callback|exchange)$/.test(
+      pathname,
+    );
   const scope = getRateLimitScope(request, pathname);
 
-  if (authPaths.has(pathname)) {
+  if (authPaths.has(pathname) || isSocialAuthPath) {
     return {
       bucket: 'auth_external',
       limit: env.AUTH_RATE_LIMIT_MAX_REQUESTS,
@@ -217,6 +221,27 @@ export async function buildApp(
       } catch (error) {
         done(error as Error, undefined);
       }
+    },
+  );
+  app.addContentTypeParser(
+    /^application\/x-www-form-urlencoded(?:;.*)?$/,
+    { parseAs: 'string' },
+    (_request, body, done) => {
+      const params = new URLSearchParams(
+        typeof body === 'string' ? body : body.toString('utf8'),
+      );
+      const parsed: Record<string, string> = {};
+
+      for (const [key, value] of params) {
+        if (key in parsed) {
+          done(new Error(`duplicate form field "${key}"`), undefined);
+          return;
+        }
+
+        parsed[key] = value;
+      }
+
+      done(null, parsed);
     },
   );
 

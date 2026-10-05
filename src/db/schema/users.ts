@@ -112,6 +112,35 @@ export const userIdentities = pgTable(
   ],
 );
 
+export const oauthLoginTransactions = pgTable(
+  'oauth_login_transactions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    provider: varchar('provider', { length: 16 }).notNull(),
+    stateHash: text('state_hash').notNull(),
+    nonce: varchar('nonce', { length: 128 }).notNull(),
+    codeVerifier: varchar('code_verifier', { length: 128 }).notNull(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    authorizationCodeHash: text('authorization_code_hash'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    redeemedAt: timestamp('redeemed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('oauth_login_transactions_user_id_idx').on(table.userId),
+    index('oauth_login_transactions_expires_at_idx').on(table.expiresAt),
+    uniqueIndex('oauth_login_transactions_state_hash_unique').on(
+      table.stateHash,
+    ),
+    uniqueIndex('oauth_login_transactions_authorization_code_hash_unique').on(
+      table.authorizationCodeHash,
+    ),
+  ],
+);
+
 export const userSessions = pgTable(
   'user_sessions',
   {

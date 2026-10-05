@@ -28,6 +28,59 @@ describe('identity api', () => {
     await app.close();
   });
 
+  it('reports which social login providers are configured', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/oauth/providers',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().providers).toEqual({
+      google: expect.any(Boolean),
+      apple: expect.any(Boolean),
+    });
+  });
+
+  it('rejects an OAuth callback with an invalid state without contacting a provider', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/oauth/google/callback?code=unused&state=invalid',
+    });
+
+    expect(response.statusCode).toBe(302);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
+    expect(response.headers.location).toContain('error=oauth_state_invalid');
+  });
+
+  it('accepts Apple form-post callbacks and rejects invalid state safely', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/oauth/apple/callback',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      payload: 'code=unused&state=invalid',
+    });
+
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toContain('error=oauth_state_invalid');
+  });
+
+  it('rejects an invalid or replayed OAuth exchange code', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/oauth/google/exchange',
+      payload: { code: 'not-a-valid-code' },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({
+      error: 'oauth_code_invalid',
+    });
+    expect(response.headers['cache-control']).toBe('no-store');
+  });
+
   it('registers a user and issues an email verification challenge', async () => {
     const result = await registerUser(app);
 

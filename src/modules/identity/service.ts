@@ -4,6 +4,7 @@ import { EmailVerificationService } from './email-verification.service';
 import { IdentityLoginService } from './identity-login.service';
 import { IdentityRegistrationService } from './identity-registration.service';
 import { LoginAuditService } from './login-audit.service';
+import { OAuthLoginService, type OAuthProvider } from './oauth-login.service';
 import { OperatorAuthenticationService } from './operator-authentication.service';
 import { OperatorPrincipalService } from './operator-principal.service';
 import { SensitiveActionAuthorizationService } from './sensitive-action-authorization.service';
@@ -46,6 +47,10 @@ export class IdentityService {
     this.loginAuditService,
     this.sessionService,
   );
+  private readonly oauthLoginService = new OAuthLoginService(
+    this.sessionService,
+    this.loginAuditService,
+  );
   private readonly totpFactorService = new TotpFactorService(
     this.sessionService,
     this.loginAuditService,
@@ -65,6 +70,41 @@ export class IdentityService {
 
   async login(input: LoginInput) {
     return this.loginService.login(input);
+  }
+
+  getOAuthProviders() {
+    return this.oauthLoginService.getProviders();
+  }
+
+  createOAuthAuthorizationUrl(provider: OAuthProvider) {
+    return this.oauthLoginService.createAuthorizationUrl(provider);
+  }
+
+  handleOAuthCallback(
+    provider: OAuthProvider,
+    input: {
+      code?: string | undefined;
+      state?: string | undefined;
+      error?: string | undefined;
+    },
+  ) {
+    return this.oauthLoginService.handleProviderCallback(provider, input);
+  }
+
+  createOAuthFailureRedirectUrl(error: unknown) {
+    return this.oauthLoginService.createFailureRedirectUrl(error);
+  }
+
+  exchangeOAuthAuthorizationCode(
+    provider: OAuthProvider,
+    code: string,
+    input: { ipAddress?: string; userAgent?: string },
+  ) {
+    return this.oauthLoginService.exchangeAuthorizationCode(
+      provider,
+      code,
+      input,
+    );
   }
 
   async getUserFromSessionToken(sessionToken: string) {

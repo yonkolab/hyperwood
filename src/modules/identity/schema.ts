@@ -12,6 +12,20 @@ export const loginBodySchema = z.object({
   password: z.string().min(1),
 });
 
+export const oauthProviderParamsSchema = z.object({
+  provider: z.enum(['google', 'apple']),
+});
+
+export const oauthCallbackSchema = z.object({
+  code: z.string().min(1).optional(),
+  state: z.string().min(1).optional(),
+  error: z.string().min(1).optional(),
+});
+
+export const oauthExchangeBodySchema = z.object({
+  code: z.string().min(1).max(128),
+});
+
 export const requestEmailVerificationBodySchema = z.object({
   email: z.string().email(),
 });

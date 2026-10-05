@@ -126,6 +126,24 @@ const envSchema = z.object({
     .positive()
     .default(30),
   INTERNAL_BOOTSTRAP_TOKEN: z.string().min(1),
+  SOCIAL_AUTH_FRONTEND_CALLBACK_URL: z
+    .string()
+    .url()
+    .default('http://localhost:3002/auth/callback'),
+  GOOGLE_OAUTH_CLIENT_ID: z.string().default(''),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().default(''),
+  GOOGLE_OAUTH_REDIRECT_URI: z
+    .string()
+    .url()
+    .default('http://localhost:3000/api/v1/auth/oauth/google/callback'),
+  APPLE_OAUTH_CLIENT_ID: z.string().default(''),
+  APPLE_OAUTH_TEAM_ID: z.string().default(''),
+  APPLE_OAUTH_KEY_ID: z.string().default(''),
+  APPLE_OAUTH_PRIVATE_KEY: z.string().default(''),
+  APPLE_OAUTH_REDIRECT_URI: z
+    .string()
+    .url()
+    .default('http://localhost:3000/api/v1/auth/oauth/apple/callback'),
 });
 
 const parsedEnv = envSchema.parse(process.env);
@@ -170,6 +188,53 @@ if (parsedEnv.EMAIL_DELIVERY_PROVIDER === 'mailersend') {
     throw new Error(
       `MAILERSEND_FROM_EMAIL="${parsedEnv.MAILERSEND_FROM_EMAIL}" must use MAILERSEND_DOMAIN="${parsedEnv.MAILERSEND_DOMAIN}"`,
     );
+  }
+}
+
+const googleOAuthValues = [
+  parsedEnv.GOOGLE_OAUTH_CLIENT_ID,
+  parsedEnv.GOOGLE_OAUTH_CLIENT_SECRET,
+];
+if (
+  googleOAuthValues.some(Boolean) &&
+  googleOAuthValues.some((value) => !value)
+) {
+  throw new Error(
+    'GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET must be configured together',
+  );
+}
+
+const appleOAuthValues = [
+  parsedEnv.APPLE_OAUTH_CLIENT_ID,
+  parsedEnv.APPLE_OAUTH_TEAM_ID,
+  parsedEnv.APPLE_OAUTH_KEY_ID,
+  parsedEnv.APPLE_OAUTH_PRIVATE_KEY,
+];
+if (
+  appleOAuthValues.some(Boolean) &&
+  appleOAuthValues.some((value) => !value)
+) {
+  throw new Error(
+    'All APPLE_OAUTH_CLIENT_ID, APPLE_OAUTH_TEAM_ID, APPLE_OAUTH_KEY_ID, and APPLE_OAUTH_PRIVATE_KEY values must be configured together',
+  );
+}
+
+if (
+  parsedEnv.NODE_ENV === 'production' &&
+  (parsedEnv.GOOGLE_OAUTH_CLIENT_ID || parsedEnv.APPLE_OAUTH_CLIENT_ID)
+) {
+  const oauthUrls = [
+    parsedEnv.SOCIAL_AUTH_FRONTEND_CALLBACK_URL,
+    ...(parsedEnv.GOOGLE_OAUTH_CLIENT_ID
+      ? [parsedEnv.GOOGLE_OAUTH_REDIRECT_URI]
+      : []),
+    ...(parsedEnv.APPLE_OAUTH_CLIENT_ID
+      ? [parsedEnv.APPLE_OAUTH_REDIRECT_URI]
+      : []),
+  ];
+
+  if (oauthUrls.some((value) => !value.startsWith('https://'))) {
+    throw new Error('OAuth redirect URLs must use HTTPS in production');
   }
 }
 

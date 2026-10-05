@@ -1,4 +1,9 @@
-import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import type {
+  FastifyInstance,
+  FastifyPluginOptions,
+  FastifyReply,
+  FastifyRequest,
+} from 'fastify';
 import {
   getApiHmacHeaders,
   getApiKeyFromRequest,
@@ -20,6 +25,9 @@ import {
   emailWebhookProviderParamsSchema,
   linkExistingUserBodySchema,
   loginBodySchema,
+  oauthCallbackSchema,
+  oauthExchangeBodySchema,
+  oauthProviderParamsSchema,
   operatorParamsSchema,
   operatorTokenParamsSchema,
   registerBodySchema,
@@ -63,6 +71,77 @@ async function identityRoutes(
         ? { userAgent: request.headers['user-agent'] }
         : {}),
     });
+
+    reply.send(result);
+  });
+
+  app.get('/auth/oauth/providers', async () =>
+    identityService.getOAuthProviders(),
+  );
+
+  app.get('/auth/oauth/:provider/authorize', async (request, reply) => {
+    const { provider } = oauthProviderParamsSchema.parse(request.params);
+    reply.header('cache-control', 'no-store');
+    reply.header('referrer-policy', 'no-referrer');
+    const authorizationUrl =
+      await identityService.createOAuthAuthorizationUrl(provider);
+
+    reply.redirect(authorizationUrl);
+  });
+
+  const handleOAuthCallback = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    const { provider } = oauthProviderParamsSchema.parse(request.params);
+
+    try {
+      const input = oauthCallbackSchema.parse(
+        request.method === 'POST' ? request.body : request.query,
+      );
+      const callbackUrl = await identityService.handleOAuthCallback(
+        provider,
+        input,
+      );
+
+      reply.header('cache-control', 'no-store');
+      reply.header('referrer-policy', 'no-referrer');
+      return reply.redirect(callbackUrl);
+    } catch (error) {
+      request.log.warn({ error, provider }, 'OAuth provider callback failed');
+      reply.header('cache-control', 'no-store');
+      reply.header('referrer-policy', 'no-referrer');
+      return reply.redirect(
+        identityService.createOAuthFailureRedirectUrl(error),
+      );
+    }
+  };
+
+  app.get(
+    '/auth/oauth/:provider/callback',
+    { logLevel: 'silent' },
+    handleOAuthCallback,
+  );
+  app.post(
+    '/auth/oauth/:provider/callback',
+    { logLevel: 'silent' },
+    handleOAuthCallback,
+  );
+
+  app.post('/auth/oauth/:provider/exchange', async (request, reply) => {
+    const { provider } = oauthProviderParamsSchema.parse(request.params);
+    const body = oauthExchangeBodySchema.parse(request.body);
+    reply.header('cache-control', 'no-store');
+    const result = await identityService.exchangeOAuthAuthorizationCode(
+      provider,
+      body.code,
+      {
+        ipAddress: request.ip,
+        ...(request.headers['user-agent']
+          ? { userAgent: request.headers['user-agent'] }
+          : {}),
+      },
+    );
 
     reply.send(result);
   });
