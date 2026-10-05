@@ -2,7 +2,11 @@ import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../../src/db/client';
-import { transactionalEmailAttempts, userSessions } from '../../src/db/schema';
+import {
+  passwordResetTokens,
+  transactionalEmailAttempts,
+  userSessions,
+} from '../../src/db/schema';
 import { hmacSha256Hex } from '../../src/lib/crypto';
 import { buildApiHmacPayload } from '../../src/modules/identity/identity-workflow-support';
 import { buildTestApp } from '../helpers/app';
@@ -137,6 +141,121 @@ describe('identity api', () => {
     expect(login.body.user.email).toBe(registration.credentials.email);
     expect(login.body.sessionToken).toEqual(expect.any(String));
     expect(login.body.mfaRequired).toBe(false);
+  });
+
+  it('returns the same password reset response for known and unknown emails', async () => {
+    const session = await createVerifiedSession(app);
+    const known = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password/forgot',
+      payload: { email: session.credentials.email },
+    });
+    const unknown = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password/forgot',
+      payload: { email: 'unknown-password-reset@example.com' },
+    });
+
+    expect(known.statusCode).toBe(202);
+    expect(unknown.statusCode).toBe(202);
+    expect(known.json().message).toBe(unknown.json().message);
+    expect(known.headers['cache-control']).toBe('no-store');
+    expect(known.json().developmentResetToken).toEqual(expect.any(String));
+
+    const emailAttempts = await db
+      .select()
+      .from(transactionalEmailAttempts)
+      .where(
+        eq(
+          transactionalEmailAttempts.recipientEmail,
+          session.credentials.email,
+        ),
+      );
+
+    expect(emailAttempts).toHaveLength(2);
+    expect(emailAttempts).toContainEqual(
+      expect.objectContaining({
+        messageType: 'password_reset',
+        sourceType: 'password_reset',
+      }),
+    );
+  });
+
+  it('resets the password once, revokes sessions, and rejects token replay', async () => {
+    const session = await createVerifiedSession(app);
+    const request = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password/forgot',
+      payload: { email: session.credentials.email },
+    });
+    const token = request.json().developmentResetToken as string;
+    const reset = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password/reset',
+      payload: { token, password: 'NewPassword123!' },
+    });
+
+    expect(reset.statusCode).toBe(200);
+    expect(reset.json()).toEqual({ reset: true });
+
+    const replay = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password/reset',
+      payload: { token, password: 'AnotherPassword123!' },
+    });
+    expect(replay.statusCode).toBe(400);
+    expect(replay.json()).toMatchObject({ error: 'password_reset_invalid' });
+
+    const sessions = await db
+      .select()
+      .from(userSessions)
+      .where(eq(userSessions.userId, session.body.user.id));
+    expect(sessions.length).toBeGreaterThan(0);
+    expect(
+      sessions.every((userSession) => userSession.revokedAt !== null),
+    ).toBe(true);
+
+    const oldPasswordLogin = await loginUser(app, session.credentials);
+    const newPasswordLogin = await loginUser(app, {
+      email: session.credentials.email,
+      password: 'NewPassword123!',
+    });
+    expect(oldPasswordLogin.response.statusCode).toBe(401);
+    expect(newPasswordLogin.response.statusCode).toBe(200);
+  });
+
+  it('rejects a malformed password reset request', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password/reset',
+      payload: { token: '', password: 'short' },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects an expired password reset token', async () => {
+    const session = await createVerifiedSession(app);
+    const request = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password/forgot',
+      payload: { email: session.credentials.email },
+    });
+    const token = request.json().developmentResetToken as string;
+
+    await db
+      .update(passwordResetTokens)
+      .set({ expiresAt: new Date(Date.now() - 1_000) })
+      .where(eq(passwordResetTokens.userId, session.body.user.id));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/password/reset',
+      payload: { token, password: 'NewPassword123!' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'password_reset_invalid' });
   });
 
   it('updates the authenticated user profile', async () => {

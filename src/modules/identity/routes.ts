@@ -32,6 +32,8 @@ import {
   operatorTokenParamsSchema,
   registerBodySchema,
   requestEmailVerificationBodySchema,
+  requestPasswordResetBodySchema,
+  resetPasswordBodySchema,
   rotateApiKeyBodySchema,
   sessionParamsSchema,
   updateProfileBodySchema,
@@ -163,6 +165,25 @@ async function identityRoutes(
     });
 
     reply.send(result);
+  });
+
+  app.post('/auth/password/forgot', async (request, reply) => {
+    const body = requestPasswordResetBodySchema.parse(request.body);
+    const result = await identityService.requestPasswordReset({
+      email: body.email,
+    });
+
+    reply.status(202).header('cache-control', 'no-store').send(result);
+  });
+
+  app.post('/auth/password/reset', async (request, reply) => {
+    const body = resetPasswordBodySchema.parse(request.body);
+    const result = await identityService.resetPassword({
+      token: body.token,
+      password: body.password,
+    });
+
+    reply.header('cache-control', 'no-store').send(result);
   });
 
   app.post('/webhooks/email/providers/:provider', async (request, reply) => {

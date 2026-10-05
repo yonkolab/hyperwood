@@ -38,6 +38,15 @@ export const verifyEmailBodySchema = z.object({
   token: z.string().min(1),
 });
 
+export const requestPasswordResetBodySchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordBodySchema = z.object({
+  token: z.string().min(1).max(128),
+  password: z.string().min(10).max(128),
+});
+
 export const confirmTotpSetupBodySchema = z.object({
   factorId: z.string().uuid(),
   code: z.string().regex(/^\d{6}$/),

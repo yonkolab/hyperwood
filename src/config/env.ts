@@ -73,6 +73,7 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(60),
+  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(30),
   MAILERSEND_API_TOKEN: z.string().default(''),
   MAILERSEND_DOMAIN: z
     .string()

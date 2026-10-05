@@ -206,6 +206,27 @@ export const emailVerificationTokens = pgTable(
   ],
 );
 
+export const passwordResetTokens = pgTable(
+  'password_reset_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('password_reset_tokens_user_id_idx').on(table.userId),
+    index('password_reset_tokens_expires_at_idx').on(table.expiresAt),
+    uniqueIndex('password_reset_tokens_token_hash_unique').on(table.tokenHash),
+  ],
+);
+
 export const mfaLoginChallenges = pgTable(
   'mfa_login_challenges',
   {
@@ -397,6 +418,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(userSessions),
   mfaFactors: many(userMfaFactors),
   emailVerificationTokens: many(emailVerificationTokens),
+  passwordResetTokens: many(passwordResetTokens),
   mfaLoginChallenges: many(mfaLoginChallenges),
   mfaActionAuthorizations: many(mfaActionAuthorizations),
   loginEvents: many(loginEvents),
@@ -437,6 +459,16 @@ export const emailVerificationTokensRelations = relations(
   ({ one }) => ({
     user: one(users, {
       fields: [emailVerificationTokens.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const passwordResetTokensRelations = relations(
+  passwordResetTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [passwordResetTokens.userId],
       references: [users.id],
     }),
   }),

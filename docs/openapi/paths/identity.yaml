@@ -226,6 +226,57 @@ verifyEmail:
       '410':
         $ref: ../components/responses/common.yaml#/Gone
 
+requestPasswordReset:
+  post:
+    operationId: requestPasswordReset
+    tags: [Identity]
+    summary: Request a password reset email
+    description: Always returns the same public response to prevent account enumeration.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/RequestPasswordResetRequest
+    responses:
+      '202':
+        description: If an eligible account exists, reset instructions will be sent.
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+              example: no-store
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/RequestPasswordResetResponse
+
+resetPassword:
+  post:
+    operationId: resetPassword
+    tags: [Identity]
+    summary: Reset a password using a single-use email token
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/identity.yaml#/ResetPasswordRequest
+    responses:
+      '200':
+        description: Password updated and existing sessions revoked.
+        headers:
+          Cache-Control:
+            schema:
+              type: string
+              example: no-store
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/identity.yaml#/ResetPasswordResponse
+      '400':
+        $ref: ../components/responses/common.yaml#/BadRequest
+
 emailProviderWebhook:
   post:
     operationId: receiveEmailProviderWebhook

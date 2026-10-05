@@ -5,16 +5,40 @@ import {
   suppressedEmailRecipients,
   transactionalEmailAttempts,
 } from '../../db/schema';
-import { buildVerificationEmailTemplate } from './email-delivery-support';
+import {
+  buildPasswordResetEmailTemplate,
+  buildVerificationEmailTemplate,
+} from './email-delivery-support';
 import {
   MailerSendEmailClient,
   MailerSendRequestError,
 } from './mailersend-email-client';
 import { ResendEmailClient, ResendRequestError } from './resend-email-client';
 import type {
+  PasswordResetEmailDeliveryInput,
   VerificationEmailDeliveryInput,
   VerificationEmailDeliveryResult,
 } from './types';
+
+type EmailTemplate = {
+  subject: string;
+  text: string;
+  html: string;
+};
+
+type EmailMessageInput = {
+  userId: string;
+  email: string;
+  username: string | null;
+  messageType: string;
+  sourceType:
+    | 'user_registration'
+    | 'email_verification_resend'
+    | 'password_reset';
+  sourceId: string;
+  expiresAt: Date;
+  template: EmailTemplate;
+};
 
 export class TransactionalEmailDeliveryService {
   private readonly mailerSendClient = new MailerSendEmailClient();
@@ -29,6 +53,34 @@ export class TransactionalEmailDeliveryService {
   async deliverVerificationEmail(
     input: VerificationEmailDeliveryInput,
   ): Promise<VerificationEmailDeliveryResult> {
+    return this.deliverMessage({
+      userId: input.userId,
+      email: input.email,
+      username: input.username,
+      messageType: 'email_verification',
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      expiresAt: input.expiresAt,
+      template: buildVerificationEmailTemplate(input),
+    });
+  }
+
+  async deliverPasswordResetEmail(
+    input: PasswordResetEmailDeliveryInput,
+  ): Promise<VerificationEmailDeliveryResult> {
+    return this.deliverMessage({
+      userId: input.userId,
+      email: input.email,
+      username: input.username,
+      messageType: 'password_reset',
+      sourceType: 'password_reset',
+      sourceId: input.sourceId,
+      expiresAt: input.expiresAt,
+      template: buildPasswordResetEmailTemplate(input),
+    });
+  }
+
+  private async deliverMessage(input: EmailMessageInput) {
     const recipientSuppression = await db
       .select({
         id: suppressedEmailRecipients.id,
@@ -44,7 +96,7 @@ export class TransactionalEmailDeliveryService {
       return this.recordAttempt({
         userId: input.userId,
         recipientEmail: input.email,
-        messageType: 'email_verification',
+        messageType: input.messageType,
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         status: 'failed',
@@ -63,7 +115,7 @@ export class TransactionalEmailDeliveryService {
       return this.recordAttempt({
         userId: input.userId,
         recipientEmail: input.email,
-        messageType: 'email_verification',
+        messageType: input.messageType,
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         status: 'development_override',
@@ -77,7 +129,6 @@ export class TransactionalEmailDeliveryService {
       });
     }
 
-    const template = buildVerificationEmailTemplate(input);
     const provider = env.EMAIL_DELIVERY_PROVIDER;
     const providerName = provider === 'resend' ? 'resend' : 'mailersend';
 
@@ -87,23 +138,23 @@ export class TransactionalEmailDeliveryService {
           ? await this.resendClient.sendVerificationEmail({
               toEmail: input.email,
               toName: input.username,
-              subject: template.subject,
-              text: template.text,
-              html: template.html,
+              subject: input.template.subject,
+              text: input.template.text,
+              html: input.template.html,
             })
           : await this.mailerSendClient.sendVerificationEmail({
               toEmail: input.email,
               toName: input.username,
-              subject: template.subject,
-              text: template.text,
-              html: template.html,
+              subject: input.template.subject,
+              text: input.template.text,
+              html: input.template.html,
             });
 
       if (result.warningCode || result.warningMessage) {
         return this.recordAttempt({
           userId: input.userId,
           recipientEmail: input.email,
-          messageType: 'email_verification',
+          messageType: input.messageType,
           sourceType: input.sourceType,
           sourceId: input.sourceId,
           status: 'failed',
@@ -120,7 +171,7 @@ export class TransactionalEmailDeliveryService {
       return this.recordAttempt({
         userId: input.userId,
         recipientEmail: input.email,
-        messageType: 'email_verification',
+        messageType: input.messageType,
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         status: 'queued',
@@ -138,7 +189,7 @@ export class TransactionalEmailDeliveryService {
       return this.recordAttempt({
         userId: input.userId,
         recipientEmail: input.email,
-        messageType: 'email_verification',
+        messageType: input.messageType,
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         status: 'failed',

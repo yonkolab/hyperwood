@@ -139,6 +139,46 @@ VerifyEmailRequest:
     token:
       type: string
 
+RequestPasswordResetRequest:
+  type: object
+  required: [email]
+  properties:
+    email:
+      type: string
+      format: email
+
+RequestPasswordResetResponse:
+  type: object
+  required: [message]
+  properties:
+    message:
+      type: string
+    developmentResetToken:
+      type: string
+      nullable: true
+      description: Present only in non-production environments for local testing.
+
+ResetPasswordRequest:
+  type: object
+  required: [token, password]
+  properties:
+    token:
+      type: string
+      minLength: 1
+      maxLength: 128
+    password:
+      type: string
+      minLength: 10
+      maxLength: 128
+
+ResetPasswordResponse:
+  type: object
+  required: [reset]
+  properties:
+    reset:
+      type: boolean
+      enum: [true]
+
 VerifyEmailResponse:
   type: object
   required: [user, verified]

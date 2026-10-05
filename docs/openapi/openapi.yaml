@@ -63,6 +63,10 @@ paths:
     $ref: ./paths/identity.yaml#/requestEmailVerification
   /api/v1/auth/verify-email:
     $ref: ./paths/identity.yaml#/verifyEmail
+  /api/v1/auth/password/forgot:
+    $ref: ./paths/identity.yaml#/requestPasswordReset
+  /api/v1/auth/password/reset:
+    $ref: ./paths/identity.yaml#/resetPassword
   /api/v1/webhooks/email/providers/{provider}:
     $ref: ./paths/identity.yaml#/emailProviderWebhook
   /api/v1/auth/mfa/totp/verify:

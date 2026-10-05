@@ -8,6 +8,7 @@ import { LoginAuditService } from './login-audit.service';
 import { OAuthLoginService, type OAuthProvider } from './oauth-login.service';
 import { OperatorAuthenticationService } from './operator-authentication.service';
 import { OperatorPrincipalService } from './operator-principal.service';
+import { PasswordResetService } from './password-reset.service';
 import { SensitiveActionAuthorizationService } from './sensitive-action-authorization.service';
 import { IdentitySessionService } from './session.service';
 import { TotpFactorService } from './totp-factor.service';
@@ -49,6 +50,7 @@ export class IdentityService {
     this.sessionService,
   );
   private readonly profileService = new IdentityProfileService();
+  private readonly passwordResetService = new PasswordResetService();
   private readonly oauthLoginService = new OAuthLoginService(
     this.sessionService,
     this.loginAuditService,
@@ -76,6 +78,14 @@ export class IdentityService {
 
   async updateProfile(input: { userId: string; username: string }) {
     return this.profileService.updateProfile(input);
+  }
+
+  async requestPasswordReset(input: { email: string }) {
+    return this.passwordResetService.requestPasswordReset(input);
+  }
+
+  async resetPassword(input: { token: string; password: string }) {
+    return this.passwordResetService.resetPassword(input);
   }
 
   getOAuthProviders() {

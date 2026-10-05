@@ -152,6 +152,8 @@ function getRateLimitPolicy(
     '/api/v1/auth/login',
     '/api/v1/auth/request-email-verification',
     '/api/v1/auth/verify-email',
+    '/api/v1/auth/password/forgot',
+    '/api/v1/auth/password/reset',
     '/api/v1/auth/mfa/totp/verify',
   ]);
 

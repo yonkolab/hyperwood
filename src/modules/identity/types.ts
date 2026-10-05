@@ -76,9 +76,19 @@ export type RequestEmailVerificationInput = {
   email: string;
 };
 
+export type RequestPasswordResetInput = {
+  email: string;
+};
+
+export type ResetPasswordInput = {
+  token: string;
+  password: string;
+};
+
 export type TransactionalEmailSourceType =
   | 'user_registration'
-  | 'email_verification_resend';
+  | 'email_verification_resend'
+  | 'password_reset';
 
 export type VerificationEmailDeliveryInput = {
   userId: string;
@@ -87,6 +97,15 @@ export type VerificationEmailDeliveryInput = {
   verificationToken: string;
   expiresAt: Date;
   sourceType: TransactionalEmailSourceType;
+  sourceId: string;
+};
+
+export type PasswordResetEmailDeliveryInput = {
+  userId: string;
+  email: string;
+  username: string | null;
+  resetToken: string;
+  expiresAt: Date;
   sourceId: string;
 };
 
